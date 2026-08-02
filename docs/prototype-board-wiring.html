@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESPNoise prototype-board wiring</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #f5f6f8;
+      --foreground: #18202a;
+      --card: #ffffff;
+      --card-foreground: #18202a;
+      --primary: #2457c5;
+      --primary-foreground: #ffffff;
+      --secondary: #e9edf3;
+      --muted-foreground: #5c6673;
+      --border: #bcc5d0;
+      --viz-series-1: #c43d32;
+      --viz-series-2: #23835d;
+      --viz-series-3: #326bc8;
+      --viz-series-4: #8a4fba;
+      --viz-series-5: #c16b12;
+      --viz-series-6: #167d92;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #11151a;
+        --foreground: #edf1f5;
+        --card: #1b2129;
+        --card-foreground: #edf1f5;
+        --primary: #8fb1ff;
+        --primary-foreground: #101725;
+        --secondary: #29313b;
+        --muted-foreground: #aab4c0;
+        --border: #45515f;
+        --viz-series-1: #ff8177;
+        --viz-series-2: #65d3a5;
+        --viz-series-3: #8db4ff;
+        --viz-series-4: #d5a0f2;
+        --viz-series-5: #f2ad61;
+        --viz-series-6: #62c7dc;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="espnoise-wiring">
+  <style>
+    #espnoise-wiring {
+      color: var(--foreground);
+      width: 100%;
+    }
+    #espnoise-wiring .net-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 0.75rem;
+    }
+    #espnoise-wiring button {
+      appearance: none;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--card-foreground);
+      padding: 0.4rem 0.75rem;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    #espnoise-wiring button[aria-pressed="true"] {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-color: var(--primary);
+    }
+    #espnoise-wiring .drawing {
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      background: var(--card);
+      overflow: hidden;
+    }
+    #espnoise-wiring svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      color: var(--card-foreground);
+    }
+    #espnoise-wiring .board {
+      fill: color-mix(in srgb, var(--viz-series-2) 9%, var(--card));
+      stroke: var(--border);
+      stroke-width: 2;
+    }
+    #espnoise-wiring .part {
+      fill: var(--secondary);
+      stroke: var(--border);
+      stroke-width: 2;
+    }
+    #espnoise-wiring .future {
+      fill: color-mix(in srgb, var(--viz-series-6) 8%, var(--card));
+      stroke: var(--viz-series-6);
+      stroke-width: 2;
+      stroke-dasharray: 7 6;
+    }
+    #espnoise-wiring .pad {
+      fill: var(--card);
+      stroke: var(--muted-foreground);
+      stroke-width: 1.5;
+    }
+    #espnoise-wiring .bus,
+    #espnoise-wiring .wire {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: opacity 140ms ease;
+    }
+    #espnoise-wiring .bus { stroke-width: 6; }
+    #espnoise-wiring .wire { stroke-width: 3.5; }
+    #espnoise-wiring [data-net="power"] { stroke: var(--viz-series-1); }
+    #espnoise-wiring [data-net="ground"] { stroke: var(--muted-foreground); }
+    #espnoise-wiring [data-net="mic"] { stroke: var(--viz-series-3); }
+    #espnoise-wiring [data-net="control"] { stroke: var(--viz-series-4); }
+    #espnoise-wiring [data-net="buzzer"] { stroke: var(--viz-series-5); }
+    #espnoise-wiring [data-net="led"] { stroke: var(--viz-series-6); }
+    #espnoise-wiring .dim { opacity: 0.1; }
+    #espnoise-wiring text {
+      fill: var(--card-foreground);
+      font-family: inherit;
+      font-weight: 400;
+    }
+    #espnoise-wiring .label { font-weight: 500; }
+    #espnoise-wiring .secondary-label { fill: var(--muted-foreground); }
+    #espnoise-wiring .pin-label { font-size: 14px; }
+    #espnoise-wiring .main-label { font-size: 18px; }
+    #espnoise-wiring .small-label { font-size: 12px; }
+    #espnoise-wiring .tables {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    #espnoise-wiring .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      background: var(--card);
+    }
+    #espnoise-wiring table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #espnoise-wiring caption {
+      text-align: left;
+      padding: 0.65rem 0.75rem;
+      font-weight: 500;
+      color: var(--card-foreground);
+      background: var(--secondary);
+    }
+    #espnoise-wiring th,
+    #espnoise-wiring td {
+      padding: 0.48rem 0.65rem;
+      text-align: left;
+      border-top: 1px solid var(--border);
+      vertical-align: top;
+    }
+    #espnoise-wiring th { font-weight: 500; }
+    #espnoise-wiring .full { grid-column: 1 / -1; }
+    #espnoise-wiring .footnote {
+      margin-top: 0.65rem;
+      color: var(--muted-foreground);
+    }
+    @media (max-width: 620px) {
+      #espnoise-wiring .tables { grid-template-columns: 1fr; }
+      #espnoise-wiring .full { grid-column: auto; }
+    }
+  </style>
+
+  <div class="net-controls" role="group" aria-label="Show wiring group">
+    <button type="button" data-filter="all" aria-pressed="true">All wires</button>
+    <button type="button" data-filter="power" aria-pressed="false">5 V</button>
+    <button type="button" data-filter="ground" aria-pressed="false">GND</button>
+    <button type="button" data-filter="mic" aria-pressed="false">Microphone</button>
+    <button type="button" data-filter="control" aria-pressed="false">Button</button>
+    <button type="button" data-filter="buzzer" aria-pressed="false">Buzzer</button>
+    <button type="button" data-filter="led" aria-pressed="false">LED output</button>
+  </div>
+
+  <div class="drawing">
+    <svg viewBox="0 0 1200 650" role="img" aria-labelledby="wiring-title wiring-desc">
+      <title id="wiring-title">Suggested solder-side wiring for the noise detector prototype board</title>
+      <desc id="wiring-desc">The solder side is mirrored from the supplied component-side photograph. The switch is at the left and the microphone is at the right. Colored paths connect the buzzer, button, microphone, LED buffer, ground, and five volt supply to two ESP32 connectors.</desc>
+
+      <defs>
+        <pattern id="pads" width="28" height="28" patternUnits="userSpaceOnUse">
+          <circle cx="14" cy="14" r="3.5" class="pad" />
+        </pattern>
+      </defs>
+
+      <text x="42" y="34" class="main-label label">SOLDER SIDE — copper pads facing you</text>
+      <text x="42" y="58" class="secondary-label">Mirrored from your photo: bistable switch is left; microphone is right</text>
+
+      <rect x="35" y="78" width="1130" height="410" rx="18" class="board" />
+      <rect x="48" y="91" width="1104" height="384" rx="12" fill="url(#pads)" opacity="0.55" />
+
+      <!-- Board rails -->
+      <path d="M 85 122 H 1110" class="bus" data-net="power" />
+      <text x="94" y="113" class="small-label label">5 V BUS</text>
+      <path d="M 85 446 H 1110" class="bus" data-net="ground" />
+      <text x="94" y="438" class="small-label label">COMMON GND BUS</text>
+
+      <!-- Bistable switch, mirrored to left -->
+      <rect x="74" y="186" width="136" height="82" rx="10" class="part" />
+      <text x="142" y="216" text-anchor="middle" class="label">BISTABLE</text>
+      <text x="142" y="239" text-anchor="middle">BUZZER SWITCH</text>
+      <circle cx="98" cy="186" r="7" class="pad" />
+      <circle cx="186" cy="186" r="7" class="pad" />
+      <text x="90" y="173" class="small-label">5 V</text>
+      <text x="175" y="173" class="small-label">OUT</text>
+      <path d="M 98 122 V 179" class="wire" data-net="power" />
+      <path d="M 186 179 V 154 H 264 V 210" class="wire" data-net="buzzer" />
+
+      <!-- Buzzer -->
+      <circle cx="290" cy="249" r="76" class="part" />
+      <text x="290" y="240" text-anchor="middle" class="label">PASSIVE</text>
+      <text x="290" y="263" text-anchor="middle">BUZZER</text>
+      <circle cx="264" cy="210" r="7" class="pad" />
+      <circle cx="324" cy="300" r="7" class="pad" />
+      <text x="244" y="201" class="label">+</text>
+      <text x="332" y="307" class="label">−</text>
+
+      <!-- 2N3904 -->
+      <path d="M 382 193 Q 430 155 478 193 V 259 Q 430 293 382 259 Z" class="part" />
+      <text x="430" y="216" text-anchor="middle" class="label">Q1</text>
+      <text x="430" y="238" text-anchor="middle">2N3904</text>
+      <circle cx="397" cy="278" r="7" class="pad" />
+      <circle cx="430" cy="278" r="7" class="pad" />
+      <circle cx="463" cy="278" r="7" class="pad" />
+      <text x="393" y="301" class="small-label label">C</text>
+      <text x="426" y="301" class="small-label label">B</text>
+      <text x="459" y="301" class="small-label label">E</text>
+      <path d="M 324 300 H 360 V 278 H 390" class="wire" data-net="buzzer" />
+      <path d="M 463 285 V 446" class="wire" data-net="ground" />
+
+      <!-- Base resistor -->
+      <path d="M 430 285 V 334 H 459" class="wire" data-net="buzzer" />
+      <rect x="459" y="321" width="105" height="26" rx="8" class="part" />
+      <text x="511" y="339" text-anchor="middle" class="small-label label">5.1 kΩ</text>
+      <path d="M 564 334 H 635" class="wire" data-net="buzzer" />
+
+      <!-- Mute button -->
+      <rect x="528" y="178" width="140" height="126" rx="10" class="part" />
+      <circle cx="598" cy="241" r="32" fill="var(--card)" stroke="var(--border)" stroke-width="2" />
+      <text x="598" y="220" text-anchor="middle" class="label">30 MIN</text>
+      <text x="598" y="267" text-anchor="middle">MUTE</text>
+      <circle cx="548" cy="316" r="7" class="pad" />
+      <circle cx="648" cy="316" r="7" class="pad" />
+      <text x="531" y="339" class="small-label">GND</text>
+      <text x="629" y="339" class="small-label">GPIO27</text>
+      <path d="M 548 323 V 446" class="wire" data-net="ground" />
+      <path d="M 648 323 V 372 H 694" class="wire" data-net="control" />
+
+      <!-- Future AHCT buffer in free area -->
+      <rect x="708" y="162" width="190" height="154" rx="10" class="future" />
+      <text x="803" y="189" text-anchor="middle" class="label">ADD LATER</text>
+      <text x="803" y="214" text-anchor="middle">SN74AHCT125N</text>
+      <text x="726" y="242" class="pin-label">14 VCC ← 5 V</text>
+      <text x="726" y="264" class="pin-label">7, 1 → GND</text>
+      <text x="726" y="286" class="pin-label">2 ← GPIO18</text>
+      <text x="726" y="308" class="pin-label">3 → 330 Ω → DIN</text>
+      <path d="M 782 162 V 122" class="wire" data-net="power" />
+      <path d="M 816 316 V 446" class="wire" data-net="ground" />
+
+      <!-- INMP441, mirrored to right -->
+      <circle cx="1032" cy="242" r="100" class="part" />
+      <circle cx="1032" cy="242" r="19" fill="var(--card)" stroke="var(--border)" stroke-width="2" />
+      <text x="1032" y="205" text-anchor="middle" class="label">INMP441</text>
+      <text x="1032" y="293" text-anchor="middle" class="secondary-label">Use labels on module</text>
+      <circle cx="952" cy="174" r="7" class="pad" />
+      <circle cx="1004" cy="150" r="7" class="pad" />
+      <circle cx="1060" cy="150" r="7" class="pad" />
+      <circle cx="1112" cy="174" r="7" class="pad" />
+      <circle cx="1106" cy="307" r="7" class="pad" />
+      <circle cx="958" cy="307" r="7" class="pad" />
+      <text x="925" y="166" class="small-label label">GND</text>
+      <text x="985" y="137" class="small-label label">VDD</text>
+      <text x="1049" y="137" class="small-label label">SD</text>
+      <text x="1119" y="168" class="small-label label">SCK</text>
+      <text x="1114" y="330" class="small-label label">WS</text>
+      <text x="926" y="330" class="small-label label">L/R</text>
+      <path d="M 952 167 V 122" class="wire" data-net="power" opacity="0" />
+      <path d="M 952 181 H 924 V 446" class="wire" data-net="ground" />
+      <path d="M 958 314 V 446" class="wire" data-net="ground" />
+      <path d="M 1004 143 V 104 H 942" class="wire" data-net="mic" />
+      <text x="902" y="108" class="small-label label">3V3</text>
+      <path d="M 1060 143 V 92 H 930" class="wire" data-net="mic" />
+      <text x="864" y="96" class="small-label label">GPIO32</text>
+      <path d="M 1112 181 H 1140 V 352 H 930" class="wire" data-net="mic" />
+      <text x="862" y="356" class="small-label label">GPIO26</text>
+      <path d="M 1106 314 V 382 H 930" class="wire" data-net="mic" />
+      <text x="862" y="386" class="small-label label">GPIO25</text>
+
+      <!-- Suggested wire exits -->
+      <rect x="626" y="396" width="214" height="72" rx="9" class="part" />
+      <text x="733" y="417" text-anchor="middle" class="label">J1 → ESP32 (6-pin)</text>
+      <text x="643" y="440" class="small-label">3V3 · GND · 26 · 25 · 32 · 27</text>
+      <path d="M 694 372 V 396" class="wire" data-net="control" />
+      <path d="M 714 396 V 365 H 930" class="wire" data-net="mic" />
+
+      <rect x="360" y="383" width="224" height="62" rx="9" class="part" />
+      <text x="472" y="405" text-anchor="middle" class="label">J2 → ESP32 / 5 V (4-pin)</text>
+      <text x="381" y="429" class="small-label">5V · GND · GPIO23 · GPIO18</text>
+      <path d="M 584 414 H 635 V 334" class="wire" data-net="buzzer" />
+      <path d="M 584 428 H 684 V 286 H 708" class="wire" data-net="led" />
+
+      <rect x="732" y="502" width="420" height="114" rx="12" class="part" />
+      <text x="752" y="528" class="label">ESP32 header pins</text>
+      <text x="752" y="552" class="pin-label">3V3 → microphone VDD</text>
+      <text x="752" y="575" class="pin-label">GND → common GND bus</text>
+      <text x="752" y="598" class="pin-label">GPIO26 SCK · GPIO25 WS · GPIO32 SD</text>
+      <text x="979" y="552" class="pin-label">GPIO27 → mute button</text>
+      <text x="979" y="575" class="pin-label">GPIO23 → 5.1 kΩ → Q1 base</text>
+      <text x="979" y="598" class="pin-label">GPIO18 → AHCT pin 2</text>
+
+      <rect x="48" y="502" width="650" height="114" rx="12" class="part" />
+      <text x="68" y="528" class="label">LED connector J3 (add with the AHCT buffer)</text>
+      <text x="68" y="552" class="pin-label">J3-1: fused external 5 V → strip +5V</text>
+      <text x="68" y="575" class="pin-label">J3-2: common GND → strip GND</text>
+      <text x="68" y="598" class="pin-label">J3-3: AHCT pin 3 → 330 Ω → strip DIN</text>
+    </svg>
+  </div>
+
+  <div class="tables">
+    <div class="table-wrap">
+      <table>
+        <caption>J1 — microphone and mute cable</caption>
+        <thead><tr><th>Pin</th><th>ESP32</th><th>Board destination</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>3V3</td><td>INMP441 VDD</td></tr>
+          <tr><td>2</td><td>GND</td><td>Common GND bus</td></tr>
+          <tr><td>3</td><td>GPIO26</td><td>INMP441 SCK</td></tr>
+          <tr><td>4</td><td>GPIO25</td><td>INMP441 WS</td></tr>
+          <tr><td>5</td><td>GPIO32</td><td>INMP441 SD</td></tr>
+          <tr><td>6</td><td>GPIO27</td><td>Mute button</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <caption>J2 — output and board power cable</caption>
+        <thead><tr><th>Pin</th><th>Connection</th><th>Board destination</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>5 V rail</td><td>5 V bus</td></tr>
+          <tr><td>2</td><td>ESP32 GND</td><td>Common GND bus</td></tr>
+          <tr><td>3</td><td>GPIO23</td><td>5.1 kΩ, then Q1 base</td></tr>
+          <tr><td>4</td><td>GPIO18</td><td>AHCT pin 2, later</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap full">
+      <table>
+        <caption>Component connections on the back</caption>
+        <thead><tr><th>Part</th><th>Connection 1</th><th>Connection 2</th><th>Other</th></tr></thead>
+        <tbody>
+          <tr><td>Bistable switch</td><td>5 V bus</td><td>Buzzer +</td><td>Hard power switch</td></tr>
+          <tr><td>Passive buzzer</td><td>+ from switch</td><td>− to Q1 collector</td><td>No diode</td></tr>
+          <tr><td>2N3904 Q1</td><td>Emitter to GND</td><td>Collector to buzzer −</td><td>Base through 5.1 kΩ to GPIO23</td></tr>
+          <tr><td>Mute button</td><td>One terminal to GND</td><td>Other terminal to GPIO27</td><td>Normally open</td></tr>
+          <tr><td>INMP441</td><td>VDD to 3V3</td><td>GND and L/R to GND</td><td>SCK 26 · WS 25 · SD 32</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap full">
+      <table>
+        <caption>SN74AHCT125N connections — install when the part arrives</caption>
+        <thead><tr><th>Pins</th><th>Connection</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>14</td><td>5 V bus</td><td>VCC</td></tr>
+          <tr><td>7</td><td>GND bus</td><td>GND</td></tr>
+          <tr><td>1</td><td>GND bus</td><td>Enable output 1</td></tr>
+          <tr><td>2</td><td>ESP32 GPIO18</td><td>3.3 V LED data input</td></tr>
+          <tr><td>3</td><td>330 Ω, then LED DIN</td><td>5 V LED data output</td></tr>
+          <tr><td>4, 10, 13</td><td>5 V bus</td><td>Disable unused outputs</td></tr>
+          <tr><td>5, 9, 12</td><td>GND bus</td><td>Keep unused inputs stable</td></tr>
+          <tr><td>6, 8, 11</td><td>No connection</td><td>Unused outputs</td></tr>
+          <tr><td>100 nF capacitor</td><td>Between pins 14 and 7</td><td>Place close to the IC</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footnote text-small">Suggested routes are functional, not exact hole coordinates. Verify each component leg with continuity mode before soldering.</div>
+
+  <script>
+    (() => {
+      const root = document.getElementById('espnoise-wiring');
+      const buttons = [...root.querySelectorAll('[data-filter]')];
+      const paths = [...root.querySelectorAll('[data-net]')];
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const filter = button.dataset.filter;
+          buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+          paths.forEach((path) => {
+            path.classList.toggle('dim', filter !== 'all' && path.dataset.net !== filter);
+          });
+        });
+      });
+    })();
+  </script>
+</div>
+
+</body>
+</html>
+

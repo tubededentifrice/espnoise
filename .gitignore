@@ -1,0 +1,26 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# macOS
+.DS_Store
+
+# Build and generated case files
+build/
+dist/
+*.stl
+*.3mf
+*.gcode
+
+# Local settings and measurements
+.env
+*.local
+measurements/private/
