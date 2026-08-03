@@ -3,6 +3,9 @@
 .pioenvs/
 .piolibdeps/
 
+# uv
+.venv/
+
 # Editors
 .idea/
 .vscode/*

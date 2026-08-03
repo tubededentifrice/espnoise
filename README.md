@@ -77,6 +77,8 @@ colors, and buzzer patterns are in one configuration file.
 cad/                 Case requirements and measurements
 docs/                Design, wiring, parts, and test information
 firmware/            PlatformIO firmware for the ESP32
+pyproject.toml        Python tool configuration for uv
+uv.lock               Locked Python tool dependencies
 ```
 
 ## Important limits

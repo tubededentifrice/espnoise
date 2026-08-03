@@ -5,6 +5,8 @@
   move to another place. Do not make sporadic noise trigger the warning.
 - Use ASD-STE100 Simplified Technical English in reports, documents, issues,
   pull requests, and comments.
+- After you finish a task, commit and push the changes that you made for that
+  task.
 - Keep battery safety statements clear. Do not recommend loose lithium cells
   for this project.
 - Do not change the assigned GPIO pins without an update to `docs/wiring.md`

@@ -2,20 +2,27 @@
 
 ## Requirements
 
-- PlatformIO Core or the PlatformIO IDE extension
+- `uv` 0.12 or later, or the PlatformIO IDE extension
 - A USB data cable
 - The `esp32dev` board definition for the full-size USB-C board
 - The `lolin32_lite` board definition for the WEMOS battery board
 
-The environment uses the Arduino framework. It pins the ESP32 PlatformIO
-package and the LED library so that later builds use the same base.
+The `uv.lock` file pins PlatformIO Core and its Python dependencies. The
+PlatformIO configuration pins the ESP32 package and the LED library. Thus,
+later builds use the same base.
+
+From the repository root, install the locked Python tools:
+
+```sh
+uv sync --locked
+```
 
 ## Build
 
 From this directory, run:
 
 ```sh
-pio run
+uv run --locked pio run
 ```
 
 This command builds the first USB-powered board. Its ten-pixel power test
@@ -24,8 +31,8 @@ optional environment and keeps the 25% limit. Build it only when you start the
 battery stage:
 
 ```sh
-pio run --environment esp32dev
-pio run --environment lolin32_lite
+uv run --locked pio run --environment esp32dev
+uv run --locked pio run --environment lolin32_lite
 ```
 
 At each USB production startup, all ten pixels show green, orange, and red in
@@ -37,7 +44,7 @@ Use the temporary LED-test environment to show red, green, blue, and
 warm-white for one second each after startup:
 
 ```sh
-pio run --environment esp32dev_led_test --target upload
+uv run --locked pio run --environment esp32dev_led_test --target upload
 ```
 
 For a one-pixel bench test, use the fast profile. It listens for 3 seconds in
@@ -46,7 +53,7 @@ saved maxima, and uses full LED brightness. It also plays a short buzzer chime
 after the LED test:
 
 ```sh
-pio run --environment esp32dev_fast_test --target upload
+uv run --locked pio run --environment esp32dev_fast_test --target upload
 ```
 
 Use the calibration profile with the assembled USB-powered product. Send `g`,
@@ -56,8 +63,8 @@ ten one-second maxima. The buzzer stays off. The calibration profile does not
 save raw microphone audio.
 
 ```sh
-pio run --environment esp32dev_calibration --target upload
-pio device monitor --baud 115200
+uv run --locked pio run --environment esp32dev_calibration --target upload
+uv run --locked pio device monitor --baud 115200
 ```
 
 The tested passive piezo buzzer uses a 2N3904 low-side driver. GPIO23 connects
@@ -93,12 +100,13 @@ The full-size board was found at `/dev/cu.usbserial-0001` during the first
 inspection. The path can change after a reconnect.
 
 ```sh
-pio run --environment esp32dev --target upload --upload-port /dev/cu.usbserial-0001
-pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
+uv run --locked pio run --environment esp32dev --target upload --upload-port /dev/cu.usbserial-0001
+uv run --locked pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
 ```
 
 For the WEMOS, connect the external USB-C panel cable to a computer. Then find
-its port with `pio device list` and use the `lolin32_lite` environment.
+its port with `uv run --locked pio device list` and use the `lolin32_lite`
+environment.
 
 Do not upload firmware until the user asks for an upload. A build does not
 change a connected board.
