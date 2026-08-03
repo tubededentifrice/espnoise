@@ -56,6 +56,32 @@ struct NoiseMeasurementHistory: Equatable, Sendable {
     }
 }
 
+struct LatestSettingsWriteQueue: Equatable, Sendable {
+    private(set) var writeIsActive = false
+    private(set) var latestWriteIsPending = false
+
+    mutating func requestWrite() -> Bool {
+        guard !writeIsActive else {
+            latestWriteIsPending = true
+            return false
+        }
+        writeIsActive = true
+        return true
+    }
+
+    mutating func completeWrite() -> Bool {
+        writeIsActive = false
+        let mustSendLatest = latestWriteIsPending
+        latestWriteIsPending = false
+        return mustSendLatest
+    }
+
+    mutating func reset() {
+        writeIsActive = false
+        latestWriteIsPending = false
+    }
+}
+
 struct NoiseDeviceViewState: Identifiable, Equatable {
     let id: UUID
     let name: String
@@ -103,7 +129,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         var measurementExpiryWorkItem: DispatchWorkItem?
         var sentRevision: UInt32?
         var sentFingerprint: UInt32?
+        var settingsWriteQueue = LatestSettingsWriteQueue()
         var nameWritePending = false
+        var sentName: String?
         var nameQueryWritePending = false
         var hasReceivedName = false
         var status: DeviceStatus?
@@ -181,10 +209,21 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     }
 
     func saveGlobalSettings(_ settings: NoiseSettings) throws {
+        let previousSettings = settingsStore.record.devices.reduce(
+            into: [UUID: NoiseSettings]()
+        ) { result, device in
+            result[device.id] = settingsStore.effectiveSettings(for: device.id)
+        }
         try settingsStore.updateGlobal(settings)
         globalSettings = settingsStore.record.globalSettings
         publish()
-        sendPendingToConnectedDevices()
+        for runtime in runtimes.values where runtime.isConnected {
+            guard previousSettings[runtime.identifier]
+                    != settingsStore.effectiveSettings(
+                        for: runtime.identifier
+                    ) else { continue }
+            sendDesiredSettings(to: runtime)
+        }
     }
 
     func saveDevice(
@@ -197,16 +236,36 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         if let runtime = runtimes[id] { sendDesired(to: runtime) }
     }
 
+    func saveDeviceOverrides(
+        id: UUID,
+        overrides: DeviceOverrides
+    ) throws {
+        guard let device = settingsStore.device(id: id) else { return }
+        let previousSettings = settingsStore.effectiveSettings(for: id)
+        try settingsStore.updateDevice(
+            id: id,
+            name: device.customName,
+            overrides: overrides
+        )
+        publish()
+        guard previousSettings != settingsStore.effectiveSettings(for: id)
+        else { return }
+        if let runtime = runtimes[id] { sendDesiredSettings(to: runtime) }
+    }
+
     func saveDeviceName(id: UUID, name: String) throws {
         settingsStore.updateDeviceName(id: id, name: name)
         publish()
-        if let runtime = runtimes[id] { sendDesired(to: runtime) }
+        if let runtime = runtimes[id] { sendDesiredName(to: runtime) }
     }
 
     func resetOverrides(id: UUID) throws {
+        let previousSettings = settingsStore.effectiveSettings(for: id)
         try settingsStore.resetOverrides(id: id)
         publish()
-        if let runtime = runtimes[id] { sendDesired(to: runtime) }
+        guard previousSettings != settingsStore.effectiveSettings(for: id)
+        else { return }
+        if let runtime = runtimes[id] { sendDesiredSettings(to: runtime) }
     }
 
     func syncNow(id: UUID) {
@@ -479,17 +538,13 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.nameCharacteristic = nil
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
+        runtime.settingsWriteQueue.reset()
         runtime.nameWritePending = false
+        runtime.sentName = nil
         runtime.nameQueryWritePending = false
         runtime.hasReceivedName = false
         runtime.isConnected = false
         runtime.connectPending = false
-    }
-
-    private func sendPendingToConnectedDevices() {
-        for runtime in runtimes.values where runtime.isConnected {
-            sendDesired(to: runtime)
-        }
     }
 
     private func sendDesired(to runtime: Runtime) {
@@ -520,12 +575,18 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                     "The Bluetooth connection cannot transfer the settings packet."
                 return
             }
+            guard runtime.settingsWriteQueue.requestWrite() else { return }
+            let fingerprint = ConfigPacketCodec.fnv1a32(packet.prefix(28))
             runtime.lastError = nil
             runtime.connectionText = "Sending settings"
             runtime.sentRevision = device.desiredRevision
-            runtime.sentFingerprint = ConfigPacketCodec.fnv1a32(packet.prefix(28))
+            runtime.sentFingerprint = fingerprint
             peripheral.writeValue(packet, for: characteristic, type: .withResponse)
-            scheduleAcknowledgementReads(runtime)
+            scheduleAcknowledgementReads(
+                runtime,
+                revision: device.desiredRevision,
+                fingerprint: fingerprint
+            )
         } catch {
             runtime.lastError = error.localizedDescription
         }
@@ -543,7 +604,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         guard let characteristic else { return }
         if runtime.nameQueryWritePending
             || (runtime.nameCharacteristic == nil
-                && runtime.sentRevision != nil) {
+                && (runtime.sentRevision != nil
+                    || runtime.settingsWriteQueue.writeIsActive)) {
             return
         }
         do {
@@ -558,19 +620,27 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             }
             runtime.nameError = nil
             runtime.nameWritePending = true
+            runtime.sentName = device.customName
             runtime.connectionText = "Sending device name"
             peripheral.writeValue(
                 packet,
                 for: characteristic,
                 type: .withResponse
             )
-            scheduleNameAcknowledgementReads(runtime)
+            scheduleNameAcknowledgementReads(
+                runtime,
+                expectedSentName: device.customName
+            )
         } catch {
             runtime.nameError = error.localizedDescription
         }
     }
 
-    private func scheduleAcknowledgementReads(_ runtime: Runtime) {
+    private func scheduleAcknowledgementReads(
+        _ runtime: Runtime,
+        revision: UInt32,
+        fingerprint: UInt32
+    ) {
         runtime.acknowledgementWorkItems.forEach { $0.cancel() }
         runtime.acknowledgementWorkItems = []
         for delay in [2.0, 5.0, 10.0] {
@@ -578,6 +648,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             let work = DispatchWorkItem { [weak self] in
                 guard let self, let current = self.runtimes[id],
                       self.settingsStore.settingsArePending(id: id),
+                      current.sentRevision == revision,
+                      current.sentFingerprint == fingerprint,
                       let peripheral = current.peripheral,
                       let status = current.statusCharacteristic else { return }
                 peripheral.readValue(for: status)
@@ -591,13 +663,17 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         }
     }
 
-    private func scheduleNameAcknowledgementReads(_ runtime: Runtime) {
+    private func scheduleNameAcknowledgementReads(
+        _ runtime: Runtime,
+        expectedSentName: String?
+    ) {
         runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
         runtime.nameAcknowledgementWorkItems = []
         for delay in [2.0, 5.0, 10.0] {
             let id = runtime.identifier
             let work = DispatchWorkItem { [weak self] in
                 guard let self, let current = self.runtimes[id],
+                      current.sentName == expectedSentName,
                       self.settingsStore.nameNeedsSync(id: id)
                         || !current.hasReceivedName,
                       let peripheral = current.peripheral else { return }
@@ -606,15 +682,18 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                     current.nameAcknowledgementWorkItems = []
                     current.nameQueryWritePending = false
                     current.nameWritePending = false
+                    current.sentName = nil
                     current.nameError = self.settingsStore.nameNeedsSync(id: id)
                         ? "The device did not confirm its name. The name stays pending."
                         : "The device did not return its saved name."
+                    self.sendPendingSettingsIfNeeded(to: current)
                     self.publish()
                     return
                 }
                 guard !current.nameQueryWritePending else { return }
                 guard let configuration = current.configCharacteristic,
-                      current.sentRevision == nil else { return }
+                      current.sentRevision == nil,
+                      !current.settingsWriteQueue.writeIsActive else { return }
                 current.nameQueryWritePending = true
                 peripheral.writeValue(
                     DeviceNamePacketCodec.queryPacket,
@@ -633,6 +712,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
               runtime.nameAcknowledgementWorkItems.isEmpty,
               !runtime.nameQueryWritePending,
               runtime.sentRevision == nil,
+              !runtime.settingsWriteQueue.writeIsActive,
               let peripheral = runtime.peripheral,
               let configuration = runtime.configCharacteristic else { return }
         runtime.nameQueryWritePending = true
@@ -641,7 +721,16 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             for: configuration,
             type: .withResponse
         )
-        scheduleNameAcknowledgementReads(runtime)
+        scheduleNameAcknowledgementReads(
+            runtime,
+            expectedSentName: nil
+        )
+    }
+
+    private func sendPendingSettingsIfNeeded(to runtime: Runtime) {
+        guard settingsStore.settingsArePending(id: runtime.identifier)
+        else { return }
+        sendDesiredSettings(to: runtime)
     }
 
     private func handleStatus(_ data: Data, for runtime: Runtime) {
@@ -710,6 +799,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                     runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
                     runtime.nameAcknowledgementWorkItems = []
                     runtime.nameWritePending = false
+                    runtime.sentName = nil
                     runtime.nameError = nil
                     runtime.connectionText = "Connected"
                     settingsStore.markNameSynced(
@@ -718,6 +808,10 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                         at: Date()
                     )
                     sendDesiredSettings(to: runtime)
+                } else if appliedName == runtime.sentName {
+                    runtime.nameWritePending = false
+                    runtime.sentName = nil
+                    sendDesiredName(to: runtime)
                 } else if !runtime.nameWritePending {
                     sendDesiredName(to: runtime)
                 }
@@ -961,7 +1055,9 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         runtime.hasReceivedName = false
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
+        runtime.settingsWriteQueue.reset()
         runtime.nameWritePending = false
+        runtime.sentName = nil
         runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
         runtime.nameAcknowledgementWorkItems = []
         runtime.measurementHistory.resetSequence()
@@ -1093,17 +1189,21 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
                     runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
                     runtime.nameAcknowledgementWorkItems = []
                     runtime.nameWritePending = false
+                    runtime.sentName = nil
                     runtime.nameError = safeError(
                         error,
                         prefix: "Device name transfer failed"
                     )
+                    sendPendingSettingsIfNeeded(to: runtime)
                 } else if runtime.nameQueryWritePending {
                     runtime.nameQueryWritePending = false
                     runtime.nameError = safeError(
                         error,
                         prefix: "Device name read request failed"
                     )
-                } else if runtime.sentRevision != nil {
+                    sendPendingSettingsIfNeeded(to: runtime)
+                } else if runtime.settingsWriteQueue.writeIsActive {
+                    let mustSendLatest = runtime.settingsWriteQueue.completeWrite()
                     runtime.acknowledgementWorkItems.forEach { $0.cancel() }
                     runtime.acknowledgementWorkItems = []
                     runtime.sentRevision = nil
@@ -1112,15 +1212,32 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
                         error,
                         prefix: "Settings transfer failed"
                     )
+                    if mustSendLatest {
+                        sendDesiredSettings(to: runtime)
+                    } else if settingsStore.nameNeedsSync(
+                        id: runtime.identifier
+                    ) {
+                        sendDesiredName(to: runtime)
+                    }
                 }
             } else if characteristic.uuid == Self.nameUUID {
                 runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
                 runtime.nameAcknowledgementWorkItems = []
                 runtime.nameWritePending = false
+                runtime.sentName = nil
                 runtime.nameError = safeError(
                     error,
                     prefix: "Device name transfer failed"
                 )
+            }
+            publish()
+        } else if characteristic.uuid == Self.configUUID,
+                  runtime.settingsWriteQueue.writeIsActive {
+            let mustSendLatest = runtime.settingsWriteQueue.completeWrite()
+            if mustSendLatest {
+                sendDesiredSettings(to: runtime)
+            } else if settingsStore.nameNeedsSync(id: runtime.identifier) {
+                sendDesiredName(to: runtime)
             }
             publish()
         }

@@ -11,12 +11,7 @@ struct ContentView: View {
                     NavigationLink {
                         GlobalSettingsView(syncManager: syncManager)
                     } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Edit all global settings")
-                            Text("Sampling values are global for all devices.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("Edit all global settings")
                     }
                 }
 
@@ -107,7 +102,6 @@ private struct DeviceRow: View {
 
 struct GlobalSettingsView: View {
     @ObservedObject var syncManager: NoiseSyncManager
-    @Environment(\.dismiss) private var dismiss
     @State private var draft: NoiseSettings
     @State private var errorText: String?
     @State private var resetText: String?
@@ -152,28 +146,23 @@ struct GlobalSettingsView: View {
                 Section { Text(resetText).foregroundStyle(.secondary) }
             }
             Section {
-                Button("Save Global Settings") {
-                    do {
-                        try syncManager.saveGlobalSettings(draft)
-                        dismiss()
-                    } catch {
-                        errorText = error.localizedDescription
-                    }
-                }
                 Button("Reset Global Values to Defaults") {
                     draft = NoiseSettings()
                     errorText = nil
-                    resetText =
-                        "Default values are ready. Select Save Global Settings to apply them. Device overrides stay unchanged."
                 }
-            } footer: {
-                Text("A change marks only devices that use the changed value as pending.")
             }
         }
         .navigationTitle("Global Settings")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: draft) { _, newValue in
-            if resetText != nil, newValue != NoiseSettings() {
+            do {
+                try syncManager.saveGlobalSettings(newValue)
+                errorText = nil
+                resetText = newValue == NoiseSettings()
+                    ? "Default global values were saved. Device overrides stay unchanged."
+                    : nil
+            } catch {
+                errorText = error.localizedDescription
                 resetText = nil
             }
         }
@@ -196,9 +185,9 @@ struct DeviceSettingsView: View {
     @State private var name = ""
     @State private var overrides = DeviceOverrides()
     @State private var errorText: String?
-    @State private var savedText: String?
     @State private var showRemove = false
     @State private var loadedName = ""
+    @State private var hasLoaded = false
     @State private var isRemoving = false
 
     var body: some View {
@@ -225,9 +214,6 @@ struct DeviceSettingsView: View {
                     TextField("Custom name", text: $name)
                         .submitLabel(.done)
                         .onSubmit { saveNameIfNeeded(reportInvalid: true) }
-                    Text("A valid changed name is saved when you leave this page.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     LabeledContent("Connection", value: device.connectionText)
                     LabeledContent("Sync", value: device.syncText)
                     if let alarm = device.alarmText {
@@ -245,10 +231,10 @@ struct DeviceSettingsView: View {
             )
 
             Section {
-                globalValue("K sample duration", "\(syncManager.globalSettings.sampleDurationMilliseconds) ms")
-                globalValue("N sample period", "\(syncManager.globalSettings.samplePeriodMilliseconds) ms")
+                globalValue("Sample duration", "\(syncManager.globalSettings.sampleDurationMilliseconds) ms")
+                globalValue("Sample period", "\(syncManager.globalSettings.samplePeriodMilliseconds) ms")
                 globalValue("Decision window", "\(syncManager.globalSettings.decisionWindowMilliseconds) ms")
-                globalValue("X trigger percent", "\(syncManager.globalSettings.triggerPercent)%")
+                globalValue("Trigger percent", "\(syncManager.globalSettings.triggerPercent)%")
             } header: {
                 Text("Global Sampling Values")
             } footer: {
@@ -258,12 +244,7 @@ struct DeviceSettingsView: View {
             if let errorText {
                 Section("Needs Attention") { Text(errorText).foregroundStyle(.red) }
             }
-            if let savedText {
-                Section { Text(savedText).foregroundStyle(.green) }
-            }
-
             Section {
-                Button("Save Name and Settings") { save() }
                 Button("Reset All Overrides") {
                     do {
                         try syncManager.resetOverrides(id: deviceID)
@@ -281,6 +262,15 @@ struct DeviceSettingsView: View {
         .onDisappear {
             guard !isRemoving else { return }
             saveNameIfNeeded()
+            saveOverridesIfNeeded()
+        }
+        .onChange(of: name) { _, _ in
+            guard hasLoaded else { return }
+            saveNameIfNeeded()
+        }
+        .onChange(of: overrides) { _, _ in
+            guard hasLoaded else { return }
+            saveOverridesIfNeeded()
         }
         .onChange(of: syncedDeviceName) { oldValue, newValue in
             guard let newValue, name == loadedName || name == oldValue else {
@@ -317,34 +307,25 @@ struct DeviceSettingsView: View {
             record.overrides,
             global: syncManager.globalSettings
         )
+        hasLoaded = true
     }
 
     private var syncedDeviceName: String? {
         syncManager.devices.first(where: { $0.id == deviceID })?.name
     }
 
-    private func save() {
-        guard let cleanName = DeviceNameValidation.normalizedUserName(name)
-        else {
-            errorText =
-                "Enter a name of 18 UTF-8 bytes or less. The form Device XXXX is reserved for the hardware name."
-            savedText = nil
-            return
-        }
+    private func saveOverridesIfNeeded() {
+        guard hasLoaded,
+              syncManager.deviceRecord(id: deviceID)?.overrides != overrides
+        else { return }
         do {
-            try syncManager.saveDevice(
+            try syncManager.saveDeviceOverrides(
                 id: deviceID,
-                name: cleanName,
                 overrides: overrides
             )
-            name = cleanName
-            loadedName = cleanName
             errorText = nil
-            savedText =
-                "Saved on this iPhone. The device name and settings will synchronize when the device is available."
         } catch {
             errorText = error.localizedDescription
-            savedText = nil
         }
     }
 
@@ -355,7 +336,6 @@ struct DeviceSettingsView: View {
             if reportInvalid {
                 errorText =
                     "Enter a name of 18 UTF-8 bytes or less. The form Device XXXX is reserved for the hardware name."
-                savedText = nil
             }
             return
         }
@@ -424,16 +404,16 @@ private struct SettingsControls: View {
             )
         }
         if includesSampling {
-            Section("Sampling") {
+            Section {
                 SettingSlider(
-                    title: "K sample duration",
+                    title: "Sample duration",
                     valueText: secondsText(settings.sampleDurationMilliseconds),
                     value: sampleDuration,
                     range: 0.001...max(0.001, Double(settings.samplePeriodMilliseconds) / 1_000),
                     step: 0.001
                 )
                 SettingSlider(
-                    title: "N sample period",
+                    title: "Sample period",
                     valueText: secondsText(settings.samplePeriodMilliseconds),
                     value: samplePeriod,
                     range: max(0.001, Double(settings.sampleDurationMilliseconds) / 1_000)...60,
@@ -447,12 +427,16 @@ private struct SettingsControls: View {
                     step: 1
                 )
                 SettingSlider(
-                    title: "X trigger level",
+                    title: "Trigger level",
                     valueText: "More than \(settings.triggerPercent)%",
                     value: uint8(\.triggerPercent),
                     range: Double(minimumTriggerPercent)...99,
                     step: 1
                 )
+            } header: {
+                Text("Sampling")
+            } footer: {
+                Text("Sampling values are global for all devices.")
             }
         }
     }
@@ -898,11 +882,6 @@ private struct LiveNoisePanel: View {
                 .accessibilityLabel("Recent positive noise measurements and alarm thresholds")
 
                 thresholdLegend
-                if !rulesAreCurrent {
-                    Text("The threshold lines are a preview. Save and synchronize these settings before you use the device counts.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
                 historySummary
             } else {
                 ContentUnavailableView {
@@ -948,10 +927,6 @@ private struct LiveNoisePanel: View {
                     Spacer()
                     countItem("Red", status.redSampleCount, color: .red)
                 }
-            } else {
-                Text("Device counts are hidden until the saved settings synchronize.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }

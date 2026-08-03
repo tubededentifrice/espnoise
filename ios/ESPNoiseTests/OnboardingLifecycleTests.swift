@@ -46,3 +46,34 @@ final class OnboardingLifecycleTests: XCTestCase {
         XCTAssertFalse(lifecycle.bluetoothInitializationRequested)
     }
 }
+
+final class LatestSettingsWriteQueueTests: XCTestCase {
+    func testManyRequestsKeepOnlyTheLatestPendingWrite() {
+        var queue = LatestSettingsWriteQueue()
+
+        XCTAssertTrue(queue.requestWrite())
+        for _ in 0..<100 {
+            XCTAssertFalse(queue.requestWrite())
+        }
+        XCTAssertTrue(queue.writeIsActive)
+        XCTAssertTrue(queue.latestWriteIsPending)
+
+        XCTAssertTrue(queue.completeWrite())
+        XCTAssertFalse(queue.writeIsActive)
+        XCTAssertFalse(queue.latestWriteIsPending)
+        XCTAssertTrue(queue.requestWrite())
+        XCTAssertFalse(queue.completeWrite())
+    }
+
+    func testResetDropsAnObsoletePendingWrite() {
+        var queue = LatestSettingsWriteQueue()
+        XCTAssertTrue(queue.requestWrite())
+        XCTAssertFalse(queue.requestWrite())
+
+        queue.reset()
+
+        XCTAssertFalse(queue.writeIsActive)
+        XCTAssertFalse(queue.latestWriteIsPending)
+        XCTAssertTrue(queue.requestWrite())
+    }
+}

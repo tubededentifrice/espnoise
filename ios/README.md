@@ -34,9 +34,10 @@ reserved. Sampling values K, N, decision window, and X
 are global only. The phone sends its complete effective settings after each
 reconnect. Offline settings stay pending.
 
-The Global Settings page can put all compiled defaults in the draft. The user
-must select **Save Global Settings** to apply them. Device overrides and names
-stay unchanged.
+The Global Settings page saves each valid change on the phone immediately. It
+then tries to send the newest complete settings to each connected device. The
+Reset Global Values action saves the compiled defaults immediately. Device
+overrides and names stay unchanged.
 
 Green, orange, and red threshold sliders use the same quieter-to-louder scale.
 The displayed scale is a positive relative level from 0 through 120. It is not
@@ -50,7 +51,15 @@ app memory only. The phone does not receive raw microphone audio.
 
 ## Sync rules
 
-Phone settings always win. A write response does not complete a sync. The app completes a sync only when the device reports the desired revision and the matching FNV-1a fingerprint. The app keeps stale, delayed, duplicate, or incorrect reports separate for each device. iOS controls connection and background timing, so the app does not promise a fixed update time.
+Phone settings always win. Global settings, device overrides, and valid device
+names save on the phone as they change. For each device, the app permits one
+active settings write and one pending request for the newest complete settings.
+Additional changes replace that pending request. A write response does not
+complete a sync. The app completes a sync only when the device reports the
+desired revision and the matching FNV-1a fingerprint. The app keeps stale,
+delayed, duplicate, or incorrect reports separate for each device. iOS controls
+connection and background timing, so the app does not promise a fixed update
+time.
 
 ## Privacy
 

@@ -374,10 +374,29 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(store.isPending(id: first))
     }
 
-    func testPersistenceUsesVersionedRecord() {
+    func testPersistenceUsesVersionedRecord() throws {
+        var firstChange = store.record.globalSettings
+        firstChange.buzzerPercent = 20
+        try store.updateGlobal(firstChange)
+        var finalChange = firstChange
+        finalChange.buzzerPercent = 21
+        try store.updateGlobal(finalChange)
+        var overrides = DeviceOverrides()
+        overrides.brightnessPercent = 12
+        try store.updateDevice(
+            id: first,
+            name: "First",
+            overrides: overrides
+        )
+
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.record.schemaVersion, NoiseAppRecord.currentSchemaVersion)
         XCTAssertEqual(reloaded.record.devices.count, 2)
+        XCTAssertEqual(reloaded.record.globalSettings.buzzerPercent, 21)
+        XCTAssertEqual(
+            reloaded.device(id: first)?.overrides.brightnessPercent,
+            12
+        )
     }
 
     func testNameValidation() {
