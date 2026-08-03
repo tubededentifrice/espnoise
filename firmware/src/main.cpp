@@ -11,6 +11,7 @@
 #include "board_profile.h"
 #include "config_packet.h"
 #include "config.h"
+#include "device_name.h"
 #include "mute_button.h"
 #include "noise_detector.h"
 #include "settings_storage.h"
@@ -22,6 +23,7 @@ NoiseDetector noiseDetector;
 MuteButton muteButton;
 RuntimeSettings runtimeSettings;
 config_packet::Bytes appliedPacket{};
+device_name::Value appliedDeviceName;
 uint32_t appliedRevision = 0;
 
 float currentDbfs = -120.0F;
@@ -42,6 +44,17 @@ uint32_t muteUntilMs = 0;
 uint32_t lastLevelPrintMs = 0;
 uint8_t settingsErrorCode = 0;
 uint16_t measurementSequence = 0;
+
+device_name::Value defaultDeviceName() {
+  device_name::Value name;
+  char text[19] = {};
+  const uint64_t chipId = ESP.getEfuseMac();
+  const int length = snprintf(text, sizeof(text), "Device %04X",
+                              static_cast<unsigned>(chipId & 0xFFFFU));
+  name.length = static_cast<uint8_t>(std::max(0, length));
+  std::copy(text, text + name.length, name.bytes.begin());
+  return name;
+}
 
 bool timeIsBefore(uint32_t now, uint32_t end) {
   return static_cast<int32_t>(now - end) < 0;
@@ -315,6 +328,31 @@ void applyPendingSettings(uint32_t now) {
                     config_packet::fingerprint(appliedPacket)));
 }
 
+void applyPendingName() {
+  if (sampleActive) {
+    return;
+  }
+  device_name::Value candidate;
+  if (!ble_service::takePendingName(candidate)) {
+    return;
+  }
+  if (candidate != appliedDeviceName &&
+      !settings_storage::saveName(candidate)) {
+    Serial.println("ERROR: Device name save failed; update rejected");
+    ble_service::acknowledgeName(appliedDeviceName);
+    return;
+  }
+  appliedDeviceName = candidate;
+  ble_service::acknowledgeName(appliedDeviceName);
+  Serial.println("Device name applied");
+}
+
+void answerNameReadRequest() {
+  if (ble_service::takeNameReadRequest()) {
+    ble_service::notifyName(appliedDeviceName);
+  }
+}
+
 }  // namespace
 
 void setup() {
@@ -325,11 +363,17 @@ void setup() {
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   appliedPacket = config_packet::encode(runtimeSettings, 0);
+  appliedDeviceName = defaultDeviceName();
   if (!settings_storage::begin()) {
     Serial.println("ERROR: Settings storage start failed; defaults active");
-  } else if (!settings_storage::load(appliedPacket)) {
-    appliedPacket = config_packet::encode(runtimeSettings, 0);
-    Serial.println("Saved settings are absent or invalid; defaults active");
+  } else {
+    if (!settings_storage::load(appliedPacket)) {
+      appliedPacket = config_packet::encode(runtimeSettings, 0);
+      Serial.println("Saved settings are absent or invalid; defaults active");
+    }
+    if (!settings_storage::loadName(appliedDeviceName)) {
+      appliedDeviceName = defaultDeviceName();
+    }
   }
   if (config_packet::decode(appliedPacket.data(), appliedPacket.size(),
                             runtimeSettings, appliedRevision) !=
@@ -374,7 +418,7 @@ void setup() {
   noiseDetector.setSettings(runtimeSettings);
   alarm_output::setSettings(runtimeSettings);
   alarm_output::begin();
-  ble_service::begin(appliedPacket);
+  ble_service::begin(appliedPacket, appliedDeviceName);
   nextSampleStartMs = millis();
   Serial.println("ESPNoise started");
 }
@@ -383,6 +427,8 @@ void loop() {
   uint32_t now = millis();
   ble_service::update(now);
   updateMute(now);
+  answerNameReadRequest();
+  applyPendingName();
   applyPendingSettings(now);
 
   if (!isMuted(now) && !sampleActive && timeIsDue(now, nextSampleStartMs)) {

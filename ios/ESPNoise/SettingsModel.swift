@@ -63,6 +63,8 @@ struct NoiseDeviceRecord: Codable, Equatable, Identifiable, Sendable {
     var lastSuccessfulSync: Date?
     var lastAppliedRevision: UInt32?
     var lastAppliedFingerprint: UInt32?
+    var nameSyncPending: Bool?
+    var lastConfirmedName: String?
 }
 
 struct NoiseAppRecord: Codable, Equatable, Sendable {
@@ -77,10 +79,39 @@ struct NoiseAppRecord: Codable, Equatable, Sendable {
 enum DeviceNameValidation {
     static func normalized(_ candidate: String) -> String? {
         let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 40,
+        guard !trimmed.isEmpty,
+              trimmed.utf8.count <= DeviceNamePacketCodec.maximumUTF8Bytes,
               !trimmed.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
         else { return nil }
         return trimmed
+    }
+
+    static func normalizedUserName(_ candidate: String) -> String? {
+        guard let name = normalized(candidate),
+              !isHardwareDefaultName(name) else { return nil }
+        return name
+    }
+
+    static func migratedLegacyName(_ candidate: String) -> String {
+        let withoutControls = String(
+            candidate.unicodeScalars.filter {
+                !CharacterSet.controlCharacters.contains($0)
+            }
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        var migrated = ""
+        for character in withoutControls {
+            let next = migrated + String(character)
+            guard next.utf8.count <= DeviceNamePacketCodec.maximumUTF8Bytes
+            else { break }
+            migrated = next
+        }
+        return normalized(migrated) ?? "ESPNoise Device"
+    }
+
+    static func isHardwareDefaultName(_ name: String) -> Bool {
+        guard name.hasPrefix("Device ") else { return false }
+        let suffix = name.dropFirst("Device ".count)
+        return suffix.count == 4 && suffix.allSatisfy { $0.isHexDigit }
     }
 }
 

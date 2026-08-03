@@ -27,7 +27,16 @@ If setup reports that it cannot add the accessory, keep the device powered,
 restart it, and try **Add Device** again. A device with no completed bond keeps
 first pairing available.
 
-Each device page has a local custom name and optional device values. Sampling values K, N, decision window, and X are global only. The phone sends its complete effective settings after each reconnect. Offline settings stay pending.
+Each device page has a synchronized custom name and optional device values.
+The custom name is saved on the ESP32 and is available to another phone. A
+normal firmware upload keeps it. The hardware-name form `Device XXXX` is
+reserved. Sampling values K, N, decision window, and X
+are global only. The phone sends its complete effective settings after each
+reconnect. Offline settings stay pending.
+
+The Global Settings page can put all compiled defaults in the draft. The user
+must select **Save Global Settings** to apply them. Device overrides and names
+stay unchanged.
 
 Green, orange, and red threshold sliders use the same quieter-to-louder scale.
 The displayed scale is a positive relative level from 0 through 120. It is not

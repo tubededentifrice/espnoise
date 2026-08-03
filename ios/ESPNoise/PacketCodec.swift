@@ -4,13 +4,56 @@ enum PacketCodecError: LocalizedError, Equatable {
     case invalidLength
     case unsupportedVersion
     case invalidSettings
+    case invalidName
 
     var errorDescription: String? {
         switch self {
         case .invalidLength: "The Bluetooth packet has an incorrect length."
         case .unsupportedVersion: "The Bluetooth packet version is not supported."
         case .invalidSettings: "One or more settings are outside the supported range."
+        case .invalidName: "The device name is not valid."
         }
+    }
+}
+
+enum DeviceNamePacketCodec {
+    static let packetLength = 20
+    static let maximumUTF8Bytes = 18
+
+    static var queryPacket: Data {
+        var bytes = [UInt8](repeating: 0, count: packetLength)
+        bytes[0] = 1
+        return Data(bytes)
+    }
+
+    static func encode(name: String) throws -> Data {
+        guard let normalized = DeviceNameValidation.normalized(name) else {
+            throw PacketCodecError.invalidName
+        }
+        let nameBytes = Array(normalized.utf8)
+        var bytes = [UInt8](repeating: 0, count: packetLength)
+        bytes[0] = 1
+        bytes[1] = UInt8(nameBytes.count)
+        bytes.replaceSubrange(2..<(2 + nameBytes.count), with: nameBytes)
+        return Data(bytes)
+    }
+
+    static func decode(_ data: Data) throws -> String {
+        let bytes = [UInt8](data)
+        guard bytes.count == packetLength else {
+            throw PacketCodecError.invalidLength
+        }
+        guard bytes[0] == 1 else {
+            throw PacketCodecError.unsupportedVersion
+        }
+        let length = Int(bytes[1])
+        guard (1...maximumUTF8Bytes).contains(length),
+              bytes[(2 + length)...].allSatisfy({ $0 == 0 }),
+              let name = String(bytes: bytes[2..<(2 + length)], encoding: .utf8),
+              DeviceNameValidation.normalized(name) == name else {
+            throw PacketCodecError.invalidName
+        }
+        return name
     }
 }
 

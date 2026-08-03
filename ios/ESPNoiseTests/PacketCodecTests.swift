@@ -187,6 +187,39 @@ final class PacketCodecTests: XCTestCase {
         bytes[0] = 2
         XCTAssertThrowsError(try StatusPacketCodec.decode(Data(bytes)))
     }
+
+    func testDeviceNamePacketUsesExactTwentyByteLayout() throws {
+        let packet = try DeviceNamePacketCodec.encode(name: "Café")
+        let bytes = [UInt8](packet)
+        XCTAssertEqual(bytes.count, 20)
+        XCTAssertEqual(bytes[0], 1)
+        XCTAssertEqual(bytes[1], 5)
+        XCTAssertEqual(Array(bytes[2..<7]), [0x43, 0x61, 0x66, 0xC3, 0xA9])
+        XCTAssertTrue(bytes[7...].allSatisfy { $0 == 0 })
+        XCTAssertEqual(try DeviceNamePacketCodec.decode(packet), "Café")
+    }
+
+    func testDeviceNameQueryUsesZeroLengthPacket() {
+        let bytes = [UInt8](DeviceNamePacketCodec.queryPacket)
+        XCTAssertEqual(bytes.count, 20)
+        XCTAssertEqual(bytes[0], 1)
+        XCTAssertTrue(bytes[1...].allSatisfy { $0 == 0 })
+        XCTAssertThrowsError(
+            try DeviceNamePacketCodec.decode(
+                DeviceNamePacketCodec.queryPacket
+            )
+        )
+    }
+
+    func testDeviceNamePacketRejectsInvalidUTF8AndPadding() throws {
+        var bytes = [UInt8](try DeviceNamePacketCodec.encode(name: "Office"))
+        bytes[2] = 0x07
+        XCTAssertThrowsError(try DeviceNamePacketCodec.decode(Data(bytes)))
+
+        bytes = [UInt8](try DeviceNamePacketCodec.encode(name: "Office"))
+        bytes[19] = 1
+        XCTAssertThrowsError(try DeviceNamePacketCodec.decode(Data(bytes)))
+    }
 }
 
 final class SettingsStoreTests: XCTestCase {
@@ -244,6 +277,11 @@ final class SettingsStoreTests: XCTestCase {
     }
 
     func testMatchingRevisionAndFingerprintClearPending() throws {
+        store.adoptNameFromDevice(
+            id: first,
+            name: "First",
+            at: Date(timeIntervalSince1970: 500)
+        )
         let device = try XCTUnwrap(store.device(id: first))
         let settings = try XCTUnwrap(store.effectiveSettings(for: first))
         let fingerprint = try ConfigPacketCodec.fingerprint(settings: settings)
@@ -273,8 +311,186 @@ final class SettingsStoreTests: XCTestCase {
     func testNameValidation() {
         XCTAssertEqual(DeviceNameValidation.normalized("  Main Desk  "), "Main Desk")
         XCTAssertNil(DeviceNameValidation.normalized(""))
-        XCTAssertNil(DeviceNameValidation.normalized(String(repeating: "a", count: 41)))
+        XCTAssertNotNil(DeviceNameValidation.normalized(String(repeating: "a", count: 18)))
+        XCTAssertNil(DeviceNameValidation.normalized(String(repeating: "a", count: 19)))
         XCTAssertNil(DeviceNameValidation.normalized("Bad\u{0007}Name"))
+        XCTAssertNil(DeviceNameValidation.normalizedUserName("Device B9EC"))
+        XCTAssertEqual(
+            DeviceNameValidation.migratedLegacyName(
+                "A long legacy conference room name"
+            ),
+            "A long legacy conf"
+        )
+    }
+
+    func testLongLegacyNameIsMigratedAndMarkedPending() throws {
+        var legacy = NoiseAppRecord()
+        legacy.devices = [
+            NoiseDeviceRecord(
+                id: first,
+                customName: "A long legacy conference room name",
+                desiredRevision: 1,
+                lastSuccessfulSync: nil,
+                lastAppliedRevision: nil,
+                lastAppliedFingerprint: nil,
+                nameSyncPending: nil,
+                lastConfirmedName: nil
+            )
+        ]
+        defaults.set(
+            try JSONEncoder().encode(legacy),
+            forKey: "ESPNoise.settingsRecord"
+        )
+
+        let migrated = SettingsStore(defaults: defaults)
+        let device = try XCTUnwrap(migrated.device(id: first))
+        XCTAssertEqual(device.customName, "A long legacy conf")
+        XCTAssertTrue(migrated.nameNeedsSync(id: first))
+        XCTAssertLessThanOrEqual(device.customName.utf8.count, 18)
+    }
+
+    func testLegacyHardwareNameWaitsForDeviceRead() throws {
+        var legacy = NoiseAppRecord()
+        legacy.devices = [
+            NoiseDeviceRecord(
+                id: first,
+                customName: "Device B9EC",
+                desiredRevision: 1,
+                lastSuccessfulSync: nil,
+                lastAppliedRevision: nil,
+                lastAppliedFingerprint: nil,
+                nameSyncPending: nil,
+                lastConfirmedName: nil
+            )
+        ]
+        defaults.set(
+            try JSONEncoder().encode(legacy),
+            forKey: "ESPNoise.settingsRecord"
+        )
+
+        let migrated = SettingsStore(defaults: defaults)
+        XCTAssertFalse(migrated.nameNeedsSync(id: first))
+        XCTAssertFalse(migrated.nameIsConfirmed(id: first))
+        XCTAssertTrue(migrated.isPending(id: first))
+    }
+
+    func testFreshDeviceCompletesOnlyAfterNameRead() throws {
+        let device = try XCTUnwrap(store.device(id: first))
+        let settings = try XCTUnwrap(store.effectiveSettings(for: first))
+        let fingerprint = try ConfigPacketCodec.fingerprint(settings: settings)
+        let settingsDate = Date(timeIntervalSince1970: 1_000)
+        store.markSynced(
+            id: first,
+            revision: device.desiredRevision,
+            fingerprint: fingerprint,
+            at: settingsDate
+        )
+        XCTAssertNil(store.device(id: first)?.lastSuccessfulSync)
+        XCTAssertTrue(store.isPending(id: first))
+
+        let nameDate = Date(timeIntervalSince1970: 2_000)
+        store.adoptNameFromDevice(id: first, name: "First", at: nameDate)
+        XCTAssertEqual(store.device(id: first)?.lastSuccessfulSync, nameDate)
+        XCTAssertFalse(store.isPending(id: first))
+    }
+
+    func testLastSyncChangesOnlyAfterAllValuesAreComplete() throws {
+        let firstDate = Date(timeIntervalSince1970: 1_000)
+        store.markNameSynced(id: first, name: "First", at: firstDate)
+        XCTAssertNil(store.device(id: first)?.lastSuccessfulSync)
+
+        let device = try XCTUnwrap(store.device(id: first))
+        let settings = try XCTUnwrap(store.effectiveSettings(for: first))
+        let fingerprint = try ConfigPacketCodec.fingerprint(settings: settings)
+        let secondDate = Date(timeIntervalSince1970: 2_000)
+        store.markSynced(
+            id: first,
+            revision: device.desiredRevision,
+            fingerprint: fingerprint,
+            at: secondDate
+        )
+        XCTAssertEqual(store.device(id: first)?.lastSuccessfulSync, secondDate)
+
+        try store.updateDevice(
+            id: first,
+            name: "Meeting Room",
+            overrides: DeviceOverrides()
+        )
+        var global = store.record.globalSettings
+        global.buzzerPercent += 1
+        try store.updateGlobal(global)
+        let pending = try XCTUnwrap(store.device(id: first))
+        let newSettings = try XCTUnwrap(store.effectiveSettings(for: first))
+        let newFingerprint = try ConfigPacketCodec.fingerprint(
+            settings: newSettings
+        )
+        let thirdDate = Date(timeIntervalSince1970: 3_000)
+        store.markSynced(
+            id: first,
+            revision: pending.desiredRevision,
+            fingerprint: newFingerprint,
+            at: thirdDate
+        )
+        XCTAssertEqual(store.device(id: first)?.lastSuccessfulSync, secondDate)
+
+        let fourthDate = Date(timeIntervalSince1970: 4_000)
+        store.markNameSynced(
+            id: first,
+            name: "Meeting Room",
+            at: fourthDate
+        )
+        XCTAssertEqual(store.device(id: first)?.lastSuccessfulSync, fourthDate)
+    }
+
+    func testNameOnlyChangeHasIndependentPendingState() throws {
+        let revision = try XCTUnwrap(store.device(id: first)?.desiredRevision)
+        XCTAssertFalse(store.nameNeedsSync(id: first))
+        try store.updateDevice(
+            id: first,
+            name: "Meeting Room",
+            overrides: DeviceOverrides()
+        )
+        XCTAssertEqual(store.device(id: first)?.desiredRevision, revision)
+        XCTAssertTrue(store.nameNeedsSync(id: first))
+        store.markNameSynced(id: first, name: "Meeting Room", at: Date())
+        XCTAssertFalse(store.nameNeedsSync(id: first))
+        XCTAssertEqual(store.device(id: first)?.lastConfirmedName, "Meeting Room")
+    }
+
+    func testFreshPhoneAdoptsNameAndConfirmedPhoneRestoresAfterErase() throws {
+        store.adoptNameFromDevice(
+            id: first,
+            name: "Quiet Room",
+            at: Date()
+        )
+        XCTAssertEqual(store.device(id: first)?.customName, "Quiet Room")
+        XCTAssertFalse(store.nameNeedsSync(id: first))
+
+        try store.updateDevice(
+            id: first,
+            name: "Main Room",
+            overrides: DeviceOverrides()
+        )
+        store.markNameSynced(id: first, name: "Main Room", at: Date())
+        store.adoptNameFromDevice(
+            id: first,
+            name: "Device B9EC",
+            at: Date()
+        )
+        XCTAssertEqual(store.device(id: first)?.customName, "Main Room")
+        XCTAssertTrue(store.nameNeedsSync(id: first))
+    }
+
+    func testGlobalDefaultsKeepDeviceOverrides() throws {
+        var overrides = DeviceOverrides()
+        overrides.buzzerPercent = 10
+        try store.updateDevice(id: first, name: "First", overrides: overrides)
+        var changed = NoiseSettings()
+        changed.buzzerPercent = 80
+        try store.updateGlobal(changed)
+        try store.updateGlobal(NoiseSettings())
+        XCTAssertEqual(store.record.globalSettings, NoiseSettings())
+        XCTAssertEqual(store.device(id: first)?.overrides.buzzerPercent, 10)
     }
 
     func testProductDefaultsMatchFirmwareDefaults() {

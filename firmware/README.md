@@ -88,7 +88,8 @@ the value after the case is assembled.
 | Mute control | `include/mute_button.h`, `src/mute_button.cpp` | Button filtering |
 | BLE service | `include/ble_service.h`, `src/ble_service.cpp` | Encrypted settings writes, readback, and status |
 | Settings packet | `include/config_packet.h`, `src/config_packet.cpp` | 32-byte packet, limits, and fingerprint |
-| Settings storage | `include/settings_storage.h`, `src/settings_storage.cpp` | Valid settings in NVS |
+| Device name | `include/device_name.h`, `src/device_name.cpp` | 20-byte UTF-8 name packet and validation |
+| Settings storage | `include/settings_storage.h`, `src/settings_storage.cpp` | Valid settings and device name in NVS |
 | Scheduler | `src/main.cpp` | Sample, wait, alarm, mute, and safe settings apply states |
 
 The `esp32dev` environment uses permanent USB peripheral power and the tested
@@ -125,7 +126,9 @@ an observation ends. It then clears the detector history and alarm state.
 The firmware saves a valid packet in NVS only when the complete packet changes.
 Thus, a reconnect with the same revision does not make another flash write. A
 bad saved record does not start. The firmware uses the compiled defaults
-instead. The device name is `ESPNoise-XXXX`, where `XXXX` is the chip suffix.
+instead. The default device name is `ESPNoise-Device XXXX`, where `XXXX` is
+the chip suffix. A synchronized custom suffix replaces `Device XXXX`. The
+firmware saves it in a separate NVS record and keeps the `ESPNoise-` prefix.
 Fast advertising lasts two minutes. A device with no saved bond keeps first
 pairing available. After the first bond succeeds, new-phone pairing lasts two
 minutes after startup. Slow connectable advertising continues after this time

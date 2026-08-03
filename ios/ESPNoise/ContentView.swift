@@ -115,6 +115,7 @@ struct GlobalSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: NoiseSettings
     @State private var errorText: String?
+    @State private var resetText: String?
 
     init(syncManager: NoiseSyncManager) {
         self.syncManager = syncManager
@@ -127,6 +128,9 @@ struct GlobalSettingsView: View {
             if let errorText {
                 Section("Needs Attention") { Text(errorText).foregroundStyle(.red) }
             }
+            if let resetText {
+                Section { Text(resetText).foregroundStyle(.secondary) }
+            }
             Section {
                 Button("Save Global Settings") {
                     do {
@@ -136,12 +140,23 @@ struct GlobalSettingsView: View {
                         errorText = error.localizedDescription
                     }
                 }
+                Button("Reset Global Values to Defaults") {
+                    draft = NoiseSettings()
+                    errorText = nil
+                    resetText =
+                        "Default values are ready. Select Save Global Settings to apply them. Device overrides stay unchanged."
+                }
             } footer: {
                 Text("A change marks only devices that use the changed value as pending.")
             }
         }
         .navigationTitle("Global Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: draft) { _, newValue in
+            if resetText != nil, newValue != NoiseSettings() {
+                resetText = nil
+            }
+        }
     }
 }
 
@@ -152,7 +167,9 @@ struct DeviceSettingsView: View {
     @State private var name = ""
     @State private var overrides = DeviceOverrides()
     @State private var errorText: String?
+    @State private var savedText: String?
     @State private var showRemove = false
+    @State private var loadedName = ""
 
     var body: some View {
         Form {
@@ -198,9 +215,12 @@ struct DeviceSettingsView: View {
             if let errorText {
                 Section("Needs Attention") { Text(errorText).foregroundStyle(.red) }
             }
+            if let savedText {
+                Section { Text(savedText).foregroundStyle(.green) }
+            }
 
             Section {
-                Button("Save Device Settings") { save() }
+                Button("Save Name and Settings") { save() }
                 Button("Reset All Overrides") {
                     do {
                         try syncManager.resetOverrides(id: deviceID)
@@ -215,6 +235,13 @@ struct DeviceSettingsView: View {
         .navigationTitle(name.isEmpty ? "Device" : name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { load() }
+        .onChange(of: syncedDeviceName) { oldValue, newValue in
+            guard let newValue, name == loadedName || name == oldValue else {
+                return
+            }
+            name = newValue
+            loadedName = newValue
+        }
         .confirmationDialog(
             "Remove this device?",
             isPresented: $showRemove,
@@ -237,19 +264,36 @@ struct DeviceSettingsView: View {
     private func load() {
         guard let record = syncManager.deviceRecord(id: deviceID) else { return }
         name = record.customName
+        loadedName = record.customName
         overrides = record.overrides
     }
 
+    private var syncedDeviceName: String? {
+        syncManager.devices.first(where: { $0.id == deviceID })?.name
+    }
+
     private func save() {
-        guard DeviceNameValidation.normalized(name) != nil else {
-            errorText = "Enter a name with 1 through 40 characters."
+        guard let cleanName = DeviceNameValidation.normalizedUserName(name)
+        else {
+            errorText =
+                "Enter a name of 18 UTF-8 bytes or less. The form Device XXXX is reserved for the hardware name."
+            savedText = nil
             return
         }
         do {
-            try syncManager.saveDevice(id: deviceID, name: name, overrides: overrides)
+            try syncManager.saveDevice(
+                id: deviceID,
+                name: cleanName,
+                overrides: overrides
+            )
+            name = cleanName
+            loadedName = cleanName
             errorText = nil
+            savedText =
+                "Saved on this iPhone. The device name and settings will synchronize when the device is available."
         } catch {
             errorText = error.localizedDescription
+            savedText = nil
         }
     }
 }

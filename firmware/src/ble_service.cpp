@@ -20,12 +20,17 @@ NimBLEServer* server = nullptr;
 NimBLEAdvertising* advertising = nullptr;
 NimBLECharacteristic* configCharacteristic = nullptr;
 NimBLECharacteristic* statusCharacteristic = nullptr;
+NimBLECharacteristic* nameCharacteristic = nullptr;
 config_packet::Bytes currentPacket{};
 config_packet::Bytes pendingPacket{};
+device_name::Value currentName;
+device_name::Value pendingName;
 RuntimeSettings pendingSettings;
 uint32_t pendingRevision = 0;
 portMUX_TYPE pendingMutex = portMUX_INITIALIZER_UNLOCKED;
 bool hasPending = false;
+bool hasPendingName = false;
+bool hasNameReadRequest = false;
 volatile bool connected = false;
 volatile bool slowAdvertising = false;
 uint32_t advertisingStartMs = 0;
@@ -39,6 +44,31 @@ constexpr uint32_t kLiveStatusIntervalMs = 250;
 bool pairingOpen() {
   return firstPairingPending ||
          millis() - advertisingStartMs < kFastAdvertisingDurationMs;
+}
+
+std::string advertisedName(const device_name::Value& name) {
+  std::string result = "ESPNoise-";
+  result.append(reinterpret_cast<const char*>(name.bytes.data()),
+                name.length);
+  return result;
+}
+
+void setAdvertisingIntervals(bool slow);
+
+void updateAdvertisedName(const device_name::Value& name) {
+  const std::string fullName = advertisedName(name);
+  NimBLEDevice::setDeviceName(fullName);
+  const bool restart = advertising != nullptr && advertising->isAdvertising();
+  if (restart) {
+    advertising->stop();
+  }
+  NimBLEAdvertisementData scanResponseData;
+  scanResponseData.setName(fullName);
+  advertising->setScanResponseData(scanResponseData);
+  if (restart) {
+    setAdvertisingIntervals(slowAdvertising);
+    advertising->start();
+  }
 }
 
 void setAdvertisingIntervals(bool slow) {
@@ -109,6 +139,31 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 class ConfigCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* characteristic) override {
     const std::string value = characteristic->getValue();
+
+    if (value.size() == device_name::kPacketLength) {
+      device_name::Value candidate;
+      const auto result = device_name::decode(
+          reinterpret_cast<const uint8_t*>(value.data()), value.size(),
+          candidate);
+      config_packet::Bytes readback{};
+      portENTER_CRITICAL(&pendingMutex);
+      readback = currentPacket;
+      portEXIT_CRITICAL(&pendingMutex);
+      characteristic->setValue(readback.data(), readback.size());
+      if (result != device_name::ValidationResult::kValid) {
+        return;
+      }
+      portENTER_CRITICAL(&pendingMutex);
+      if (candidate.length == 0) {
+        hasNameReadRequest = true;
+      } else {
+        pendingName = candidate;
+        hasPendingName = true;
+      }
+      portEXIT_CRITICAL(&pendingMutex);
+      return;
+    }
+
     RuntimeSettings settings;
     uint32_t revision = 0;
     const auto result = config_packet::decode(
@@ -137,17 +192,43 @@ class ConfigCallbacks : public NimBLECharacteristicCallbacks {
   }
 };
 
+class NameCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* characteristic) override {
+    const std::string value = characteristic->getValue();
+    device_name::Value candidate;
+    const auto result = device_name::decode(
+        reinterpret_cast<const uint8_t*>(value.data()), value.size(),
+        candidate);
+
+    device_name::Value readback;
+    portENTER_CRITICAL(&pendingMutex);
+    readback = currentName;
+    portEXIT_CRITICAL(&pendingMutex);
+    const auto readbackPacket = device_name::encode(readback);
+    characteristic->setValue(readbackPacket.data(), readbackPacket.size());
+    if (result != device_name::ValidationResult::kValid ||
+        candidate.length == 0) {
+      return;
+    }
+
+    portENTER_CRITICAL(&pendingMutex);
+    pendingName = candidate;
+    hasPendingName = true;
+    portEXIT_CRITICAL(&pendingMutex);
+  }
+};
+
 ServerCallbacks serverCallbacks;
 ConfigCallbacks configCallbacks;
+NameCallbacks nameCallbacks;
 
 }  // namespace
 
-void begin(const config_packet::Bytes& appliedPacket) {
+void begin(const config_packet::Bytes& appliedPacket,
+           const device_name::Value& appliedName) {
   currentPacket = appliedPacket;
-  const uint64_t chipId = ESP.getEfuseMac();
-  char name[18] = {};
-  snprintf(name, sizeof(name), "ESPNoise-%04X",
-           static_cast<unsigned>(chipId & 0xFFFFU));
+  currentName = appliedName;
+  const std::string name = advertisedName(currentName);
 
   NimBLEDevice::init(name);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -163,8 +244,17 @@ void begin(const config_packet::Bytes& appliedPacket) {
                        NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::NOTIFY);
   statusCharacteristic = service->createCharacteristic(
       kStatusUuid, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  nameCharacteristic = service->createCharacteristic(
+      kNameUuid, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE |
+                     NIMBLE_PROPERTY::READ_ENC |
+                     NIMBLE_PROPERTY::WRITE_ENC |
+                     NIMBLE_PROPERTY::NOTIFY);
   configCharacteristic->setCallbacks(&configCallbacks);
+  nameCharacteristic->setCallbacks(&nameCallbacks);
   configCharacteristic->setValue(currentPacket.data(), currentPacket.size());
+  const auto initialNamePacket = device_name::encode(currentName);
+  nameCharacteristic->setValue(initialNamePacket.data(),
+                               initialNamePacket.size());
   Status initialStatus;
   initialStatus.appliedRevision =
       static_cast<uint32_t>(currentPacket[28]) |
@@ -196,7 +286,7 @@ void begin(const config_packet::Bytes& appliedPacket) {
   Serial.printf(
       "[BLE] Advertising start=%s name=%s service=%s bonds=%u "
       "first_pairing_open=%s\n",
-      started ? "yes" : "no", name, kServiceUuid,
+      started ? "yes" : "no", name.c_str(), kServiceUuid,
       static_cast<unsigned>(NimBLEDevice::getNumBonds()),
       pairingOpen() ? "yes" : "no");
 }
@@ -228,6 +318,29 @@ bool takePending(config_packet::Bytes& packet, RuntimeSettings& settings,
   return available;
 }
 
+bool takePendingName(device_name::Value& name) {
+  bool available = false;
+  portENTER_CRITICAL(&pendingMutex);
+  if (hasPendingName) {
+    name = pendingName;
+    hasPendingName = false;
+    available = true;
+  }
+  portEXIT_CRITICAL(&pendingMutex);
+  return available;
+}
+
+bool takeNameReadRequest() {
+  bool requested = false;
+  portENTER_CRITICAL(&pendingMutex);
+  if (hasNameReadRequest) {
+    hasNameReadRequest = false;
+    requested = true;
+  }
+  portEXIT_CRITICAL(&pendingMutex);
+  return requested;
+}
+
 void acknowledge(const config_packet::Bytes& appliedPacket,
                  const Status& status) {
   portENTER_CRITICAL(&pendingMutex);
@@ -236,6 +349,28 @@ void acknowledge(const config_packet::Bytes& appliedPacket,
   configCharacteristic->setValue(currentPacket.data(), currentPacket.size());
   configCharacteristic->notify();
   setStatus(status);
+}
+
+void acknowledgeName(const device_name::Value& appliedName) {
+  portENTER_CRITICAL(&pendingMutex);
+  currentName = appliedName;
+  portEXIT_CRITICAL(&pendingMutex);
+  const auto packet = device_name::encode(currentName);
+  updateAdvertisedName(currentName);
+  notifyName(currentName);
+}
+
+void notifyName(const device_name::Value& appliedName) {
+  const auto packet = device_name::encode(appliedName);
+  nameCharacteristic->setValue(packet.data(), packet.size());
+  nameCharacteristic->notify();
+  configCharacteristic->setValue(packet.data(), packet.size());
+  configCharacteristic->notify();
+  config_packet::Bytes readback{};
+  portENTER_CRITICAL(&pendingMutex);
+  readback = currentPacket;
+  portEXIT_CRITICAL(&pendingMutex);
+  configCharacteristic->setValue(readback.data(), readback.size());
 }
 
 void setStatus(const Status& status) {

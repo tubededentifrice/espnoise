@@ -25,6 +25,18 @@ Each device page shows the inherited or overridden state of each applicable
 value. A reset action removes the override. It does not copy the current
 global value into a new override.
 
+The Global Settings page has a reset button. It puts the compiled default
+values in the draft. The user must select **Save Global Settings** to apply
+them. This action does not remove device overrides or device names.
+
+A custom device name is saved on the phone and in ESP32 nonvolatile storage.
+It uses a separate synchronization state from the measurement settings. A
+new phone adopts the name that it reads from the device. A normal firmware
+upload keeps the saved name. If a full flash erase removes the name, a phone
+that previously confirmed the name restores it. The name can use no more
+than 18 UTF-8 bytes. Names in the form `Device XXXX`, where `XXXX` is four
+hexadecimal digits, are reserved for the hardware default name.
+
 The firmware keeps thresholds as signed dBFS values. The app presents them as
 a positive relative level from 0 through 120. It adds 120 to the dBFS value,
 so louder sound has a larger displayed number. This value is not calibrated
@@ -51,7 +63,9 @@ and a settings fingerprint. The app records the synchronization time only
 when both values match its desired profile.
 
 Do not let two phones automatically manage the same device. The phone that
-reconnects last can replace the settings from the other phone.
+reconnects last can replace the settings from the other phone. A phone does
+not write a device name only because it connects. It adopts a different valid
+name from the device unless it has a pending user edit.
 
 ## Device page and fleet status
 
@@ -95,14 +109,17 @@ wire stays the final control and can stop all buzzer output.
 
 ## Bluetooth service
 
-The device advertises a name in the form `ESPNoise-XXXX`. `XXXX` is the low
-four hexadecimal digits of the ESP32 hardware identifier.
+The device advertises a name in the form `ESPNoise-<name>`. The default name
+is `Device XXXX`, where `XXXX` is the low four hexadecimal digits of the ESP32
+hardware identifier. The `ESPNoise-` prefix stays present after a name change,
+so AccessorySetupKit discovery continues to work.
 
 | Item | UUID |
 | --- | --- |
 | Settings service | `3F751B85-D1AC-4699-AEEC-8B5B720B706B` |
 | Configuration | `0235A089-40E1-4985-A78B-046EA4D983A9` |
 | Status | `214F1B5A-DD35-4626-8247-FA07DA61EE64` |
+| Device name | `AC1D60EF-369C-4640-8055-506A1514BD49` |
 
 The configuration value is a 32-byte, little-endian packet.
 
@@ -125,6 +142,23 @@ The configuration value is a 32-byte, little-endian packet.
 
 The settings fingerprint is FNV-1a 32 over bytes 0 through 27. The revision is
 not part of the fingerprint.
+
+The device-name value is a 20-byte packet. Reads and writes require an
+encrypted connection. The app normally uses the separate device-name
+characteristic. It can also write this packet to the configuration
+characteristic. This fallback lets an iPhone with an old Bluetooth service
+cache synchronize the name without a new pairing.
+
+| Byte | Value |
+| ---: | --- |
+| 0 | Name protocol version, `1` |
+| 1 | UTF-8 name length, from `1` through `18`; `0` requests a readback |
+| 2-19 | Name bytes and zero padding |
+
+The BLE callback validates and queues a nonempty name. A packet with a zero
+length requests the current name. The main loop saves a new name before the
+firmware changes the advertised name and sends an exact readback. A BLE write
+response alone is not a successful name synchronization.
 
 The current status value is a 20-byte, little-endian packet.
 

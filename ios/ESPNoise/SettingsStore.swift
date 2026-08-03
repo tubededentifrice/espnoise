@@ -16,6 +16,32 @@ struct SettingsStore {
            let decoded = try? decoder.decode(NoiseAppRecord.self, from: data),
            decoded.schemaVersion == NoiseAppRecord.currentSchemaVersion {
             record = decoded
+            var migrated = false
+            for index in record.devices.indices
+            where record.devices[index].nameSyncPending == nil
+                && DeviceNameValidation.isHardwareDefaultName(
+                    record.devices[index].customName
+                ) {
+                record.devices[index].nameSyncPending = false
+                record.devices[index].lastConfirmedName = nil
+                migrated = true
+            }
+            for index in record.devices.indices
+            where DeviceNameValidation.normalized(
+                record.devices[index].customName
+            ) == nil {
+                record.devices[index].customName =
+                    DeviceNameValidation.migratedLegacyName(
+                        record.devices[index].customName
+                    )
+                record.devices[index].lastConfirmedName = nil
+                record.devices[index].nameSyncPending = true
+                migrated = true
+            }
+            if migrated,
+               let migratedData = try? encoder.encode(record) {
+                defaults.set(migratedData, forKey: Keys.record)
+            }
         } else {
             record = NoiseAppRecord()
         }
@@ -23,12 +49,16 @@ struct SettingsStore {
 
     mutating func reconcileDevice(id: UUID, suggestedName: String) {
         guard !record.devices.contains(where: { $0.id == id }) else { return }
-        let name = DeviceNameValidation.normalized(suggestedName) ?? "ESPNoise Device"
+        let suffix = suggestedName.hasPrefix("ESPNoise-")
+            ? String(suggestedName.dropFirst("ESPNoise-".count))
+            : suggestedName
+        let name = DeviceNameValidation.normalized(suffix) ?? "ESPNoise Device"
         record.devices.append(
             NoiseDeviceRecord(
                 id: id,
                 customName: name,
-                desiredRevision: allocateRevision()
+                desiredRevision: allocateRevision(),
+                nameSyncPending: false
             )
         )
         save()
@@ -58,11 +88,15 @@ struct SettingsStore {
         overrides: DeviceOverrides
     ) throws {
         guard let index = record.devices.firstIndex(where: { $0.id == id }),
-              let cleanName = DeviceNameValidation.normalized(name) else { return }
+              let cleanName = DeviceNameValidation.normalizedUserName(name)
+        else { return }
         let oldEffective = effectiveSettings(for: id)
         let newEffective = overrides.applying(to: record.globalSettings)
         _ = try newEffective.validated()
-        record.devices[index].customName = cleanName
+        if record.devices[index].customName != cleanName {
+            record.devices[index].customName = cleanName
+            record.devices[index].nameSyncPending = true
+        }
         record.devices[index].overrides = overrides
         if oldEffective != newEffective {
             record.devices[index].desiredRevision = allocateRevision()
@@ -85,7 +119,42 @@ struct SettingsStore {
               record.devices[index].desiredRevision == revision else { return }
         record.devices[index].lastAppliedRevision = revision
         record.devices[index].lastAppliedFingerprint = fingerprint
-        record.devices[index].lastSuccessfulSync = date
+        if nameIsConfirmed(id: id) {
+            record.devices[index].lastSuccessfulSync = date
+        }
+        save()
+    }
+
+    mutating func adoptNameFromDevice(id: UUID, name: String, at date: Date) {
+        guard let index = record.devices.firstIndex(where: { $0.id == id }),
+              let cleanName = DeviceNameValidation.normalized(name),
+              !nameNeedsSync(id: id) else { return }
+        let recordName = record.devices[index].customName
+        let confirmedName = record.devices[index].lastConfirmedName
+        if let confirmedName,
+           cleanName != confirmedName,
+           DeviceNameValidation.isHardwareDefaultName(cleanName),
+           !DeviceNameValidation.isHardwareDefaultName(recordName) {
+            record.devices[index].nameSyncPending = true
+        } else {
+            record.devices[index].customName = cleanName
+            record.devices[index].lastConfirmedName = cleanName
+            record.devices[index].nameSyncPending = false
+            if !settingsArePending(id: id) {
+                record.devices[index].lastSuccessfulSync = date
+            }
+        }
+        save()
+    }
+
+    mutating func markNameSynced(id: UUID, name: String, at date: Date) {
+        guard let index = record.devices.firstIndex(where: { $0.id == id }),
+              record.devices[index].customName == name else { return }
+        record.devices[index].nameSyncPending = false
+        record.devices[index].lastConfirmedName = name
+        if !settingsArePending(id: id) {
+            record.devices[index].lastSuccessfulSync = date
+        }
         save()
     }
 
@@ -102,13 +171,29 @@ struct SettingsStore {
         device(id: id)?.overrides.applying(to: record.globalSettings)
     }
 
-    func isPending(id: UUID) -> Bool {
+    func settingsArePending(id: UUID) -> Bool {
         guard let device = device(id: id),
               let settings = effectiveSettings(for: id),
               let fingerprint = try? ConfigPacketCodec.fingerprint(settings: settings)
         else { return true }
         return device.lastAppliedRevision != device.desiredRevision
             || device.lastAppliedFingerprint != fingerprint
+    }
+
+    func nameNeedsSync(id: UUID) -> Bool {
+        guard let device = device(id: id) else { return true }
+        return device.nameSyncPending ?? true
+    }
+
+    func nameIsConfirmed(id: UUID) -> Bool {
+        guard let device = device(id: id) else { return false }
+        return !nameNeedsSync(id: id)
+            && device.lastConfirmedName == device.customName
+    }
+
+    func isPending(id: UUID) -> Bool {
+        settingsArePending(id: id) || nameNeedsSync(id: id)
+            || !nameIsConfirmed(id: id)
     }
 
     private mutating func allocateRevision() -> UInt32 {

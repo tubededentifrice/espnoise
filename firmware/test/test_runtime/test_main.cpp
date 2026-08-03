@@ -2,6 +2,7 @@
 
 #include "ble_service.h"
 #include "config_packet.h"
+#include "device_name.h"
 #include "noise_detector.h"
 
 namespace {
@@ -87,6 +88,56 @@ void testStatusPacketLayout() {
   status.measurementValid = false;
   const auto invalidMeasurement = ble_service::encodeStatus(status);
   TEST_ASSERT_EQUAL_HEX8(0x03, invalidMeasurement[2]);
+}
+
+void testDeviceNamePacketValidation() {
+  device_name::Packet query{};
+  query[0] = 1;
+  device_name::Value decoded;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(device_name::ValidationResult::kValid),
+      static_cast<int>(device_name::decode(
+          query.data(), query.size(), decoded)));
+  TEST_ASSERT_EQUAL_UINT8(0, decoded.length);
+
+  device_name::Value name;
+  constexpr uint8_t office[] = {'O', 'f', 'f', 'i', 'c', 'e'};
+  name.length = sizeof(office);
+  std::copy(office, office + sizeof(office), name.bytes.begin());
+  const auto packet = device_name::encode(name);
+  TEST_ASSERT_EQUAL_UINT8(1, packet[0]);
+  TEST_ASSERT_EQUAL_UINT8(6, packet[1]);
+
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(device_name::ValidationResult::kValid),
+      static_cast<int>(device_name::decode(
+          packet.data(), packet.size(), decoded)));
+  TEST_ASSERT_TRUE(name == decoded);
+
+  auto invalid = packet;
+  invalid[2] = 0x07;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(device_name::ValidationResult::kBadUtf8),
+      static_cast<int>(device_name::decode(
+          invalid.data(), invalid.size(), decoded)));
+
+  invalid = packet;
+  invalid[19] = 1;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(device_name::ValidationResult::kBadPadding),
+      static_cast<int>(device_name::decode(
+          invalid.data(), invalid.size(), decoded)));
+
+  device_name::Packet accented{};
+  accented[0] = 1;
+  accented[1] = 3;
+  accented[2] = 'C';
+  accented[3] = 0xC3;
+  accented[4] = 0xA9;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(device_name::ValidationResult::kValid),
+      static_cast<int>(device_name::decode(
+          accented.data(), accented.size(), decoded)));
 }
 
 config_packet::ValidationResult decodeResult(
@@ -187,6 +238,7 @@ int main(int argc, char** argv) {
   RUN_TEST(testPacketLayoutAndDecode);
   RUN_TEST(testFingerprintDoesNotIncludeRevision);
   RUN_TEST(testStatusPacketLayout);
+  RUN_TEST(testDeviceNamePacketValidation);
   RUN_TEST(testLimitsRejectInvalidRelatedValues);
   RUN_TEST(testDetectorUsesDynamicWindowThresholdAndPercent);
   return UNITY_END();

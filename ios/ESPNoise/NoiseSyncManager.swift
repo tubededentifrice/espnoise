@@ -75,6 +75,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     static let serviceUUID = CBUUID(string: "3F751B85-D1AC-4699-AEEC-8B5B720B706B")
     static let configUUID = CBUUID(string: "0235A089-40E1-4985-A78B-046EA4D983A9")
     static let statusUUID = CBUUID(string: "214F1B5A-DD35-4626-8247-FA07DA61EE64")
+    static let nameUUID = CBUUID(string: "AC1D60EF-369C-4640-8055-506A1514BD49")
 
     @Published private(set) var devices: [NoiseDeviceViewState] = []
     @Published private(set) var globalSettings = NoiseSettings()
@@ -90,20 +91,26 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         var peripheral: CBPeripheral?
         var configCharacteristic: CBCharacteristic?
         var statusCharacteristic: CBCharacteristic?
+        var nameCharacteristic: CBCharacteristic?
         var connectionText = "Waiting for Bluetooth"
         var isConnected = false
         var connectPending = false
         var reconnectAttempts = 0
         var reconnectWorkItem: DispatchWorkItem?
         var acknowledgementWorkItems: [DispatchWorkItem] = []
+        var nameAcknowledgementWorkItems: [DispatchWorkItem] = []
         var statusExpiryWorkItem: DispatchWorkItem?
         var measurementExpiryWorkItem: DispatchWorkItem?
         var sentRevision: UInt32?
         var sentFingerprint: UInt32?
+        var nameWritePending = false
+        var nameQueryWritePending = false
+        var hasReceivedName = false
         var status: DeviceStatus?
         var statusDate: Date?
         var measurementHistory = NoiseMeasurementHistory()
         var lastError: String?
+        var nameError: String?
 
         init(identifier: UUID) { self.identifier = identifier }
     }
@@ -199,6 +206,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     func syncNow(id: UUID) {
         guard let runtime = runtimes[id] else { return }
         runtime.lastError = nil
+        runtime.nameError = nil
         runtime.reconnectAttempts = 0
         if runtime.isConnected {
             sendDesired(to: runtime)
@@ -396,6 +404,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         if runtime.peripheral !== peripheral {
             runtime.configCharacteristic = nil
             runtime.statusCharacteristic = nil
+            runtime.nameCharacteristic = nil
         }
         runtime.peripheral = peripheral
         peripheral.delegate = self
@@ -447,6 +456,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     private func stop(_ runtime: Runtime) {
         runtime.acknowledgementWorkItems.forEach { $0.cancel() }
         runtime.acknowledgementWorkItems = []
+        runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+        runtime.nameAcknowledgementWorkItems = []
         runtime.statusExpiryWorkItem?.cancel()
         runtime.reconnectWorkItem?.cancel()
         if let peripheral = runtime.peripheral {
@@ -455,8 +466,12 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.peripheral = nil
         runtime.configCharacteristic = nil
         runtime.statusCharacteristic = nil
+        runtime.nameCharacteristic = nil
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
+        runtime.nameWritePending = false
+        runtime.nameQueryWritePending = false
+        runtime.hasReceivedName = false
         runtime.isConnected = false
         runtime.connectPending = false
     }
@@ -468,12 +483,22 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     }
 
     private func sendDesired(to runtime: Runtime) {
+        sendDesiredSettings(to: runtime)
+        sendDesiredName(to: runtime)
+        publish()
+    }
+
+    private func sendDesiredSettings(to runtime: Runtime) {
         guard runtime.isConnected,
               let peripheral = runtime.peripheral,
               let characteristic = runtime.configCharacteristic,
               let device = settingsStore.device(id: runtime.identifier),
               let settings = settingsStore.effectiveSettings(for: runtime.identifier)
         else { return }
+        if runtime.nameCharacteristic == nil,
+           runtime.nameWritePending || runtime.nameQueryWritePending {
+            return
+        }
         do {
             let packet = try ConfigPacketCodec.encode(
                 settings: settings,
@@ -483,7 +508,6 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                     >= packet.count else {
                 runtime.lastError =
                     "The Bluetooth connection cannot transfer the settings packet."
-                publish()
                 return
             }
             runtime.lastError = nil
@@ -495,7 +519,44 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         } catch {
             runtime.lastError = error.localizedDescription
         }
-        publish()
+    }
+
+    private func sendDesiredName(to runtime: Runtime) {
+        guard runtime.isConnected,
+              settingsStore.nameNeedsSync(id: runtime.identifier),
+              !runtime.nameWritePending,
+              let peripheral = runtime.peripheral,
+              let device = settingsStore.device(id: runtime.identifier)
+        else { return }
+        let characteristic = runtime.nameCharacteristic
+            ?? runtime.configCharacteristic
+        guard let characteristic else { return }
+        if runtime.nameCharacteristic == nil,
+           runtime.sentRevision != nil || runtime.nameQueryWritePending {
+            return
+        }
+        do {
+            let packet = try DeviceNamePacketCodec.encode(
+                name: device.customName
+            )
+            guard peripheral.maximumWriteValueLength(for: .withResponse)
+                    >= packet.count else {
+                runtime.nameError =
+                    "The Bluetooth connection cannot transfer the device name."
+                return
+            }
+            runtime.nameError = nil
+            runtime.nameWritePending = true
+            runtime.connectionText = "Sending device name"
+            peripheral.writeValue(
+                packet,
+                for: characteristic,
+                type: .withResponse
+            )
+            scheduleNameAcknowledgementReads(runtime)
+        } catch {
+            runtime.nameError = error.localizedDescription
+        }
     }
 
     private func scheduleAcknowledgementReads(_ runtime: Runtime) {
@@ -505,7 +566,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             let id = runtime.identifier
             let work = DispatchWorkItem { [weak self] in
                 guard let self, let current = self.runtimes[id],
-                      self.settingsStore.isPending(id: id),
+                      self.settingsStore.settingsArePending(id: id),
                       let peripheral = current.peripheral,
                       let status = current.statusCharacteristic else { return }
                 peripheral.readValue(for: status)
@@ -517,6 +578,65 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             runtime.acknowledgementWorkItems.append(work)
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
         }
+    }
+
+    private func scheduleNameAcknowledgementReads(_ runtime: Runtime) {
+        runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+        runtime.nameAcknowledgementWorkItems = []
+        for delay in [2.0, 5.0, 10.0] {
+            let id = runtime.identifier
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, let current = self.runtimes[id],
+                      self.settingsStore.nameNeedsSync(id: id)
+                        || !current.hasReceivedName,
+                      let peripheral = current.peripheral else { return }
+                if let name = current.nameCharacteristic {
+                    peripheral.readValue(for: name)
+                } else if let configuration = current.configCharacteristic {
+                    guard !current.nameQueryWritePending else { return }
+                    current.nameQueryWritePending = true
+                    peripheral.writeValue(
+                        DeviceNamePacketCodec.queryPacket,
+                        for: configuration,
+                        type: .withResponse
+                    )
+                }
+                if delay == 10 {
+                    current.nameWritePending = false
+                    current.nameQueryWritePending = false
+                    current.nameError = self.settingsStore.nameNeedsSync(id: id)
+                        ? "The device did not confirm its name. The name stays pending."
+                        : "The device did not return its saved name."
+                    self.publish()
+                }
+            }
+            runtime.nameAcknowledgementWorkItems.append(work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    }
+
+    private func requestDeviceName(from runtime: Runtime) {
+        guard runtime.isConnected,
+              !runtime.hasReceivedName,
+              runtime.nameAcknowledgementWorkItems.isEmpty,
+              let peripheral = runtime.peripheral else { return }
+        if runtime.nameCharacteristic == nil,
+           runtime.sentRevision != nil {
+            return
+        }
+        if let name = runtime.nameCharacteristic {
+            peripheral.readValue(for: name)
+        } else if let configuration = runtime.configCharacteristic {
+            runtime.nameQueryWritePending = true
+            peripheral.writeValue(
+                DeviceNamePacketCodec.queryPacket,
+                for: configuration,
+                type: .withResponse
+            )
+        } else {
+            return
+        }
+        scheduleNameAcknowledgementReads(runtime)
     }
 
     private func handleStatus(_ data: Data, for runtime: Runtime) {
@@ -555,11 +675,62 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                     runtime.sentFingerprint = nil
                 }
                 runtime.connectionText = "Connected"
+                if settingsStore.nameNeedsSync(id: runtime.identifier) {
+                    sendDesiredName(to: runtime)
+                } else {
+                    requestDeviceName(from: runtime)
+                }
             } else if status.appliedRevision == desired.desiredRevision {
                 runtime.lastError = "The device confirmed different settings. The phone settings stay pending."
             }
         } catch {
             runtime.lastError = "The device sent an invalid status packet."
+        }
+        publish()
+    }
+
+    private func handleName(_ data: Data, for runtime: Runtime) {
+        do {
+            let appliedName = try DeviceNamePacketCodec.decode(data)
+            runtime.hasReceivedName = true
+            runtime.nameQueryWritePending = false
+            if settingsStore.nameNeedsSync(id: runtime.identifier) {
+                guard let desired = settingsStore.device(
+                    id: runtime.identifier
+                )?.customName else { return }
+                if appliedName == desired {
+                    runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+                    runtime.nameAcknowledgementWorkItems = []
+                    runtime.nameWritePending = false
+                    runtime.nameError = nil
+                    runtime.connectionText = "Connected"
+                    settingsStore.markNameSynced(
+                        id: runtime.identifier,
+                        name: appliedName,
+                        at: Date()
+                    )
+                    sendDesiredSettings(to: runtime)
+                } else if !runtime.nameWritePending {
+                    sendDesiredName(to: runtime)
+                }
+            } else {
+                runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+                runtime.nameAcknowledgementWorkItems = []
+                runtime.nameError = nil
+                settingsStore.adoptNameFromDevice(
+                    id: runtime.identifier,
+                    name: appliedName,
+                    at: Date()
+                )
+                if settingsStore.nameNeedsSync(id: runtime.identifier) {
+                    sendDesiredName(to: runtime)
+                }
+                if runtime.nameCharacteristic == nil {
+                    sendDesiredSettings(to: runtime)
+                }
+            }
+        } catch {
+            runtime.nameError = "The device sent an invalid name packet."
         }
         publish()
     }
@@ -635,7 +806,13 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                 alarmText = nil
             }
             let pending = settingsStore.isPending(id: runtime.identifier)
-            let syncText = runtime.lastError != nil ? "Error" : (pending ? "Pending" : "Synchronized")
+            let settingsPending = settingsStore.settingsArePending(
+                id: runtime.identifier
+            )
+            let displayedError = runtime.lastError ?? runtime.nameError
+            let syncText = displayedError != nil
+                ? "Error"
+                : (pending ? "Pending" : "Synchronized")
             return NoiseDeviceViewState(
                 id: runtime.identifier,
                 name: device.customName,
@@ -643,11 +820,11 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                 syncText: syncText,
                 alarmText: alarmText,
                 lastSyncDate: device.lastSuccessfulSync,
-                lastError: runtime.lastError,
+                lastError: displayedError,
                 isConnected: runtime.isConnected,
                 measurements: runtime.measurementHistory.measurements,
                 latestStatus: freshStatus,
-                settingsAreApplied: !pending
+                settingsAreApplied: !settingsPending
             )
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         updateSetupText()
@@ -770,8 +947,14 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         runtime.connectPending = isReconnecting
         runtime.configCharacteristic = nil
         runtime.statusCharacteristic = nil
+        runtime.nameCharacteristic = nil
+        runtime.nameQueryWritePending = false
+        runtime.hasReceivedName = false
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
+        runtime.nameWritePending = false
+        runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+        runtime.nameAcknowledgementWorkItems = []
         runtime.measurementHistory.resetSequence()
         runtime.connectionText = isReconnecting ? "Out of range; reconnecting" : "Out of range"
         if !isReconnecting { scheduleReconnect(runtime) }
@@ -792,7 +975,10 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
             publish()
             return
         }
-        peripheral.discoverCharacteristics([Self.configUUID, Self.statusUUID], for: service)
+        peripheral.discoverCharacteristics(
+            [Self.configUUID, Self.statusUUID, Self.nameUUID],
+            for: service
+        )
     }
 
     func peripheral(
@@ -809,12 +995,20 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
         for characteristic in service.characteristics ?? [] {
             if characteristic.uuid == Self.configUUID { runtime.configCharacteristic = characteristic }
             if characteristic.uuid == Self.statusUUID { runtime.statusCharacteristic = characteristic }
+            if characteristic.uuid == Self.nameUUID { runtime.nameCharacteristic = characteristic }
         }
         guard runtime.configCharacteristic != nil,
               let status = runtime.statusCharacteristic else {
             runtime.lastError = "The ESPNoise service is incomplete. Update the firmware."
             publish()
             return
+        }
+        if let name = runtime.nameCharacteristic {
+            peripheral.setNotifyValue(true, for: name)
+            peripheral.readValue(for: name)
+        }
+        if let configuration = runtime.configCharacteristic {
+            peripheral.setNotifyValue(true, for: configuration)
         }
         peripheral.setNotifyValue(true, for: status)
     }
@@ -824,13 +1018,24 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
         didUpdateNotificationStateFor characteristic: CBCharacteristic,
         error: Error?
     ) {
-        guard let runtime = runtimes[peripheral.identifier],
-              characteristic.uuid == Self.statusUUID else { return }
+        guard let runtime = runtimes[peripheral.identifier] else { return }
         if let error {
-            runtime.lastError = safeError(error, prefix: "Status notifications failed")
+            if characteristic.uuid == Self.nameUUID {
+                let label = "Name notifications failed"
+                runtime.nameError = safeError(error, prefix: label)
+            } else {
+                let label = characteristic.uuid == Self.configUUID
+                    ? "Settings notifications failed"
+                    : "Status notifications failed"
+                runtime.lastError = safeError(error, prefix: label)
+            }
         } else if characteristic.isNotifying {
             peripheral.readValue(for: characteristic)
-            sendDesired(to: runtime)
+            if characteristic.uuid == Self.statusUUID {
+                sendDesired(to: runtime)
+            } else if characteristic.uuid == Self.configUUID {
+                requestDeviceName(from: runtime)
+            }
         }
         publish()
     }
@@ -840,12 +1045,26 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
         didUpdateValueFor characteristic: CBCharacteristic,
         error: Error?
     ) {
-        guard let runtime = runtimes[peripheral.identifier],
-              characteristic.uuid == Self.statusUUID else { return }
+        guard let runtime = runtimes[peripheral.identifier] else { return }
         if let error {
-            runtime.lastError = safeError(error, prefix: "Status read failed")
+            if characteristic.uuid == Self.nameUUID {
+                let label = "Device name read failed"
+                runtime.nameError = safeError(error, prefix: label)
+            } else {
+                let label = characteristic.uuid == Self.configUUID
+                    ? "Settings read failed"
+                    : "Status read failed"
+                runtime.lastError = safeError(error, prefix: label)
+            }
         } else if let data = characteristic.value {
-            handleStatus(data, for: runtime)
+            if characteristic.uuid == Self.statusUUID {
+                handleStatus(data, for: runtime)
+            } else if characteristic.uuid == Self.nameUUID {
+                handleName(data, for: runtime)
+            } else if characteristic.uuid == Self.configUUID,
+                      data.count == DeviceNamePacketCodec.packetLength {
+                handleName(data, for: runtime)
+            }
         }
         publish()
     }
@@ -855,15 +1074,47 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
         didWriteValueFor characteristic: CBCharacteristic,
         error: Error?
     ) {
-        guard characteristic.uuid == Self.configUUID,
-              let runtime = runtimes[peripheral.identifier] else { return }
+        guard let runtime = runtimes[peripheral.identifier] else { return }
         if let error {
-            runtime.acknowledgementWorkItems.forEach { $0.cancel() }
-            runtime.acknowledgementWorkItems = []
-            runtime.sentRevision = nil
-            runtime.sentFingerprint = nil
-            runtime.lastError = safeError(error, prefix: "Settings transfer failed")
+            if characteristic.uuid == Self.configUUID {
+                if runtime.nameCharacteristic == nil,
+                   runtime.nameWritePending {
+                    runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+                    runtime.nameAcknowledgementWorkItems = []
+                    runtime.nameWritePending = false
+                    runtime.nameError = safeError(
+                        error,
+                        prefix: "Device name transfer failed"
+                    )
+                } else if runtime.nameQueryWritePending {
+                    runtime.nameQueryWritePending = false
+                    runtime.nameError = safeError(
+                        error,
+                        prefix: "Device name read request failed"
+                    )
+                } else if runtime.sentRevision != nil {
+                    runtime.acknowledgementWorkItems.forEach { $0.cancel() }
+                    runtime.acknowledgementWorkItems = []
+                    runtime.sentRevision = nil
+                    runtime.sentFingerprint = nil
+                    runtime.lastError = safeError(
+                        error,
+                        prefix: "Settings transfer failed"
+                    )
+                }
+            } else if characteristic.uuid == Self.nameUUID {
+                runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+                runtime.nameAcknowledgementWorkItems = []
+                runtime.nameWritePending = false
+                runtime.nameError = safeError(
+                    error,
+                    prefix: "Device name transfer failed"
+                )
+            }
             publish()
+        } else if characteristic.uuid == Self.configUUID,
+                  runtime.nameQueryWritePending {
+            runtime.nameQueryWritePending = false
         }
     }
 }
