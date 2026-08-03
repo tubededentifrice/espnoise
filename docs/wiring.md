@@ -19,8 +19,8 @@ pins and the main startup-configuration pins.
 
 ## USB-powered build
 
-Use this circuit with the full-size USB-C ESP32. Do not install a battery. This
-is the first build. The external USB-C connector carries power only.
+Use this production circuit with the full-size USB-C ESP32. Do not install a
+battery. The external USB-C connector carries power only.
 
 ```mermaid
 flowchart TB

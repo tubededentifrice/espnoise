@@ -22,6 +22,8 @@ dist/
 *.stl
 *.3mf
 *.gcode
+!cad/production/*.stl
+!cad/production/*.3mf
 
 # Local settings and measurements
 .env

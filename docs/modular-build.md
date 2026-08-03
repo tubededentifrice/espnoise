@@ -22,8 +22,7 @@ that one module cannot connect to the wrong socket.
 
 ## Stage 0: Two-wire USB-C power module
 
-Test the available two-wire USB-C connector before you connect it to the
-ESP32:
+Test the two-wire USB-C connector before you connect it to the ESP32:
 
 1. Keep its red and black wires disconnected from all circuits.
 2. Connect a USB-C to USB-C cable and a 5 V USB-C supply.
@@ -32,13 +31,13 @@ ESP32:
 5. Use the connector if both measurements are from 4.75 V to 5.25 V.
 
 If both measurements are zero, the connector probably has no CC pull-down
-resistors. If it exposes separate CC1 and CC2 pads, one 5.1 kohm resistor can
-connect from each pad to GND. The available 1 W resistors are electrically
-suitable, but they are physically large. If the connector exposes only red
-and black wires, the resistors cannot be added to it.
+resistors. If it exposes separate CC1 and CC2 pads, connect one 5.1 kohm
+resistor from each pad to GND. Do not combine CC1 and CC2. If the connector
+exposes only red and black wires, the resistors cannot be added to it.
 
-The [USB-C compatibility repair](usb-c-repair.md) stays as an optional advanced
-method. It is not necessary for the first build.
+The [USB-C compatibility repair](usb-c-repair.md) is an optional advanced
+method. It is not necessary when the input module has the two correct CC
+pull-down resistors.
 
 ## Stage 1: ESP32 and USB power
 
