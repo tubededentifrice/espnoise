@@ -560,6 +560,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
 
     private func safeError(_ error: Error, prefix: String) -> String {
         let nsError = error as NSError
+        if nsError.domain == ASErrorDomain && nsError.code == 150 {
+            return "\(prefix). The phone found the device but could not connect. Keep it near the phone. Restart the device, then select Add Device again."
+        }
         return "\(prefix) (\(nsError.domain) code \(nsError.code))."
     }
 

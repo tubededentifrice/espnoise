@@ -31,7 +31,13 @@ volatile bool slowAdvertising = false;
 uint32_t advertisingStartMs = 0;
 std::array<uint8_t, 16> lastStatusPacket{};
 bool haveStatus = false;
+bool firstPairingPending = false;
 constexpr uint32_t kStatusHeartbeatSeconds = 10;
+
+bool pairingOpen() {
+  return firstPairingPending ||
+         millis() - advertisingStartMs < kFastAdvertisingDurationMs;
+}
 
 void writeU32(uint8_t* data, uint32_t value) {
   data[0] = static_cast<uint8_t>(value);
@@ -71,14 +77,26 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 
     const bool knownBond = NimBLEDevice::isBonded(
         NimBLEAddress(description->peer_id_addr));
-    const bool pairingOpen =
-        millis() - advertisingStartMs < kFastAdvertisingDurationMs;
-    if (!description->sec_state.encrypted && !knownBond && !pairingOpen) {
+    if (!description->sec_state.encrypted && !knownBond && !pairingOpen()) {
+      Serial.printf(
+          "[BLE] Rejected new phone outside pairing window; bonds=%u\n",
+          static_cast<unsigned>(NimBLEDevice::getNumBonds()));
       connected = false;
       source->disconnect(description->conn_handle);
       return;
     }
     if (!description->sec_state.encrypted) {
+      if (!knownBond &&
+          NimBLEDevice::getNumBonds() >= CONFIG_BT_NIMBLE_MAX_BONDS) {
+        Serial.println("[BLE] Rejected new phone because bond storage is full");
+        connected = false;
+        source->disconnect(description->conn_handle);
+        return;
+      }
+      Serial.printf(
+          "[BLE] Starting security; known_bond=%s pairing_open=%s bonds=%u\n",
+          knownBond ? "yes" : "no", pairingOpen() ? "yes" : "no",
+          static_cast<unsigned>(NimBLEDevice::getNumBonds()));
       NimBLEDevice::startSecurity(description->conn_handle);
     }
   }
@@ -94,11 +112,16 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     if (description == nullptr ||
         !description->sec_state.encrypted ||
         !description->sec_state.bonded) {
+      Serial.println("[BLE] Authentication failed");
       connected = false;
       if (description != nullptr) {
         server->disconnect(description->conn_handle);
       }
+      return;
     }
+    firstPairingPending = false;
+    Serial.printf("[BLE] Authentication complete; bonds=%u\n",
+                  static_cast<unsigned>(NimBLEDevice::getNumBonds()));
   }
 };
 
@@ -146,8 +169,10 @@ void begin(const config_packet::Bytes& appliedPacket) {
            static_cast<unsigned>(chipId & 0xFFFFU));
 
   NimBLEDevice::init(name);
+  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
   NimBLEDevice::setSecurityAuth(true, false, true);
   NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+  firstPairingPending = NimBLEDevice::getNumBonds() == 0;
 
   server = NimBLEDevice::createServer();
   server->setCallbacks(&serverCallbacks);
@@ -173,11 +198,26 @@ void begin(const config_packet::Bytes& appliedPacket) {
   service->start();
 
   advertising = NimBLEDevice::getAdvertising();
-  advertising->addServiceUUID(kServiceUuid);
+  NimBLEAdvertisementData advertisementData;
+  advertisementData.setFlags(BLE_HS_ADV_F_DISC_GEN |
+                             BLE_HS_ADV_F_BREDR_UNSUP);
+  advertisementData.setCompleteServices(NimBLEUUID(kServiceUuid));
+  advertisementData.setPreferredParams(kFastAdvertisingMinInterval,
+                                       kFastAdvertisingMaxInterval);
+  NimBLEAdvertisementData scanResponseData;
+  scanResponseData.setName(name);
+  advertising->setAdvertisementData(advertisementData);
+  advertising->setScanResponseData(scanResponseData);
   advertising->setScanResponse(true);
   setAdvertisingIntervals(false);
   advertisingStartMs = millis();
-  advertising->start();
+  const bool started = advertising->start();
+  Serial.printf(
+      "[BLE] Advertising start=%s name=%s service=%s bonds=%u "
+      "first_pairing_open=%s\n",
+      started ? "yes" : "no", name, kServiceUuid,
+      static_cast<unsigned>(NimBLEDevice::getNumBonds()),
+      pairingOpen() ? "yes" : "no");
 }
 
 void update(uint32_t nowMs) {

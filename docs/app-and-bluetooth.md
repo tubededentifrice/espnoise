@@ -131,10 +131,11 @@ same packet through a configuration read.
 
 ## Pairing and background limits
 
-The app uses AccessorySetupKit on iOS 18 or later. A new device accepts a
-bonded connection during its first two minutes after startup. It then changes
-to slower connectable advertising for lower radio use and known-phone
-reconnection.
+The app uses AccessorySetupKit on iOS 18 or later. A device with no saved bond
+keeps first pairing available. After the first bond succeeds, a different
+phone can pair during the first two minutes after device startup. The device
+then changes to slower connectable advertising for lower radio use and
+known-phone reconnection.
 
 iOS Bluetooth work is event driven. iOS does not guarantee that the app will
 run at a fixed time. The app uses Bluetooth restoration and automatic

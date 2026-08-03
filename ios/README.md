@@ -23,6 +23,10 @@ Use the same command with `build-for-testing` to compile the XCTest target.
 4. Select a device with a Bluetooth name that starts with `ESPNoise-`.
 5. Keep the device near the phone until the app shows **Synchronized**.
 
+If setup reports that it cannot add the accessory, keep the device powered,
+restart it, and try **Add Device** again. A device with no completed bond keeps
+first pairing available.
+
 Each device page has a local custom name and optional device values. Sampling values K, N, decision window, and X are global only. The phone sends its complete effective settings after each reconnect. Offline settings stay pending.
 
 ## Sync rules

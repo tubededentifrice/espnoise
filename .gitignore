@@ -12,6 +12,8 @@
 !.vscode/extensions.json
 *.swp
 *~
+**/xcuserdata/
+*.xcuserstate
 
 # macOS
 .DS_Store

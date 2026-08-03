@@ -126,8 +126,10 @@ The firmware saves a valid packet in NVS only when the complete packet changes.
 Thus, a reconnect with the same revision does not make another flash write. A
 bad saved record does not start. The firmware uses the compiled defaults
 instead. The device name is `ESPNoise-XXXX`, where `XXXX` is the chip suffix.
-Fast advertising and new-phone pairing last two minutes. Slow connectable
-advertising continues after this time for a bonded phone. Wi-Fi stays off.
+Fast advertising lasts two minutes. A device with no saved bond keeps first
+pairing available. After the first bond succeeds, new-phone pairing lasts two
+minutes after startup. Slow connectable advertising continues after this time
+for a bonded phone. Wi-Fi stays off.
 
 The main compiled values are:
 
