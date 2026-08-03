@@ -197,6 +197,12 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         if let runtime = runtimes[id] { sendDesired(to: runtime) }
     }
 
+    func saveDeviceName(id: UUID, name: String) throws {
+        settingsStore.updateDeviceName(id: id, name: name)
+        publish()
+        if let runtime = runtimes[id] { sendDesired(to: runtime) }
+    }
+
     func resetOverrides(id: UUID) throws {
         try settingsStore.resetOverrides(id: id)
         publish()
@@ -535,8 +541,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         let characteristic = runtime.nameCharacteristic
             ?? runtime.configCharacteristic
         guard let characteristic else { return }
-        if runtime.nameCharacteristic == nil,
-           runtime.sentRevision != nil || runtime.nameQueryWritePending {
+        if runtime.nameQueryWritePending
+            || (runtime.nameCharacteristic == nil
+                && runtime.sentRevision != nil) {
             return
         }
         do {
@@ -594,25 +601,26 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                       self.settingsStore.nameNeedsSync(id: id)
                         || !current.hasReceivedName,
                       let peripheral = current.peripheral else { return }
-                if let name = current.nameCharacteristic {
-                    peripheral.readValue(for: name)
-                } else if let configuration = current.configCharacteristic {
-                    guard !current.nameQueryWritePending else { return }
-                    current.nameQueryWritePending = true
-                    peripheral.writeValue(
-                        DeviceNamePacketCodec.queryPacket,
-                        for: configuration,
-                        type: .withResponse
-                    )
-                }
                 if delay == 10 {
-                    current.nameWritePending = false
+                    current.nameAcknowledgementWorkItems.forEach { $0.cancel() }
+                    current.nameAcknowledgementWorkItems = []
                     current.nameQueryWritePending = false
+                    current.nameWritePending = false
                     current.nameError = self.settingsStore.nameNeedsSync(id: id)
                         ? "The device did not confirm its name. The name stays pending."
                         : "The device did not return its saved name."
                     self.publish()
+                    return
                 }
+                guard !current.nameQueryWritePending else { return }
+                guard let configuration = current.configCharacteristic,
+                      current.sentRevision == nil else { return }
+                current.nameQueryWritePending = true
+                peripheral.writeValue(
+                    DeviceNamePacketCodec.queryPacket,
+                    for: configuration,
+                    type: .withResponse
+                )
             }
             runtime.nameAcknowledgementWorkItems.append(work)
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
@@ -623,23 +631,16 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         guard runtime.isConnected,
               !runtime.hasReceivedName,
               runtime.nameAcknowledgementWorkItems.isEmpty,
-              let peripheral = runtime.peripheral else { return }
-        if runtime.nameCharacteristic == nil,
-           runtime.sentRevision != nil {
-            return
-        }
-        if let name = runtime.nameCharacteristic {
-            peripheral.readValue(for: name)
-        } else if let configuration = runtime.configCharacteristic {
-            runtime.nameQueryWritePending = true
-            peripheral.writeValue(
-                DeviceNamePacketCodec.queryPacket,
-                for: configuration,
-                type: .withResponse
-            )
-        } else {
-            return
-        }
+              !runtime.nameQueryWritePending,
+              runtime.sentRevision == nil,
+              let peripheral = runtime.peripheral,
+              let configuration = runtime.configCharacteristic else { return }
+        runtime.nameQueryWritePending = true
+        peripheral.writeValue(
+            DeviceNamePacketCodec.queryPacket,
+            for: configuration,
+            type: .withResponse
+        )
         scheduleNameAcknowledgementReads(runtime)
     }
 
@@ -698,10 +699,13 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             let appliedName = try DeviceNamePacketCodec.decode(data)
             runtime.hasReceivedName = true
             runtime.nameQueryWritePending = false
-            if settingsStore.nameNeedsSync(id: runtime.identifier) {
-                guard let desired = settingsStore.device(
-                    id: runtime.identifier
-                )?.customName else { return }
+            guard let desired = settingsStore.device(
+                id: runtime.identifier
+            )?.customName else { return }
+            let nameNeedsSync = settingsStore.nameNeedsSync(
+                id: runtime.identifier
+            )
+            if nameNeedsSync {
                 if appliedName == desired {
                     runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
                     runtime.nameAcknowledgementWorkItems = []
@@ -1010,7 +1014,6 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
         }
         if let name = runtime.nameCharacteristic {
             peripheral.setNotifyValue(true, for: name)
-            peripheral.readValue(for: name)
         }
         if let configuration = runtime.configCharacteristic {
             peripheral.setNotifyValue(true, for: configuration)
@@ -1035,10 +1038,13 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
                 runtime.lastError = safeError(error, prefix: label)
             }
         } else if characteristic.isNotifying {
-            peripheral.readValue(for: characteristic)
+            if characteristic.uuid != Self.nameUUID {
+                peripheral.readValue(for: characteristic)
+            }
             if characteristic.uuid == Self.statusUUID {
                 sendDesired(to: runtime)
-            } else if characteristic.uuid == Self.configUUID {
+            } else if characteristic.uuid == Self.configUUID
+                        || characteristic.uuid == Self.nameUUID {
                 requestDeviceName(from: runtime)
             }
         }
@@ -1117,9 +1123,6 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
                 )
             }
             publish()
-        } else if characteristic.uuid == Self.configUUID,
-                  runtime.nameQueryWritePending {
-            runtime.nameQueryWritePending = false
         }
     }
 }

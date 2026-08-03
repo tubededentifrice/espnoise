@@ -443,14 +443,21 @@ final class SettingsStoreTests: XCTestCase {
     }
 
     func testNameOnlyChangeHasIndependentPendingState() throws {
-        let revision = try XCTUnwrap(store.device(id: first)?.desiredRevision)
-        XCTAssertFalse(store.nameNeedsSync(id: first))
+        var savedOverrides = DeviceOverrides()
+        savedOverrides.brightnessPercent = 10
         try store.updateDevice(
             id: first,
-            name: "Meeting Room",
-            overrides: DeviceOverrides()
+            name: "First",
+            overrides: savedOverrides
         )
+        let revision = try XCTUnwrap(store.device(id: first)?.desiredRevision)
+        XCTAssertFalse(store.nameNeedsSync(id: first))
+        store.updateDeviceName(id: first, name: "Meeting Room")
         XCTAssertEqual(store.device(id: first)?.desiredRevision, revision)
+        XCTAssertEqual(
+            store.device(id: first)?.overrides.brightnessPercent,
+            10
+        )
         XCTAssertTrue(store.nameNeedsSync(id: first))
         store.markNameSynced(id: first, name: "Meeting Room", at: Date())
         XCTAssertFalse(store.nameNeedsSync(id: first))
@@ -479,6 +486,23 @@ final class SettingsStoreTests: XCTestCase {
         )
         XCTAssertEqual(store.device(id: first)?.customName, "Main Room")
         XCTAssertTrue(store.nameNeedsSync(id: first))
+    }
+
+    func testConfirmedPhoneAdoptsLaterRemoteCustomName() throws {
+        try store.updateDevice(
+            id: first,
+            name: "Main Room",
+            overrides: DeviceOverrides()
+        )
+        store.markNameSynced(id: first, name: "Main Room", at: Date())
+        store.adoptNameFromDevice(
+            id: first,
+            name: "Quiet Room",
+            at: Date()
+        )
+
+        XCTAssertEqual(store.device(id: first)?.customName, "Quiet Room")
+        XCTAssertFalse(store.nameNeedsSync(id: first))
     }
 
     func testGlobalDefaultsKeepDeviceOverrides() throws {

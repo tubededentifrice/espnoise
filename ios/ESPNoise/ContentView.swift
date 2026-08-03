@@ -170,6 +170,7 @@ struct DeviceSettingsView: View {
     @State private var savedText: String?
     @State private var showRemove = false
     @State private var loadedName = ""
+    @State private var isRemoving = false
 
     var body: some View {
         Form {
@@ -187,6 +188,11 @@ struct DeviceSettingsView: View {
 
                 Section("Device") {
                     TextField("Custom name", text: $name)
+                        .submitLabel(.done)
+                        .onSubmit { saveNameIfNeeded(reportInvalid: true) }
+                    Text("A valid changed name is saved when you leave this page.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     LabeledContent("Connection", value: device.connectionText)
                     LabeledContent("Sync", value: device.syncText)
                     if let alarm = device.alarmText {
@@ -235,6 +241,10 @@ struct DeviceSettingsView: View {
         .navigationTitle(name.isEmpty ? "Device" : name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { load() }
+        .onDisappear {
+            guard !isRemoving else { return }
+            saveNameIfNeeded()
+        }
         .onChange(of: syncedDeviceName) { oldValue, newValue in
             guard let newValue, name == loadedName || name == oldValue else {
                 return
@@ -248,6 +258,7 @@ struct DeviceSettingsView: View {
             titleVisibility: .visible
         ) {
             Button("Remove Device", role: .destructive) {
+                isRemoving = true
                 syncManager.removeDevice(id: deviceID)
                 dismiss()
             }
@@ -294,6 +305,27 @@ struct DeviceSettingsView: View {
         } catch {
             errorText = error.localizedDescription
             savedText = nil
+        }
+    }
+
+    private func saveNameIfNeeded(reportInvalid: Bool = false) {
+        guard name != loadedName else { return }
+        guard let cleanName = DeviceNameValidation.normalizedUserName(name)
+        else {
+            if reportInvalid {
+                errorText =
+                    "Enter a name of 18 UTF-8 bytes or less. The form Device XXXX is reserved for the hardware name."
+                savedText = nil
+            }
+            return
+        }
+        do {
+            try syncManager.saveDeviceName(id: deviceID, name: cleanName)
+            name = cleanName
+            loadedName = cleanName
+            errorText = nil
+        } catch {
+            errorText = error.localizedDescription
         }
     }
 }

@@ -104,6 +104,15 @@ struct SettingsStore {
         save()
     }
 
+    mutating func updateDeviceName(id: UUID, name: String) {
+        guard let index = record.devices.firstIndex(where: { $0.id == id }),
+              let cleanName = DeviceNameValidation.normalizedUserName(name),
+              record.devices[index].customName != cleanName else { return }
+        record.devices[index].customName = cleanName
+        record.devices[index].nameSyncPending = true
+        save()
+    }
+
     mutating func resetOverrides(id: UUID) throws {
         guard let device = record.devices.first(where: { $0.id == id }) else { return }
         try updateDevice(id: id, name: device.customName, overrides: DeviceOverrides())
