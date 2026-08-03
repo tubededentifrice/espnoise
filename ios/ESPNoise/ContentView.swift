@@ -210,6 +210,12 @@ struct DeviceSettingsView: View {
                     rulesAreCurrent: device.settingsAreApplied
                         && previewSettings == savedSettings
                 )
+                OverrideControls(
+                    overrides: $overrides,
+                    global: syncManager.globalSettings,
+                    includesThresholds: true,
+                    includesOtherOverrides: false
+                )
 
                 Section("Device") {
                     TextField("Custom name", text: $name)
@@ -229,7 +235,9 @@ struct DeviceSettingsView: View {
 
             OverrideControls(
                 overrides: $overrides,
-                global: syncManager.globalSettings
+                global: syncManager.globalSettings,
+                includesThresholds: false,
+                includesOtherOverrides: true
             )
 
             Section {
@@ -360,29 +368,6 @@ private struct SettingsControls: View {
     let includesSampling: Bool
 
     var body: some View {
-        Section("Output") {
-            SettingSlider(
-                title: "LED brightness",
-                valueText: "\(settings.brightnessPercent)%",
-                value: uint8(\.brightnessPercent),
-                range: 0...100,
-                step: 1
-            )
-            SettingSlider(
-                title: "Buzzer volume",
-                valueText: "\(settings.buzzerPercent)%",
-                value: uint8(\.buzzerPercent),
-                range: 0...100,
-                step: 1
-            )
-            SettingSlider(
-                title: "Mute duration",
-                valueText: durationText(settings.muteDurationSeconds),
-                value: minutes(\.muteDurationSeconds),
-                range: 1...1_440,
-                step: 0.5
-            )
-        }
         Section("Thresholds") {
             ThresholdOverview(
                 greenTenths: settings.greenThresholdTenths,
@@ -407,6 +392,29 @@ private struct SettingsControls: View {
             Text("All three controls use the same scale. Move a threshold right for a louder trigger. They stay in Green, Orange, Red order.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        Section("Output") {
+            SettingSlider(
+                title: "LED brightness",
+                valueText: "\(settings.brightnessPercent)%",
+                value: uint8(\.brightnessPercent),
+                range: 0...100,
+                step: 1
+            )
+            SettingSlider(
+                title: "Buzzer volume",
+                valueText: "\(settings.buzzerPercent)%",
+                value: uint8(\.buzzerPercent),
+                range: 0...100,
+                step: 1
+            )
+            SettingSlider(
+                title: "Mute duration",
+                valueText: durationText(settings.muteDurationSeconds),
+                value: minutes(\.muteDurationSeconds),
+                range: 1...1_440,
+                step: 0.5
+            )
         }
         if includesSampling {
             Section("Sampling") {
@@ -583,70 +591,78 @@ private struct SettingsControls: View {
 private struct OverrideControls: View {
     @Binding var overrides: DeviceOverrides
     let global: NoiseSettings
+    let includesThresholds: Bool
+    let includesOtherOverrides: Bool
 
     var body: some View {
-        Section("Device Overrides") {
-            percentOverride(
-                "LED brightness",
-                value: $overrides.brightnessPercent,
-                inherited: global.brightnessPercent,
-                range: 0...100
-            )
-            percentOverride(
-                "Buzzer volume",
-                value: $overrides.buzzerPercent,
-                inherited: global.buzzerPercent,
-                range: 0...100
-            )
-            ThresholdOverview(
-                greenTenths: effectiveGreenThreshold,
-                orangeTenths: effectiveOrangeThreshold,
-                redTenths: effectiveRedThreshold
-            )
-            thresholdOverride(
-                "Green",
-                kind: .green,
-                value: $overrides.greenThresholdTenths,
-                inherited: global.greenThresholdTenths,
-                color: .green
-            )
-            thresholdOverride(
-                "Orange",
-                kind: .orange,
-                value: $overrides.orangeThresholdTenths,
-                inherited: global.orangeThresholdTenths,
-                color: .orange
-            )
-            thresholdOverride(
-                "Red",
-                kind: .red,
-                value: $overrides.redThresholdTenths,
-                inherited: global.redThresholdTenths,
-                color: .red
-            )
-            Text("These controls use the same quieter-to-louder scale. Values without an override come from Global Settings.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            toggle("Mute duration", isOn: Binding(
-                get: { overrides.muteDurationSeconds != nil },
-                set: { overrides.muteDurationSeconds = $0 ? global.muteDurationSeconds : nil }
-            ))
-            if overrides.muteDurationSeconds != nil {
-                let value = overrides.muteDurationSeconds ?? global.muteDurationSeconds
-                SettingSlider(
-                    title: "Mute duration",
-                    valueText: durationText(value),
-                    value: Binding(
-                        get: { Double(overrides.muteDurationSeconds ?? global.muteDurationSeconds) / 60 },
-                        set: { overrides.muteDurationSeconds = UInt32(($0 * 60).rounded()) }
-                    ),
-                    range: 1...1_440,
-                    step: 0.5
+        if includesThresholds {
+            Section("Thresholds") {
+                ThresholdOverview(
+                    greenTenths: effectiveGreenThreshold,
+                    orangeTenths: effectiveOrangeThreshold,
+                    redTenths: effectiveRedThreshold
                 )
-            } else {
-                Text("Inherited value: \(durationText(global.muteDurationSeconds))")
+                thresholdOverride(
+                    "Green",
+                    kind: .green,
+                    value: $overrides.greenThresholdTenths,
+                    inherited: global.greenThresholdTenths,
+                    color: .green
+                )
+                thresholdOverride(
+                    "Orange",
+                    kind: .orange,
+                    value: $overrides.orangeThresholdTenths,
+                    inherited: global.orangeThresholdTenths,
+                    color: .orange
+                )
+                thresholdOverride(
+                    "Red",
+                    kind: .red,
+                    value: $overrides.redThresholdTenths,
+                    inherited: global.redThresholdTenths,
+                    color: .red
+                )
+                Text("These controls use the same quieter-to-louder scale. Values without an override come from Global Settings.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+        if includesOtherOverrides {
+            Section("Device Overrides") {
+                percentOverride(
+                    "LED brightness",
+                    value: $overrides.brightnessPercent,
+                    inherited: global.brightnessPercent,
+                    range: 0...100
+                )
+                percentOverride(
+                    "Buzzer volume",
+                    value: $overrides.buzzerPercent,
+                    inherited: global.buzzerPercent,
+                    range: 0...100
+                )
+                toggle("Mute duration", isOn: Binding(
+                    get: { overrides.muteDurationSeconds != nil },
+                    set: { overrides.muteDurationSeconds = $0 ? global.muteDurationSeconds : nil }
+                ))
+                if overrides.muteDurationSeconds != nil {
+                    let value = overrides.muteDurationSeconds ?? global.muteDurationSeconds
+                    SettingSlider(
+                        title: "Mute duration",
+                        valueText: durationText(value),
+                        value: Binding(
+                            get: { Double(overrides.muteDurationSeconds ?? global.muteDurationSeconds) / 60 },
+                            set: { overrides.muteDurationSeconds = UInt32(($0 * 60).rounded()) }
+                        ),
+                        range: 1...1_440,
+                        step: 0.5
+                    )
+                } else {
+                    Text("Inherited value: \(durationText(global.muteDurationSeconds))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -928,9 +944,10 @@ private struct LiveNoisePanel: View {
         }
     }
 
+    @ViewBuilder
     private var historySummary: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let status = device.latestStatus, rulesAreCurrent {
+        if let status = device.latestStatus {
+            if rulesAreCurrent {
                 HStack {
                     countItem("Green", status.greenSampleCount, color: .green)
                     Spacer()
@@ -938,17 +955,11 @@ private struct LiveNoisePanel: View {
                     Spacer()
                     countItem("Red", status.redSampleCount, color: .red)
                 }
-                Text("History: \(status.historyCount) of \(historyCapacity) observations. After the history is full, an alarm starts when \(requiredCount) observations reach the same threshold.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if device.latestStatus != nil {
+            } else {
                 Text("Device counts are hidden until the saved settings synchronize.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("The positive level is relative to the digital microphone. It is not calibrated dB SPL. No audio is sent to the phone.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -986,10 +997,6 @@ private struct LiveNoisePanel: View {
         guard settings.samplePeriodMilliseconds > 0 else { return 0 }
         return Int(settings.decisionWindowMilliseconds /
                    settings.samplePeriodMilliseconds)
-    }
-
-    private var requiredCount: Int {
-        historyCapacity * Int(settings.triggerPercent) / 100 + 1
     }
 
     private func levelReached(_ level: Double) -> String {
