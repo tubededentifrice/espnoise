@@ -9,8 +9,8 @@ alarm by themselves.
   <img src="cad/media/enclosure-preview.png" width="420" alt="ESPNoise production enclosure assembly">
 </p>
 
-The repository includes the production enclosure, hardware design, and
-PlatformIO firmware.
+The repository includes the production enclosure, hardware design, PlatformIO
+firmware, and an optional iPhone settings app.
 
 ## Main features
 
@@ -20,7 +20,7 @@ PlatformIO firmware.
 - Optional passive buzzer with a hard power switch
 - A 30-minute mute button
 - No raw microphone recording or storage
-- Wi-Fi and Bluetooth off
+- Wi-Fi off; Bluetooth Low Energy is used only for the optional app
 - Firmware targets for a full-size ESP32 and a LOLIN32 Lite
 
 ## Production build
@@ -130,6 +130,8 @@ are in [`firmware/include/config.h`](firmware/include/config.h).
 4. Make the connections in the [wiring guide](docs/wiring.md).
 5. Build and upload the [firmware](firmware/README.md).
 6. Use the [test and adjustment procedure](docs/detection.md).
+7. If necessary, install and configure the optional iPhone app as described in
+   [the app and Bluetooth guide](docs/app-and-bluetooth.md).
 
 ## Safety and privacy
 
@@ -148,6 +150,7 @@ are in [`firmware/include/config.h`](firmware/include/config.h).
 cad/                 Production 3D-print files and editable CAD source
 docs/                Hardware, wiring, assembly, and test guides
 firmware/            PlatformIO firmware for both ESP32 controller options
+ios/                 Optional iPhone companion app and Xcode project
 ```
 
 ## License

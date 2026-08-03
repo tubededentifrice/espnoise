@@ -2,6 +2,12 @@
 
 #include "config.h"
 
+void NoiseDetector::setSettings(const RuntimeSettings& settings) {
+  settings_ = settings;
+  resetHistory();
+  beginSample();
+}
+
 void NoiseDetector::beginSample() {
   frameCount_ = 0;
   sampleMaximumDbfs_ = -120.0F;
@@ -19,13 +25,13 @@ float NoiseDetector::sampleMaximumDbfs() const {
 }
 
 AlarmLevel NoiseDetector::sampleLevel() const {
-  if (sampleMaximumDbfs_ >= config::kRedThresholdDbfs) {
+  if (sampleMaximumDbfs_ >= settings_.redThresholdDbfsX10 / 10.0F) {
     return AlarmLevel::kRed;
   }
-  if (sampleMaximumDbfs_ >= config::kOrangeThresholdDbfs) {
+  if (sampleMaximumDbfs_ >= settings_.orangeThresholdDbfsX10 / 10.0F) {
     return AlarmLevel::kOrange;
   }
-  if (sampleMaximumDbfs_ >= config::kGreenThresholdDbfs) {
+  if (sampleMaximumDbfs_ >= settings_.greenThresholdDbfsX10 / 10.0F) {
     return AlarmLevel::kGreen;
   }
   return AlarmLevel::kQuiet;
@@ -38,9 +44,9 @@ void NoiseDetector::commitSample() {
     return;
   }
   history_[historyWriteIndex_] = sampleMaximumDbfs_;
-  historyWriteIndex_ =
-      (historyWriteIndex_ + 1) % config::kHistorySampleCount;
-  if (historyCount_ < config::kHistorySampleCount) {
+  const size_t historyCapacity = settings_.historySampleCount();
+  historyWriteIndex_ = (historyWriteIndex_ + 1) % historyCapacity;
+  if (historyCount_ < historyCapacity) {
     ++historyCount_;
   }
 }
@@ -66,28 +72,29 @@ float NoiseDetector::historyRatioAtOrAbove(float thresholdDbfs) const {
 }
 
 float NoiseDetector::greenSampleRatio() const {
-  return historyRatioAtOrAbove(config::kGreenThresholdDbfs);
+  return historyRatioAtOrAbove(settings_.greenThresholdDbfsX10 / 10.0F);
 }
 
 float NoiseDetector::orangeSampleRatio() const {
-  return historyRatioAtOrAbove(config::kOrangeThresholdDbfs);
+  return historyRatioAtOrAbove(settings_.orangeThresholdDbfsX10 / 10.0F);
 }
 
 float NoiseDetector::redSampleRatio() const {
-  return historyRatioAtOrAbove(config::kRedThresholdDbfs);
+  return historyRatioAtOrAbove(settings_.redThresholdDbfsX10 / 10.0F);
 }
 
 AlarmLevel NoiseDetector::historyAlarmLevel() const {
-  if (historyCount_ < config::kMinimumHistorySamples) {
+  if (historyCount_ < settings_.historySampleCount()) {
     return AlarmLevel::kQuiet;
   }
-  if (redSampleRatio() > config::kTriggerSampleRatio) {
+  const float triggerRatio = settings_.triggerSamplePercent / 100.0F;
+  if (redSampleRatio() > triggerRatio) {
     return AlarmLevel::kRed;
   }
-  if (orangeSampleRatio() > config::kTriggerSampleRatio) {
+  if (orangeSampleRatio() > triggerRatio) {
     return AlarmLevel::kOrange;
   }
-  if (greenSampleRatio() > config::kTriggerSampleRatio) {
+  if (greenSampleRatio() > triggerRatio) {
     return AlarmLevel::kGreen;
   }
   return AlarmLevel::kQuiet;

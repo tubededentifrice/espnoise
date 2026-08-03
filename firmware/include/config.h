@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstddef>
+#include <cstdint>
 
 #ifndef ESPNOISE_SAMPLE_DURATION_MS
 #define ESPNOISE_SAMPLE_DURATION_MS (1UL * 1000UL)
@@ -45,14 +46,18 @@ constexpr uint32_t buzzerPatternDurationMs(const AlarmStyle& style) {
 
 // Sign output.
 constexpr uint8_t kLedCount = 10;
-constexpr uint8_t kLedBrightness = ESPNOISE_LED_BRIGHTNESS;
+// This is the board power limit. Runtime brightness is a percentage of this
+// value. Keep the battery board at or below 25% until a power test permits a
+// higher value.
+constexpr uint8_t kLedBrightnessMaximum = ESPNOISE_LED_BRIGHTNESS;
+constexpr uint8_t kDefaultLedBrightnessPercent = 100;
 
 // Audio and decision values. Levels are dBFS until the microphone is
 // calibrated against a sound level meter.
 constexpr uint32_t kSampleRateHz = 16000;
-constexpr float kGreenThresholdDbfs = -55.0F;
-constexpr float kOrangeThresholdDbfs = -48.0F;
-constexpr float kRedThresholdDbfs = -42.0F;
+constexpr int16_t kGreenThresholdDbfsX10 = -550;
+constexpr int16_t kOrangeThresholdDbfsX10 = -480;
+constexpr int16_t kRedThresholdDbfsX10 = -420;
 constexpr float kDcBlockFactor = 0.995F;
 constexpr size_t kAudioBlockSamples = 256;
 // Ignore microphone startup data after the I2S clock starts. This prevents a
@@ -87,8 +92,15 @@ constexpr uint32_t kBuzzerSettleMs = 100;
 constexpr uint8_t kQuietSamplesToClear = 2;
 constexpr bool kResetHistoryAfterAlarmClear = true;
 
-// Give one silent color flash after a normal observation crosses a threshold.
-constexpr uint32_t kSampleWarningMs = 500;
+// Runtime setting limits. The history allocation is fixed so that a phone
+// cannot cause a dynamic allocation in the detector.
+constexpr int16_t kMinimumThresholdDbfsX10 = -1200;
+constexpr int16_t kMaximumThresholdDbfsX10 = 0;
+constexpr size_t kMaximumHistorySampleCount = 120;
+constexpr uint8_t kMinimumTriggerSamplePercent = 1;
+constexpr uint8_t kMaximumTriggerSamplePercent = 99;
+constexpr uint32_t kMinimumMuteDurationSeconds = 60;
+constexpr uint32_t kMaximumMuteDurationSeconds = 24UL * 60UL * 60UL;
 
 // After an alarm clears, keep making short checks for this time. Noise can
 // restart the alarm after one check without a new full decision history.
@@ -101,7 +113,7 @@ constexpr uint32_t kEscalateToOrangeMs = 15UL * 1000UL;
 constexpr uint32_t kEscalateToRedMs = 30UL * 1000UL;
 
 // User controls.
-constexpr uint32_t kMute30Ms = 30UL * 60UL * 1000UL;
+constexpr uint32_t kDefaultMuteDurationSeconds = 30UL * 60UL;
 constexpr uint32_t kButtonDebounceMs = 35;
 
 // Alarm outputs.

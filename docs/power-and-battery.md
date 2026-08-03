@@ -96,8 +96,9 @@ Do not use a raw cell or loose cylindrical cells.
 
 ## Expected run time
 
-The firmware stops the microphone clock and puts the ESP32 in light sleep
-between sound samples. The WEMOS still powers its CH340 USB bridge, regulator,
+The firmware stops the microphone clock between sound samples. It does not use
+application light sleep because Bluetooth must stay available. NimBLE can use
+controller modem sleep. The WEMOS still powers its CH340 USB bridge, regulator,
 and LEDs. These parts set the minimum current.
 
 With the default `K = 1 second` and `N = 10 seconds`, use four to twelve days
@@ -112,6 +113,7 @@ current can make a longer time possible.
 | Increase N | Fewer samples and more battery time |
 | Keep an alarm active | Much less battery time |
 | Increase LED brightness | Much less battery time during an alarm |
+| Keep Bluetooth advertising or connected | Less battery time |
 
 Measure battery current at these points before you make a run-time claim:
 
@@ -120,6 +122,8 @@ Measure battery current at these points before you make a run-time claim:
 3. During a green alarm
 4. During a red alarm with the buzzer switch on
 5. During USB charge with the alarm off
+6. While Bluetooth advertises with the phone out of range
+7. While Bluetooth stays connected to the phone
 
 ## Enclosure rules
 

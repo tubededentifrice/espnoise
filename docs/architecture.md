@@ -23,6 +23,9 @@ flowchart LR
   MIC["Audio input module"] --> DETECT["Noise detector module"]
   DETECT --> STATE["Scheduler and state module"]
   BUTTON["Mute-control module"] --> STATE
+  PHONE["iPhone settings app"] -->|"Bluetooth LE"| BLE["BLE settings module"]
+  BLE --> STORE["Settings storage module"]
+  STORE --> STATE
   STATE --> OUTPUT["Alarm-output module"]
   BOARD --> MIC
   BOARD --> BUTTON
@@ -43,8 +46,8 @@ stateDiagram-v2
   History --> Wait: No threshold has more than X
   Wait --> Observation: N-second period starts
   AlarmOutput --> Recheck: 250 ms output ends
-  Recheck --> AlarmOutput: Maximum reaches green, or fewer than three quiet checks
-  Recheck --> Wait: Three consecutive quiet checks; reset history
+  Recheck --> AlarmOutput: Maximum reaches green, or fewer than two quiet checks
+  Recheck --> Wait: Two consecutive quiet checks; reset history
   Wait --> Muted: Mute button is pressed
   AlarmOutput --> Muted: Mute button is pressed
   Recheck --> Muted: Mute button is pressed
@@ -60,13 +63,13 @@ alarm also becomes more urgent with time.
 
 | Level | Default threshold | Light | Buzzer |
 | --- | ---: | --- | --- |
-| Green | -48 dBFS | Slow green blink | Silent |
-| Orange | -42 dBFS | Medium orange blink | Two warning notes |
-| Red | -36 dBFS | Fast red blink | Three angry notes |
+| Green | -55 dBFS | Slow green blink | Silent |
+| Orange | -48 dBFS | Medium orange blink | Two warning notes |
+| Red | -42 dBFS | Fast red blink | Three warning notes |
 
 After 15 seconds, the minimum alarm level is orange. After 30 seconds, it is
 red. During an active alarm, each one-second maximum can update the level.
-Three consecutive quiet checks clear the alarm within the configured
+Two consecutive quiet checks clear the alarm within the configured
 five-second limit.
 
 The brightness limit applies after the color is set. The tested USB-powered
@@ -93,22 +96,18 @@ The LEDs do not draw letters. The printed front panel contains the word
 pixels behind each letter give an even light level. Ten pixels use about
 167 mm of a 60-pixel/m strip.
 
-### Future phone control
+### Phone control
 
-A later version can add a Bluetooth Low Energy service. Keep these settings as
-separate values so the phone can change them:
+The iPhone app uses Bluetooth Low Energy to manage the main settings. It keeps
+one global profile and optional device overrides. The phone is the settings
+source. Each ESP32 validates and saves one complete effective profile.
 
-- Green, orange, and red sound set points
-- Observation time K
-- Observation period N
-- Decision-window time and saved-sample ratio X
-- Quiet checks and clear time
-- Time escalation points
-- Alarm colors and brightness
-- Buzzer enable, volume, pitches, and patterns
-- Mute time
+The app can change brightness, buzzer volume, three thresholds, mute duration,
+K, N, decision-window time, and X. K, N, decision-window time, and X are global
+only. See [iPhone app and Bluetooth settings](app-and-bluetooth.md).
 
-Do not enable Bluetooth in the first version. It adds test work and power use.
+Bluetooth stays on for device discovery and reconnect. Wi-Fi stays off. This
+radio use can reduce battery time and needs a battery test.
 
 ## Source data
 

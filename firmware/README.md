@@ -8,8 +8,8 @@
 - The `lolin32_lite` board definition for the WEMOS battery board
 
 The `uv.lock` file pins PlatformIO Core and its Python dependencies. The
-PlatformIO configuration pins the ESP32 package and the LED library. Thus,
-later builds use the same base.
+PlatformIO configuration pins the ESP32 package, LED library, and
+NimBLE-Arduino 1.4.3. Thus, later builds use the same base.
 
 From the repository root, install the locked Python tools:
 
@@ -48,7 +48,7 @@ uv run --locked pio run --environment esp32dev_led_test --target upload
 ```
 
 For a one-pixel bench test, use the fast profile. It listens for 3 seconds in
-each 5-second period, keeps a 15-second history, requires more than 30% of the
+each 5-second period, keeps a 15-second history, requires more than 50% of the
 saved maxima, and uses full LED brightness. It also plays a short buzzer chime
 after the LED test:
 
@@ -71,10 +71,10 @@ The tested passive piezo buzzer uses a 2N3904 low-side driver. GPIO23 connects
 to its base through 5.1 kohm. The firmware drives it with 2.4 kHz PWM. The
 hard switch stays in the buzzer 5 V wire.
 
-`kBuzzerVolumePercent` sets the electrical tone amplitude. The firmware maps
-this value to the PWM waveform for the passive piezo. Acoustic loudness is not
-linear and depends on the buzzer and its enclosure, so adjust the value after
-the case is assembled.
+The runtime buzzer-volume value sets the electrical tone amplitude. The
+firmware maps this value to the PWM waveform for the passive piezo. Acoustic
+loudness is not linear and depends on the buzzer and its enclosure, so adjust
+the value after the case is assembled.
 
 ## Firmware modules
 
@@ -86,7 +86,10 @@ the case is assembled.
 | Detector | `include/noise_detector.h`, `src/noise_detector.cpp` | Observation maximum, rolling history, and X decision |
 | Alarm output | `include/alarm_output.h`, `src/alarm_output.cpp` | SK6812, buzzer, and optional power switch |
 | Mute control | `include/mute_button.h`, `src/mute_button.cpp` | Button filtering |
-| Scheduler | `src/main.cpp` | Sample, wait, alarm, mute, and sleep states |
+| BLE service | `include/ble_service.h`, `src/ble_service.cpp` | Encrypted settings writes, readback, and status |
+| Settings packet | `include/config_packet.h`, `src/config_packet.cpp` | 32-byte packet, limits, and fingerprint |
+| Settings storage | `include/settings_storage.h`, `src/settings_storage.cpp` | Valid settings in NVS |
+| Scheduler | `src/main.cpp` | Sample, wait, alarm, mute, and safe settings apply states |
 
 The `esp32dev` environment uses permanent USB peripheral power and the tested
 100% LED brightness. The `lolin32_lite` environment keeps the 25% brightness
@@ -111,12 +114,26 @@ environment.
 Do not upload firmware until the user asks for an upload. A build does not
 change a connected board.
 
-## Settings
+## Runtime settings
 
-Edit `include/config.h` for the first adjustment. The main values are:
+`include/config.h` contains the compiled defaults and limits. A bonded BLE
+client can change the LED brightness, buzzer volume, three thresholds, K, N,
+the decision window, X, and mute time. The firmware validates the complete
+32-byte packet before it applies a change. It applies the related values after
+an observation ends. It then clears the detector history and alarm state.
 
-- `kGreenThresholdDbfs`: alarm trigger sound set point
-- `kOrangeThresholdDbfs` and `kRedThresholdDbfs`: louder sound bands
+The firmware saves a valid packet in NVS only when the complete packet changes.
+Thus, a reconnect with the same revision does not make another flash write. A
+bad saved record does not start. The firmware uses the compiled defaults
+instead. The device name is `ESPNoise-XXXX`, where `XXXX` is the chip suffix.
+Fast advertising and new-phone pairing last two minutes. Slow connectable
+advertising continues after this time for a bonded phone. Wi-Fi stays off.
+
+The main compiled values are:
+
+- `kGreenThresholdDbfsX10`: alarm trigger sound set point in signed tenths
+  of dBFS
+- `kOrangeThresholdDbfsX10` and `kRedThresholdDbfsX10`: louder sound bands
 - `kSampleDurationMs`: observation time K
 - `kSamplePeriodMs`: observation period N
 - `kDecisionWindowMs`: rolling history time
@@ -125,21 +142,21 @@ Edit `include/config.h` for the first adjustment. The main values are:
 - `kAlarmClearSampleDurationMs`, `kAlarmOutputWindowMs`, and
   `kQuietSamplesToClear`: active-alarm clear behavior
 - `kBuzzerSettleMs`: silent time between a buzzer pattern and microphone start
-- `kSampleWarningMs`: silent color-flash time after a high normal observation
 - `kFastRearmWindowMs` and `kFastRearmSampleGapMs`: quick restart checks after
   an alarm stops
 - `kEscalateToOrangeMs` and `kEscalateToRedMs`: time escalation
 - `kGreenStyle`, `kOrangeStyle`, and `kRedStyle`: colors, blink rates, and
   buzzer patterns
 - `kLedCount`: number of pixels in the data chain
-- `kLedBrightness`: global power and brightness limit
+- `kLedBrightnessMaximum`: board power and brightness limit
 - `kPeripheralPowerEnablePin`: battery-build boost control
 - `kBuzzerEnabled` and `kBuzzerVolumePercent`: buzzer output
 - `kMicrophoneWarmupMs`: ignored microphone settling time after each wake
 
 The firmware is set for 10 SK6812 RGB plus warm-white pixels with the `GRBW`
 data order. Some sellers call these pixels `RGBWW`. If a one-pixel test gives
-wrong colors, change `NEO_GRBW` in `src/main.cpp` to the order for the strip.
+wrong colors, change `NEO_GRBW` in `src/alarm_output.cpp` to the order for the
+strip.
 
 Change GPIO pins in `include/board_profile.h`. If you change a pin, also change
 `../docs/wiring.md`.
@@ -153,6 +170,9 @@ level=-53.2 dBFS max=-41.7 dBFS frames=63 mute=off
 ```
 
 It prints the saved-history count and green, orange, and red observation
-percentages after each normal observation. Both board profiles use light sleep
-between observations. The battery profile also turns off the 5 V boost when
-the alarm is off.
+percentages after each normal observation. One high observation does not show
+a warning. The complete decision history must start an alarm. The firmware
+does not use application light sleep while BLE is active. This keeps
+advertising and connected control available. The NimBLE controller can use its
+own modem sleep. The battery profile also turns off the 5 V boost when the
+alarm is off.

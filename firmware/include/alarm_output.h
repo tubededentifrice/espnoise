@@ -3,10 +3,12 @@
 #include <Arduino.h>
 
 #include "alarm_level.h"
+#include "runtime_settings.h"
 
 namespace alarm_output {
 
 void begin();
+void setSettings(const RuntimeSettings& settings);
 void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
             AlarmLevel measuredLevel, uint32_t alarmAgeMs,
             uint32_t patternAgeMs);

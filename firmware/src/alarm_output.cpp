@@ -35,10 +35,10 @@ Adafruit_NeoPixel pixels(config::kLedCount, board_profile::kLedDataPin,
 bool peripheralPowerOn = false;
 uint32_t displayedColor = UINT32_MAX;
 uint32_t currentBuzzerFrequencyHz = 0;
+RuntimeSettings runtimeSettings;
 
 uint8_t buzzerDutyForVolume() {
-  const uint8_t volume =
-      config::kBuzzerVolumePercent > 100 ? 100 : config::kBuzzerVolumePercent;
+  const uint8_t volume = runtimeSettings.buzzerVolumePercent;
   if (volume == 0) {
     return 0;
   }
@@ -53,8 +53,7 @@ uint8_t buzzerDutyForVolume() {
 }
 
 void setBuzzer(bool on) {
-  static const uint8_t duty = buzzerDutyForVolume();
-  ledcWrite(kBuzzerPwmChannel, on ? duty : 0);
+  ledcWrite(kBuzzerPwmChannel, on ? buzzerDutyForVolume() : 0);
 }
 
 void setBuzzerFrequency(uint32_t frequencyHz) {
@@ -175,7 +174,7 @@ void begin() {
   }
 
   pixels.begin();
-  pixels.setBrightness(config::kLedBrightness);
+  setSettings(runtimeSettings);
   enablePeripheralPower();
   setAllPixels(0);
 
@@ -206,6 +205,15 @@ void begin() {
   }
 
   off();
+}
+
+void setSettings(const RuntimeSettings& settings) {
+  runtimeSettings = settings;
+  const uint16_t brightness =
+      static_cast<uint16_t>(config::kLedBrightnessMaximum) *
+      runtimeSettings.ledBrightnessPercent / 100;
+  pixels.setBrightness(static_cast<uint8_t>(brightness));
+  displayedColor = UINT32_MAX;
 }
 
 void off() {

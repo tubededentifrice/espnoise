@@ -21,9 +21,9 @@ firmware then stops the alarm and starts a 10-second fast-rearm window. During
 this window, one new noisy check restarts the alarm. Ten seconds of quiet
 clears the old history and returns the detector to the normal schedule.
 
-Each normal observation that crosses a threshold gives one 500 ms flash in
-the level color. This sample warning does not use the buzzer. If the rolling
-history starts the alarm, the alarm output takes control instead.
+One normal observation cannot start a light or buzzer warning. Only the
+rolling decision can start a warning. Thus, one cough, dropped object, or other
+sporadic sound does not make the sign flash.
 
 ## Default values
 
@@ -44,7 +44,6 @@ history starts the alarm, the alarm output takes control instead.
 | Alarm clear observation | Active-alarm listening time | 1 second |
 | Output window | Time for the buzzer pattern | 250 ms |
 | Buzzer settling gap | Silence before microphone start | 100 ms |
-| Sample warning | One silent level-color flash | 500 ms |
 | Fast-rearm window | Fast checks after an alarm stops | 10 seconds |
 | Fast-rearm gap | Time between fast checks | 250 ms |
 | Orange time escalation | Persistent alarm becomes at least orange | 15 seconds |
@@ -97,13 +96,15 @@ amplitude. The physical switch can disable all buzzer sounds.
 
 ## Configuration values
 
-All detection, release, color, blink, and buzzer-pattern values are in
-`firmware/include/config.h`. The main values are:
+All default detection, release, color, blink, and buzzer-pattern values are in
+`firmware/include/config.h`. The phone app can replace the main runtime values.
+The firmware validates and saves the complete profile before it uses it. The
+main values are:
 
 ```cpp
-constexpr float kGreenThresholdDbfs = -55.0F;
-constexpr float kOrangeThresholdDbfs = -48.0F;
-constexpr float kRedThresholdDbfs = -42.0F;
+constexpr int16_t kGreenThresholdDbfsX10 = -550;
+constexpr int16_t kOrangeThresholdDbfsX10 = -480;
+constexpr int16_t kRedThresholdDbfsX10 = -420;
 constexpr uint32_t kMicrophoneWarmupMs = 300;
 constexpr uint32_t kSampleDurationMs = 1UL * 1000UL;    // K
 constexpr uint32_t kSamplePeriodMs = 10UL * 1000UL;     // N
@@ -116,7 +117,6 @@ constexpr uint32_t kAlarmOutputWindowMs = 250;
 constexpr uint32_t kBuzzerSettleMs = 100;
 constexpr uint8_t kQuietSamplesToClear = 2;
 constexpr bool kResetHistoryAfterAlarmClear = true;
-constexpr uint32_t kSampleWarningMs = 500;
 constexpr uint32_t kFastRearmWindowMs = 10UL * 1000UL;
 constexpr uint32_t kFastRearmSampleGapMs = 250;
 constexpr uint32_t kEscalateToOrangeMs = 15UL * 1000UL;
@@ -125,7 +125,8 @@ constexpr uint8_t kBuzzerVolumePercent = 50;
 ```
 
 K must be greater than zero and must not be greater than N. The decision window
-must be a multiple of N. X must be from zero to one. The thresholds must
+must be a multiple of N. The compiled X ratio is from zero through one. The
+runtime X value is an integer percent from 1 through 99. The thresholds must
 increase from green to orange to red. The firmware checks these limits, the
 buzzer pattern duration, and the five-second clear-time limit at startup.
 

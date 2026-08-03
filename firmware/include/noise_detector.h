@@ -5,9 +5,11 @@
 
 #include "alarm_level.h"
 #include "config.h"
+#include "runtime_settings.h"
 
 class NoiseDetector {
  public:
+  void setSettings(const RuntimeSettings& settings);
   void beginSample();
   void addFrame(float dbfs);
 
@@ -26,9 +28,11 @@ class NoiseDetector {
  private:
   float historyRatioAtOrAbove(float thresholdDbfs) const;
 
+  RuntimeSettings settings_;
+
   size_t frameCount_ = 0;
   float sampleMaximumDbfs_ = -120.0F;
-  std::array<float, config::kHistorySampleCount> history_ = {};
+  std::array<float, config::kMaximumHistorySampleCount> history_ = {};
   size_t historyCount_ = 0;
   size_t historyWriteIndex_ = 0;
 };

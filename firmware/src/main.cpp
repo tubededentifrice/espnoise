@@ -1,24 +1,30 @@
 #include <Arduino.h>
-#include <esp_sleep.h>
+#include <WiFi.h>
+#include <esp_bt.h>
 
 #include "alarm_output.h"
 #include "audio_input.h"
+#include "ble_service.h"
 #include "board_profile.h"
+#include "config_packet.h"
 #include "config.h"
 #include "mute_button.h"
 #include "noise_detector.h"
+#include "settings_storage.h"
 
 namespace {
 
 AudioInput audioInput;
 NoiseDetector noiseDetector;
 MuteButton muteButton;
+RuntimeSettings runtimeSettings;
+config_packet::Bytes appliedPacket{};
+uint32_t appliedRevision = 0;
 
 float currentDbfs = -120.0F;
 bool sampleActive = false;
 bool alarmActive = false;
 AlarmLevel currentAlarmLevel = AlarmLevel::kQuiet;
-AlarmLevel currentSampleWarningLevel = AlarmLevel::kQuiet;
 uint32_t sampleStartMs = 0;
 uint32_t currentSampleDurationMs = config::kSampleDurationMs;
 bool sampleForAlarmClear = false;
@@ -29,9 +35,9 @@ uint32_t nextSampleStartMs = 0;
 uint32_t alarmStartMs = 0;
 uint32_t alarmPatternStartMs = 0;
 uint32_t fastRearmStartMs = 0;
-uint32_t sampleWarningUntilMs = 0;
 uint32_t muteUntilMs = 0;
 uint32_t lastLevelPrintMs = 0;
+uint8_t settingsErrorCode = 0;
 
 bool timeIsBefore(uint32_t now, uint32_t end) {
   return static_cast<int32_t>(now - end) < 0;
@@ -43,11 +49,6 @@ bool timeIsDue(uint32_t now, uint32_t target) {
 
 bool isMuted(uint32_t now) {
   return muteUntilMs != 0 && timeIsBefore(now, muteUntilMs);
-}
-
-bool isSampleWarningActive(uint32_t now) {
-  return currentSampleWarningLevel != AlarmLevel::kQuiet &&
-         timeIsBefore(now, sampleWarningUntilMs);
 }
 
 const char* levelName(AlarmLevel level) {
@@ -92,7 +93,7 @@ void beginSample(uint32_t now) {
   currentSampleDurationMs =
       sampleForAlarmClear || sampleForFastRearm
           ? config::kAlarmClearSampleDurationMs
-          : config::kSampleDurationMs;
+          : runtimeSettings.sampleDurationMs;
   sampleActive = true;
   if (sampleForAlarmClear) {
     Serial.println("Alarm clear check started");
@@ -101,17 +102,6 @@ void beginSample(uint32_t now) {
   } else {
     Serial.println("Observation started");
   }
-}
-
-void startSampleWarning(AlarmLevel level, uint32_t now) {
-  if (level == AlarmLevel::kQuiet) {
-    return;
-  }
-  currentSampleWarningLevel = level;
-  sampleWarningUntilMs = now + config::kSampleWarningMs;
-  alarm_output::showSampleWarning(level);
-  Serial.printf("Sample warning: level=%s duration=%lu ms\n", levelName(level),
-                static_cast<unsigned long>(config::kSampleWarningMs));
 }
 
 void endSample(uint32_t now) {
@@ -172,7 +162,7 @@ void endSample(uint32_t now) {
       if (config::kResetHistoryAfterAlarmClear) {
         noiseDetector.resetHistory();
       }
-      nextSampleStartMs = now + config::kSamplePeriodMs;
+      nextSampleStartMs = now + runtimeSettings.samplePeriodMs;
     } else {
       nextSampleStartMs = now + config::kFastRearmSampleGapMs;
     }
@@ -185,7 +175,6 @@ void endSample(uint32_t now) {
     return;
   }
 
-  const AlarmLevel sampleLevel = noiseDetector.sampleLevel();
   noiseDetector.commitSample();
   const AlarmLevel historyLevel = noiseDetector.historyAlarmLevel();
   if (historyLevel != AlarmLevel::kQuiet) {
@@ -199,8 +188,9 @@ void endSample(uint32_t now) {
   } else {
     alarmActive = false;
     currentAlarmLevel = AlarmLevel::kQuiet;
-    startSampleWarning(sampleLevel, now);
-    nextSampleStartMs = sampleStartMs + config::kSamplePeriodMs;
+    // Do not show a warning for one observation. Only the complete decision
+    // history can start an alarm.
+    nextSampleStartMs = sampleStartMs + runtimeSettings.samplePeriodMs;
     if (timeIsDue(now, nextSampleStartMs)) {
       nextSampleStartMs = now;
     }
@@ -211,7 +201,7 @@ void endSample(uint32_t now) {
       "orange=%.1f%% red=%.1f%% alarm=%s level=%s\n",
       noiseDetector.sampleMaximumDbfs(),
       static_cast<unsigned>(noiseDetector.historyCount()),
-      static_cast<unsigned>(config::kHistorySampleCount),
+      static_cast<unsigned>(runtimeSettings.historySampleCount()),
       noiseDetector.greenSampleRatio() * 100.0F,
       noiseDetector.orangeSampleRatio() * 100.0F,
       noiseDetector.redSampleRatio() * 100.0F, alarmActive ? "on" : "off",
@@ -220,15 +210,13 @@ void endSample(uint32_t now) {
 
 void updateMute(uint32_t now) {
   if (muteButton.pressed(now)) {
-    muteUntilMs = now + config::kMute30Ms;
+    muteUntilMs = now + runtimeSettings.muteDurationSeconds * 1000UL;
     alarmActive = false;
     currentAlarmLevel = AlarmLevel::kQuiet;
     alarmStartMs = 0;
     alarmPatternStartMs = 0;
     fastRearmActive = false;
     fastRearmStartMs = 0;
-    currentSampleWarningLevel = AlarmLevel::kQuiet;
-    sampleWarningUntilMs = 0;
     quietSampleCount = 0;
     noiseDetector.resetHistory();
     if (sampleActive) {
@@ -237,7 +225,9 @@ void updateMute(uint32_t now) {
     }
     alarm_output::off();
     nextSampleStartMs = muteUntilMs;
-    Serial.println("Muted for 30 minutes");
+    Serial.printf("Muted for %lu seconds\n",
+                  static_cast<unsigned long>(
+                      runtimeSettings.muteDurationSeconds));
   }
 
   if (muteUntilMs != 0 && !timeIsBefore(now, muteUntilMs)) {
@@ -247,28 +237,66 @@ void updateMute(uint32_t now) {
   }
 }
 
-void sleepUntilEvent(uint32_t now) {
-  if (sampleActive || (alarmActive && !isMuted(now)) ||
-      isSampleWarningActive(now)) {
-    return;
-  }
-  if (digitalRead(board_profile::kMuteButtonPin) == LOW) {
-    return;
-  }
+ble_service::Status makeBleStatus(uint32_t now) {
+  ble_service::Status status;
+  status.alarmState = static_cast<uint8_t>(currentAlarmLevel);
+  status.muted = isMuted(now);
+  status.sampling = sampleActive;
+  status.alarmActive = alarmActive;
+  status.errorCode = settingsErrorCode;
+  status.appliedRevision = appliedRevision;
+  status.fingerprint = config_packet::fingerprint(appliedPacket);
+  status.uptimeSeconds = now / 1000UL;
+  return status;
+}
 
-  uint32_t wakeAtMs = nextSampleStartMs;
-  if (isMuted(now) && timeIsBefore(muteUntilMs, wakeAtMs)) {
-    wakeAtMs = muteUntilMs;
-  }
-  if (timeIsDue(now, wakeAtMs)) {
-    return;
-  }
-
-  const uint32_t sleepMs = wakeAtMs - now;
+void clearRuntimeState(uint32_t now) {
+  alarmActive = false;
+  currentAlarmLevel = AlarmLevel::kQuiet;
+  alarmStartMs = 0;
+  alarmPatternStartMs = 0;
+  fastRearmActive = false;
+  fastRearmStartMs = 0;
+  quietSampleCount = 0;
+  noiseDetector.resetHistory();
   alarm_output::off();
-  esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(sleepMs) * 1000ULL);
-  esp_sleep_enable_ext0_wakeup(board_profile::kMuteButtonPin, 0);
-  esp_light_sleep_start();
+  nextSampleStartMs = isMuted(now) ? muteUntilMs : now;
+}
+
+void applyPendingSettings(uint32_t now) {
+  if (sampleActive) {
+    return;
+  }
+
+  config_packet::Bytes candidate{};
+  RuntimeSettings candidateSettings;
+  uint32_t candidateRevision = 0;
+  if (!ble_service::takePending(candidate, candidateSettings,
+                                candidateRevision)) {
+    return;
+  }
+
+  const bool packetChanged = candidate != appliedPacket;
+  if (packetChanged && !settings_storage::save(candidate)) {
+    Serial.println("ERROR: Settings save failed; update rejected");
+    settingsErrorCode = 1;
+    ble_service::Status status = makeBleStatus(now);
+    ble_service::acknowledge(appliedPacket, status);
+    return;
+  }
+
+  settingsErrorCode = 0;
+  runtimeSettings = candidateSettings;
+  appliedPacket = candidate;
+  appliedRevision = candidateRevision;
+  noiseDetector.setSettings(runtimeSettings);
+  alarm_output::setSettings(runtimeSettings);
+  clearRuntimeState(now);
+  ble_service::acknowledge(appliedPacket, makeBleStatus(now));
+  Serial.printf("Settings applied: revision=%lu fingerprint=%08lX\n",
+                static_cast<unsigned long>(appliedRevision),
+                static_cast<unsigned long>(
+                    config_packet::fingerprint(appliedPacket)));
 }
 
 }  // namespace
@@ -276,6 +304,24 @@ void sleepUntilEvent(uint32_t now) {
 void setup() {
   Serial.begin(115200);
   delay(300);
+
+  WiFi.mode(WIFI_OFF);
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+
+  appliedPacket = config_packet::encode(runtimeSettings, 0);
+  if (!settings_storage::begin()) {
+    Serial.println("ERROR: Settings storage start failed; defaults active");
+  } else if (!settings_storage::load(appliedPacket)) {
+    appliedPacket = config_packet::encode(runtimeSettings, 0);
+    Serial.println("Saved settings are absent or invalid; defaults active");
+  }
+  if (config_packet::decode(appliedPacket.data(), appliedPacket.size(),
+                            runtimeSettings, appliedRevision) !=
+      config_packet::ValidationResult::kValid) {
+    runtimeSettings = RuntimeSettings{};
+    appliedRevision = 0;
+    appliedPacket = config_packet::encode(runtimeSettings, appliedRevision);
+  }
 
   if (config::kSampleDurationMs == 0 ||
       config::kSampleDurationMs > config::kSamplePeriodMs ||
@@ -285,7 +331,6 @@ void setup() {
       config::kMinimumHistorySamples == 0 ||
       config::kMinimumHistorySamples > config::kHistorySampleCount ||
       config::kAlarmClearSampleDurationMs == 0 ||
-      config::kSampleWarningMs == 0 ||
       config::kFastRearmWindowMs < config::kAlarmClearSampleDurationMs ||
       config::kQuietSamplesToClear == 0 ||
       (config::kQuietSamplesToClear + 1UL) *
@@ -295,8 +340,9 @@ void setup() {
                       (config::kAlarmOutputWindowMs +
                        config::kBuzzerSettleMs) >
           5000UL ||
-      config::kGreenThresholdDbfs >= config::kOrangeThresholdDbfs ||
-      config::kOrangeThresholdDbfs >= config::kRedThresholdDbfs ||
+      config::kGreenThresholdDbfsX10 >=
+          config::kOrangeThresholdDbfsX10 ||
+      config::kOrangeThresholdDbfsX10 >= config::kRedThresholdDbfsX10 ||
       config::kEscalateToOrangeMs > config::kEscalateToRedMs ||
       config::buzzerPatternDurationMs(config::kOrangeStyle) >
           config::kAlarmOutputWindowMs ||
@@ -309,14 +355,19 @@ void setup() {
   }
 
   muteButton.begin();
+  noiseDetector.setSettings(runtimeSettings);
+  alarm_output::setSettings(runtimeSettings);
   alarm_output::begin();
+  ble_service::begin(appliedPacket);
   nextSampleStartMs = millis();
   Serial.println("ESPNoise started");
 }
 
 void loop() {
   uint32_t now = millis();
+  ble_service::update(now);
   updateMute(now);
+  applyPendingSettings(now);
 
   if (!isMuted(now) && !sampleActive && timeIsDue(now, nextSampleStartMs)) {
     beginSample(now);
@@ -333,14 +384,8 @@ void loop() {
 
   const uint32_t alarmAgeMs = alarmActive ? now - alarmStartMs : 0;
   const uint32_t patternAgeMs = alarmActive ? now - alarmPatternStartMs : 0;
-  if (isSampleWarningActive(now) && !isMuted(now)) {
-    alarm_output::silenceBuzzer();
-  } else {
-    currentSampleWarningLevel = AlarmLevel::kQuiet;
-    sampleWarningUntilMs = 0;
-    alarm_output::update(now, alarmActive, sampleActive, isMuted(now),
-                         currentAlarmLevel, alarmAgeMs, patternAgeMs);
-  }
+  alarm_output::update(now, alarmActive, sampleActive, isMuted(now),
+                       currentAlarmLevel, alarmAgeMs, patternAgeMs);
 
   if (sampleActive && now - lastLevelPrintMs >= 1000) {
     lastLevelPrintMs = now;
@@ -350,5 +395,8 @@ void loop() {
                   isMuted(now) ? "on" : "off");
   }
 
-  sleepUntilEvent(now);
+  ble_service::setStatus(makeBleStatus(now));
+
+  // Let the BLE and Arduino tasks run. NimBLE manages its radio sleep.
+  delay(1);
 }
