@@ -48,12 +48,22 @@ stateDiagram-v2
   AlarmOutput --> Recheck: 250 ms output ends
   Recheck --> AlarmOutput: Maximum reaches green, or fewer than two quiet checks
   Recheck --> Wait: Two consecutive quiet checks; reset history
+  state Muted {
+    [*] --> MutedObservation
+    MutedObservation --> MutedWait: Save maximum and update history
+    MutedWait --> MutedObservation: N-second period starts
+  }
   Wait --> Muted: Mute button is pressed
   AlarmOutput --> Muted: Mute button is pressed
   Recheck --> Muted: Mute button is pressed
-  Observation --> Muted: Mute button is pressed
-  Muted --> Observation: 30 minutes ends
+  Observation --> Muted: Mute button is pressed; observation continues
+  Muted --> AlarmOutput: Mute ends and history crosses a threshold
+  Muted --> Wait: Mute ends and history is below the thresholds
 ```
+
+Mute gates the alarm outputs. It does not stop the microphone observation
+schedule or clear the rolling history. A second button press within 750 ms
+ends mute.
 
 ## Alarm result
 

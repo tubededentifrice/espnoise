@@ -13,6 +13,7 @@
 #include "config.h"
 #include "device_name.h"
 #include "mute_button.h"
+#include "mute_state.h"
 #include "noise_detector.h"
 #include "settings_storage.h"
 
@@ -21,6 +22,7 @@ namespace {
 AudioInput audioInput;
 NoiseDetector noiseDetector;
 MuteButton muteButton;
+MuteState muteState;
 RuntimeSettings runtimeSettings;
 config_packet::Bytes appliedPacket{};
 device_name::Value appliedDeviceName;
@@ -40,7 +42,6 @@ uint32_t nextSampleStartMs = 0;
 uint32_t alarmStartMs = 0;
 uint32_t alarmPatternStartMs = 0;
 uint32_t fastRearmStartMs = 0;
-uint32_t muteUntilMs = 0;
 uint32_t lastLevelPrintMs = 0;
 uint8_t settingsErrorCode = 0;
 uint16_t measurementSequence = 0;
@@ -56,16 +57,12 @@ device_name::Value defaultDeviceName() {
   return name;
 }
 
-bool timeIsBefore(uint32_t now, uint32_t end) {
-  return static_cast<int32_t>(now - end) < 0;
-}
-
 bool timeIsDue(uint32_t now, uint32_t target) {
   return static_cast<int32_t>(now - target) >= 0;
 }
 
 bool isMuted(uint32_t now) {
-  return muteUntilMs != 0 && timeIsBefore(now, muteUntilMs);
+  return muteState.isMuted(now);
 }
 
 const char* levelName(AlarmLevel level) {
@@ -194,7 +191,7 @@ void endSample(uint32_t now) {
 
   noiseDetector.commitSample();
   const AlarmLevel historyLevel = noiseDetector.historyAlarmLevel();
-  if (historyLevel != AlarmLevel::kQuiet) {
+  if (historyLevel != AlarmLevel::kQuiet && !isMuted(now)) {
     alarmActive = true;
     currentAlarmLevel = historyLevel;
     alarmStartMs = now;
@@ -204,7 +201,7 @@ void endSample(uint32_t now) {
                         config::kBuzzerSettleMs;
   } else {
     alarmActive = false;
-    currentAlarmLevel = AlarmLevel::kQuiet;
+    currentAlarmLevel = isMuted(now) ? historyLevel : AlarmLevel::kQuiet;
     // Do not show a warning for one observation. Only the complete decision
     // history can start an alarm.
     nextSampleStartMs = sampleStartMs + runtimeSettings.samplePeriodMs;
@@ -225,9 +222,32 @@ void endSample(uint32_t now) {
       levelName(currentAlarmLevel));
 }
 
+void resumeAlarmFromHistory(uint32_t now) {
+  const AlarmLevel historyLevel = noiseDetector.historyAlarmLevel();
+  currentAlarmLevel = historyLevel;
+  if (historyLevel == AlarmLevel::kQuiet) {
+    alarmActive = false;
+    return;
+  }
+  alarmActive = true;
+  alarmStartMs = now;
+  alarmPatternStartMs = now;
+  quietSampleCount = 0;
+  nextSampleStartMs = now + config::kAlarmOutputWindowMs +
+                      config::kBuzzerSettleMs;
+}
+
 void updateMute(uint32_t now) {
   if (muteButton.pressed(now)) {
-    muteUntilMs = now + runtimeSettings.muteDurationSeconds * 1000UL;
+    const bool alarmWasActive = alarmActive;
+    const MutePressResult result =
+        muteState.press(now, runtimeSettings.muteDurationSeconds);
+    if (result == MutePressResult::kUnmuted) {
+      resumeAlarmFromHistory(now);
+      Serial.println("Mute ended by double press");
+      return;
+    }
+
     alarmActive = false;
     currentAlarmLevel = AlarmLevel::kQuiet;
     alarmStartMs = 0;
@@ -235,21 +255,23 @@ void updateMute(uint32_t now) {
     fastRearmActive = false;
     fastRearmStartMs = 0;
     quietSampleCount = 0;
-    noiseDetector.resetHistory();
     if (sampleActive) {
-      audioInput.stop();
-      sampleActive = false;
+      sampleForAlarmClear = false;
+      sampleForFastRearm = false;
+      currentSampleDurationMs = runtimeSettings.sampleDurationMs;
+    } else if (alarmWasActive) {
+      nextSampleStartMs = now;
     }
     alarm_output::off();
-    nextSampleStartMs = muteUntilMs;
-    Serial.printf("Muted for %lu seconds\n",
-                  static_cast<unsigned long>(
-                      runtimeSettings.muteDurationSeconds));
+    Serial.printf(
+        result == MutePressResult::kMuteExtended
+            ? "Mute restarted for %lu seconds\n"
+            : "Muted for %lu seconds\n",
+        static_cast<unsigned long>(runtimeSettings.muteDurationSeconds));
   }
 
-  if (muteUntilMs != 0 && !timeIsBefore(now, muteUntilMs)) {
-    muteUntilMs = 0;
-    nextSampleStartMs = now;
+  if (muteState.update(now)) {
+    resumeAlarmFromHistory(now);
     Serial.println("Mute ended");
   }
 }
@@ -289,7 +311,7 @@ void clearRuntimeState(uint32_t now) {
   quietSampleCount = 0;
   noiseDetector.resetHistory();
   alarm_output::off();
-  nextSampleStartMs = isMuted(now) ? muteUntilMs : now;
+  nextSampleStartMs = now;
 }
 
 void applyPendingSettings(uint32_t now) {
@@ -431,7 +453,7 @@ void loop() {
   applyPendingName();
   applyPendingSettings(now);
 
-  if (!isMuted(now) && !sampleActive && timeIsDue(now, nextSampleStartMs)) {
+  if (!sampleActive && timeIsDue(now, nextSampleStartMs)) {
     beginSample(now);
   }
 

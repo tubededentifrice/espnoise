@@ -205,9 +205,11 @@ threshold. Check the levels again during a normal coworking test.
 
 ## Mute and buzzer controls
 
-- Press the mute button to stop the alarm and sound sampling for 30 minutes.
-- Press it again to start a new 30-minute period.
-- The detector takes a new sample when the mute time ends.
+- Press the mute button to stop the alarm outputs for 30 minutes.
+- Sound observations and Bluetooth history continue at the normal interval.
+- Press the button a second time within 750 ms to end mute.
+- A single press after 750 ms starts a new 30-minute period.
+- When mute ends, a saved history above a threshold starts the alarm again.
 - Turn the buzzer switch off to cut buzzer power at any time.
 - The buzzer switch does not change the light alarm.
 

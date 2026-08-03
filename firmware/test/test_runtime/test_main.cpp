@@ -3,6 +3,7 @@
 #include "ble_service.h"
 #include "config_packet.h"
 #include "device_name.h"
+#include "mute_state.h"
 #include "noise_detector.h"
 
 namespace {
@@ -229,6 +230,59 @@ void testDetectorUsesDynamicWindowThresholdAndPercent() {
   TEST_ASSERT_EQUAL_UINT(1, detector.historyCount());
 }
 
+void testMuteDoublePressEndsMute() {
+  MuteState mute;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(MutePressResult::kMuted),
+      static_cast<int>(mute.press(1000, 60)));
+  TEST_ASSERT_TRUE(mute.isMuted(1000));
+
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(MutePressResult::kUnmuted),
+      static_cast<int>(mute.press(1500, 60)));
+  TEST_ASSERT_FALSE(mute.isMuted(1500));
+}
+
+void testMuteDoublePressIncludesWindowBoundary() {
+  MuteState mute;
+  mute.press(1000, 60);
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(MutePressResult::kUnmuted),
+      static_cast<int>(mute.press(
+          1000 + config::kMuteDoublePressWindowMs, 60)));
+}
+
+void testSinglePressRestartsActiveMute() {
+  MuteState mute;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(MutePressResult::kMuted),
+      static_cast<int>(mute.press(1000, 60)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(MutePressResult::kMuteExtended),
+      static_cast<int>(mute.press(2000, 60)));
+  TEST_ASSERT_TRUE(mute.isMuted(61000));
+  TEST_ASSERT_TRUE(mute.update(62000));
+  TEST_ASSERT_FALSE(mute.isMuted(62000));
+  TEST_ASSERT_FALSE(mute.update(62001));
+}
+
+void testMuteTimerWorksAcrossMillisWrap() {
+  MuteState mute;
+  constexpr uint32_t start = UINT32_MAX - 100;
+  mute.press(start, 60);
+  TEST_ASSERT_TRUE(mute.isMuted(UINT32_MAX - 50));
+  TEST_ASSERT_TRUE(mute.isMuted(59000));
+  TEST_ASSERT_TRUE(mute.update(59900));
+  TEST_ASSERT_FALSE(mute.isMuted(59900));
+
+  MuteState zeroEnd;
+  constexpr uint32_t zeroEndStart = UINT32_MAX - 59999;
+  zeroEnd.press(zeroEndStart, 60);
+  TEST_ASSERT_TRUE(zeroEnd.isMuted(zeroEndStart));
+  TEST_ASSERT_TRUE(zeroEnd.update(0));
+  TEST_ASSERT_FALSE(zeroEnd.isMuted(0));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -241,5 +295,9 @@ int main(int argc, char** argv) {
   RUN_TEST(testDeviceNamePacketValidation);
   RUN_TEST(testLimitsRejectInvalidRelatedValues);
   RUN_TEST(testDetectorUsesDynamicWindowThresholdAndPercent);
+  RUN_TEST(testMuteDoublePressEndsMute);
+  RUN_TEST(testMuteDoublePressIncludesWindowBoundary);
+  RUN_TEST(testSinglePressRestartsActiveMute);
+  RUN_TEST(testMuteTimerWorksAcrossMillisWrap);
   return UNITY_END();
 }

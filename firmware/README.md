@@ -85,7 +85,7 @@ the value after the case is assembled.
 | Audio input | `include/audio_input.h`, `src/audio_input.cpp` | INMP441 and dBFS frames |
 | Detector | `include/noise_detector.h`, `src/noise_detector.cpp` | Observation maximum, rolling history, and X decision |
 | Alarm output | `include/alarm_output.h`, `src/alarm_output.cpp` | SK6812, buzzer, and optional power switch |
-| Mute control | `include/mute_button.h`, `src/mute_button.cpp` | Button filtering |
+| Mute control | `include/mute_button.h`, `src/mute_button.cpp`, `include/mute_state.h`, `src/mute_state.cpp` | Button filtering, mute timer, and double-press control |
 | BLE service | `include/ble_service.h`, `src/ble_service.cpp` | Encrypted settings writes, readback, and status |
 | Settings packet | `include/config_packet.h`, `src/config_packet.cpp` | 32-byte packet, limits, and fingerprint |
 | Device name | `include/device_name.h`, `src/device_name.cpp` | 20-byte UTF-8 name packet and validation |
@@ -183,6 +183,9 @@ level=-53.2 dBFS max=-41.7 dBFS frames=63 mute=off
 It prints the saved-history count and green, orange, and red observation
 percentages after each normal observation. One high observation does not show
 a warning. The complete decision history must start an alarm. The firmware
+keeps the normal observation interval and Bluetooth history active during
+mute. A second mute-button press within 750 ms ends mute. A later single press
+restarts the complete mute period. The firmware
 does not use application light sleep while BLE is active. This keeps
 advertising and connected control available. The NimBLE controller can use its
 own modem sleep. The battery profile also turns off the 5 V boost when the

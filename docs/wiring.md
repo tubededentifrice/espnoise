@@ -204,9 +204,10 @@ This result applies only to the tested buzzer and 2N3904 circuit.
 ## Controls
 
 Use one normally-open momentary button. Connect one side to GND and the other
-side to GPIO27. One press stops the current sample, turns off the alarm, and
-prevents new samples for 30 minutes. A second press starts a new 30-minute
-period.
+side to GPIO27. One press turns off the alarm outputs for the configured mute
+time. Sound observations and Bluetooth history continue at the configured
+sample interval. Press the button a second time within 750 ms to end mute. A
+single press after this time restarts the complete mute period.
 
 Use the maintained switch as a hard switch for the buzzer. The carrier uses
 one pole of a DPDT push-push switch between the 5 V peripheral rail and the

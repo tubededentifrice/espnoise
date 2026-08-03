@@ -115,6 +115,7 @@ constexpr uint32_t kEscalateToRedMs = 30UL * 1000UL;
 // User controls.
 constexpr uint32_t kDefaultMuteDurationSeconds = 30UL * 60UL;
 constexpr uint32_t kButtonDebounceMs = 35;
+constexpr uint32_t kMuteDoublePressWindowMs = 750;
 
 // Alarm outputs.
 constexpr bool kBuzzerEnabled = true;

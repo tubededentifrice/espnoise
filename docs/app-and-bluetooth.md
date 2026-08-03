@@ -103,6 +103,10 @@ it saves or applies it. The device is the final safety control.
   the new rule.
 - A new mute duration applies to the next button press. It does not change a
   mute period that is already active.
+- Mute stops the light and buzzer alarm outputs. It does not stop sound
+  observations or Bluetooth history updates.
+- A second mute-button press within 750 ms ends mute. A later single press
+  restarts the complete mute period.
 
 The buzzer volume is a software request. The hard switch in the buzzer power
 wire stays the final control and can stop all buzzer output.
