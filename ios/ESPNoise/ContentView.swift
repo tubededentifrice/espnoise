@@ -271,21 +271,29 @@ private struct SettingsControls: View {
             )
         }
         Section("Thresholds") {
-            threshold(
-                "Green",
-                keyPath: \.greenThresholdTenths,
-                range: -120...(Double(settings.orangeThresholdTenths) / 10 - 0.5)
+            ThresholdOverview(
+                greenTenths: settings.greenThresholdTenths,
+                orangeTenths: settings.orangeThresholdTenths,
+                redTenths: settings.redThresholdTenths
             )
             threshold(
-                "Orange",
-                keyPath: \.orangeThresholdTenths,
-                range: (Double(settings.greenThresholdTenths) / 10 + 0.5)...(Double(settings.redThresholdTenths) / 10 - 0.5)
+                "Green begins",
+                kind: .green,
+                color: .green
             )
             threshold(
-                "Red",
-                keyPath: \.redThresholdTenths,
-                range: (Double(settings.orangeThresholdTenths) / 10 + 0.5)...0
+                "Orange begins",
+                kind: .orange,
+                color: .orange
             )
+            threshold(
+                "Red begins",
+                kind: .red,
+                color: .red
+            )
+            Text("All three controls use the same scale. Move a threshold right for a louder trigger. They stay in Green, Orange, Red order.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         if includesSampling {
             Section("Sampling") {
@@ -324,18 +332,20 @@ private struct SettingsControls: View {
     @ViewBuilder
     private func threshold(
         _ label: String,
-        keyPath: WritableKeyPath<NoiseSettings, Int16>,
-        range: ClosedRange<Double>
+        kind: ThresholdKind,
+        color: Color
     ) -> some View {
+        let value = thresholdValue(kind)
         SettingSlider(
-            title: "\(label) threshold",
+            title: label,
             valueText: String(
                 format: "%.1f dBFS",
-                Double(settings[keyPath: keyPath]) / 10
+                value.wrappedValue
             ),
-            value: tenths(keyPath),
-            range: range,
-            step: 0.5
+            value: value,
+            range: -120...0,
+            step: 0.5,
+            tint: color
         )
     }
 
@@ -348,12 +358,31 @@ private struct SettingsControls: View {
         )
     }
 
-    private func tenths(
-        _ keyPath: WritableKeyPath<NoiseSettings, Int16>
-    ) -> Binding<Double> {
+    private func thresholdValue(_ kind: ThresholdKind) -> Binding<Double> {
         Binding(
-            get: { Double(settings[keyPath: keyPath]) / 10 },
-            set: { settings[keyPath: keyPath] = Int16(($0 * 10).rounded()) }
+            get: {
+                Double(settings[keyPath: kind.keyPath]) / 10
+            },
+            set: { newValue in
+                let candidate = Int16((newValue * 10).rounded())
+                switch kind {
+                case .green:
+                    settings.greenThresholdTenths = min(
+                        candidate,
+                        settings.orangeThresholdTenths - 5
+                    )
+                case .orange:
+                    settings.orangeThresholdTenths = min(
+                        max(candidate, settings.greenThresholdTenths + 5),
+                        settings.redThresholdTenths - 5
+                    )
+                case .red:
+                    settings.redThresholdTenths = max(
+                        candidate,
+                        settings.orangeThresholdTenths + 5
+                    )
+                }
+            }
         )
     }
 
@@ -452,33 +481,35 @@ private struct OverrideControls: View {
                 inherited: global.buzzerPercent,
                 range: 0...100
             )
+            ThresholdOverview(
+                greenTenths: effectiveGreenThreshold,
+                orangeTenths: effectiveOrangeThreshold,
+                redTenths: effectiveRedThreshold
+            )
             thresholdOverride(
-                "Green threshold",
+                "Green",
+                kind: .green,
                 value: $overrides.greenThresholdTenths,
                 inherited: global.greenThresholdTenths,
-                range: safeRange(
-                    -120,
-                    Double(effectiveOrangeThreshold) / 10 - 0.5
-                )
+                color: .green
             )
             thresholdOverride(
-                "Orange threshold",
+                "Orange",
+                kind: .orange,
                 value: $overrides.orangeThresholdTenths,
                 inherited: global.orangeThresholdTenths,
-                range: safeRange(
-                    Double(effectiveGreenThreshold) / 10 + 0.5,
-                    Double(effectiveRedThreshold) / 10 - 0.5
-                )
+                color: .orange
             )
             thresholdOverride(
-                "Red threshold",
+                "Red",
+                kind: .red,
                 value: $overrides.redThresholdTenths,
                 inherited: global.redThresholdTenths,
-                range: safeRange(
-                    Double(effectiveOrangeThreshold) / 10 + 0.5,
-                    0
-                )
+                color: .red
             )
+            Text("These controls use the same quieter-to-louder scale. Values without an override come from Global Settings.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             toggle("Mute duration", isOn: Binding(
                 get: { overrides.muteDurationSeconds != nil },
                 set: { overrides.muteDurationSeconds = $0 ? global.muteDurationSeconds : nil }
@@ -515,10 +546,6 @@ private struct OverrideControls: View {
         overrides.redThresholdTenths ?? global.redThresholdTenths
     }
 
-    private func safeRange(_ lower: Double, _ upper: Double) -> ClosedRange<Double> {
-        min(lower, upper)...max(lower, upper)
-    }
-
     @ViewBuilder
     private func percentOverride(
         _ label: String,
@@ -551,11 +578,12 @@ private struct OverrideControls: View {
     @ViewBuilder
     private func thresholdOverride(
         _ label: String,
+        kind: ThresholdKind,
         value: Binding<Int16?>,
         inherited: Int16,
-        range: ClosedRange<Double>
+        color: Color
     ) -> some View {
-        toggle("Override \(label)", isOn: Binding(
+        toggle("Override \(label) threshold", isOn: Binding(
             get: { value.wrappedValue != nil },
             set: {
                 value.wrappedValue = $0 ? inherited : nil
@@ -564,20 +592,40 @@ private struct OverrideControls: View {
         ))
         if value.wrappedValue != nil {
             SettingSlider(
-                title: label,
+                title: "\(label) begins",
                 valueText: String(
                     format: "%.1f dBFS",
                     Double(value.wrappedValue ?? inherited) / 10
                 ),
                 value: Binding(
                     get: { Double(value.wrappedValue ?? inherited) / 10 },
-                    set: { value.wrappedValue = Int16(($0 * 10).rounded()) }
+                    set: { newValue in
+                        let candidate = Int16((newValue * 10).rounded())
+                        switch kind {
+                        case .green:
+                            value.wrappedValue = min(
+                                candidate,
+                                effectiveOrangeThreshold - 5
+                            )
+                        case .orange:
+                            value.wrappedValue = min(
+                                max(candidate, effectiveGreenThreshold + 5),
+                                effectiveRedThreshold - 5
+                            )
+                        case .red:
+                            value.wrappedValue = max(
+                                candidate,
+                                effectiveOrangeThreshold + 5
+                            )
+                        }
+                    }
                 ),
-                range: range,
-                step: 0.5
+                range: -120...0,
+                step: 0.5,
+                tint: color
             )
         } else {
-            Text("Inherited value: \(Double(inherited) / 10, specifier: "%.1f") dBFS")
+            Text("Inherited \(label.lowercased()): \(Double(inherited) / 10, specifier: "%.1f") dBFS")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -631,6 +679,7 @@ private struct SettingSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
+    var tint: Color = .accentColor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -642,10 +691,67 @@ private struct SettingSlider: View {
                     .monospacedDigit()
             }
             Slider(value: $value, in: range, step: step)
+                .tint(tint)
                 .accessibilityLabel(title)
                 .accessibilityValue(valueText)
         }
         .padding(.vertical, 2)
+    }
+}
+
+private enum ThresholdKind {
+    case green
+    case orange
+    case red
+
+    var keyPath: WritableKeyPath<NoiseSettings, Int16> {
+        switch self {
+        case .green: \.greenThresholdTenths
+        case .orange: \.orangeThresholdTenths
+        case .red: \.redThresholdTenths
+        }
+    }
+}
+
+private struct ThresholdOverview: View {
+    let greenTenths: Int16
+    let orangeTenths: Int16
+    let redTenths: Int16
+
+    var body: some View {
+        VStack(spacing: 5) {
+            HStack {
+                Text("Quieter")
+                Spacer()
+                Text("Louder")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            GeometryReader { geometry in
+                let greenX = position(greenTenths, width: geometry.size.width)
+                let orangeX = position(orangeTenths, width: geometry.size.width)
+                let redX = position(redTenths, width: geometry.size.width)
+
+                HStack(spacing: 0) {
+                    Color.secondary.opacity(0.2).frame(width: greenX)
+                    Color.green.frame(width: orangeX - greenX)
+                    Color.orange.frame(width: redX - orangeX)
+                    Color.red.frame(width: geometry.size.width - redX)
+                }
+                .clipShape(Capsule())
+            }
+            .frame(height: 10)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Noise threshold order")
+            .accessibilityValue("Green, then orange, then red as noise becomes louder")
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func position(_ tenths: Int16, width: Double) -> Double {
+        let value = min(0, max(-1_200, Double(tenths)))
+        return width * (value + 1_200) / 1_200
     }
 }
 

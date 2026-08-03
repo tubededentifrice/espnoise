@@ -29,6 +29,9 @@ first pairing available.
 
 Each device page has a local custom name and optional device values. Sampling values K, N, decision window, and X are global only. The phone sends its complete effective settings after each reconnect. Offline settings stay pending.
 
+Green, orange, and red threshold sliders use the same quieter-to-louder scale.
+The app keeps these thresholds in color order while the user moves a slider.
+
 ## Sync rules
 
 Phone settings always win. A write response does not complete a sync. The app completes a sync only when the device reports the desired revision and the matching FNV-1a fingerprint. The app keeps stale, delayed, duplicate, or incorrect reports separate for each device. iOS controls connection and background timing, so the app does not promise a fixed update time.
