@@ -2,12 +2,18 @@
 
 #include <Arduino.h>
 
+#include "alarm_level.h"
+
 namespace alarm_output {
 
 void begin();
 void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
-            float highRatio);
+            AlarmLevel measuredLevel, uint32_t alarmAgeMs,
+            uint32_t patternAgeMs);
+void silenceBuzzer();
 void off();
 void showMicrophoneError(bool on);
+void showSampleWarning(AlarmLevel level);
+void showCalibrationTarget(AlarmLevel level);
 
 }  // namespace alarm_output

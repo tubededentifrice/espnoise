@@ -17,8 +17,8 @@ module that states that it has 5.1 kohm CC resistors.
 
 The ESP32 chip and development board do not supply LED current. Both branches
 receive 5 V directly from the two-wire power module. This star connection is
-suitable for the first build with 10 pixels and the 25% brightness limit. It
-also makes a later power-module change easier.
+suitable for the first build with 10 pixels. A full-brightness test of the ten
+pixels passed. It also makes a later power-module change easier.
 
 The built-in ESP32 USB-C connector is used only for service. Disconnect the
 two-wire power module before you connect the service port to a computer.
@@ -28,9 +28,9 @@ Use this conservative first-build budget:
 | Load | Design allowance |
 | --- | ---: |
 | ESP32 board and microphone | 350 mA |
-| Ten SK6812 RGBW pixels at the 25% limit | 200 mA |
+| Ten SK6812 RGBW pixels with the production colors at the 100% limit | 600 mA |
 | Buzzer and level buffer | 50 mA |
-| Total design allowance | 600 mA |
+| Total design allowance | 1,000 mA |
 
 The 2 A supply rating gives margin for cable loss and startup current. Measure
 the real value with a USB power meter.
@@ -100,7 +100,7 @@ The firmware stops the microphone clock and puts the ESP32 in light sleep
 between sound samples. The WEMOS still powers its CH340 USB bridge, regulator,
 and LEDs. These parts set the minimum current.
 
-With the default `K = 10 seconds` and `N = 60 seconds`, use four to twelve days
+With the default `K = 1 second` and `N = 10 seconds`, use four to twelve days
 only as a first estimate. A noisy room can reduce this time because the alarm
 keeps the processor, boost module, and LEDs active. A measured low sleep
 current can make a longer time possible.
@@ -116,8 +116,8 @@ current can make a longer time possible.
 Measure battery current at these points before you make a run-time claim:
 
 1. Between samples with the boost off
-2. During the 10-second microphone sample
-3. During a yellow alarm
+2. During the one-second microphone observation
+3. During a green alarm
 4. During a red alarm with the buzzer switch on
 5. During USB charge with the alarm off
 

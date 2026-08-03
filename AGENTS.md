@@ -1,5 +1,8 @@
 # Agent instructions
 
+- The product monitors noise in a coworking space. It warns participants when
+  they are too loud for a sustained time, so they can lower their volume or
+  move to another place. Do not make sporadic noise trigger the warning.
 - Use ASD-STE100 Simplified Technical English in reports, documents, issues,
   pull requests, and comments.
 - Keep battery safety statements clear. Do not recommend loose lithium cells

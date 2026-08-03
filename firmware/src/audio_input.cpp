@@ -54,8 +54,13 @@ bool AudioInput::start() {
   previousInput_[1] = 0.0;
   previousFiltered_[0] = 0.0;
   previousFiltered_[1] = 0.0;
-  i2s_zero_dma_buffer(kI2sPort);
   running_ = true;
+
+  const uint32_t warmupStartMs = millis();
+  float ignoredDbfs = -120.0F;
+  while (millis() - warmupStartMs < config::kMicrophoneWarmupMs) {
+    readFrame(ignoredDbfs);
+  }
   return true;
 }
 

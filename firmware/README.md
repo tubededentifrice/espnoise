@@ -18,13 +18,20 @@ From this directory, run:
 pio run
 ```
 
-This command builds the first USB-powered board. The battery board stays an
-optional environment. Build it only when you start the battery stage:
+This command builds the first USB-powered board. Its ten-pixel power test
+passed, so this profile uses 100% LED brightness. The battery board stays an
+optional environment and keeps the 25% limit. Build it only when you start the
+battery stage:
 
 ```sh
 pio run --environment esp32dev
 pio run --environment lolin32_lite
 ```
+
+At each USB production startup, all ten pixels show green, orange, and red in
+quick succession. The buzzer plays one short rising note with each color. The
+check takes less than half a second. The detector starts after it finishes.
+The hard buzzer switch can disable the notes without disabling the light check.
 
 Use the temporary LED-test environment to show red, green, blue, and
 warm-white for one second each after startup:
@@ -34,16 +41,33 @@ pio run --environment esp32dev_led_test --target upload
 ```
 
 For a one-pixel bench test, use the fast profile. It listens for 3 seconds in
-each 5-second period, uses a 30% high-frame ratio, and uses full LED
-brightness. It also plays a short buzzer chime after the LED test:
+each 5-second period, keeps a 15-second history, requires more than 30% of the
+saved maxima, and uses full LED brightness. It also plays a short buzzer chime
+after the LED test:
 
 ```sh
 pio run --environment esp32dev_fast_test --target upload
 ```
 
+Use the calibration profile with the assembled USB-powered product. Send `g`,
+`o`, or `r` over the serial monitor. The strip shows the selected solid color
+while the firmware measures one 10-second sample. The result is the median of
+ten one-second maxima. The buzzer stays off. The calibration profile does not
+save raw microphone audio.
+
+```sh
+pio run --environment esp32dev_calibration --target upload
+pio device monitor --baud 115200
+```
+
 The tested passive piezo buzzer uses a 2N3904 low-side driver. GPIO23 connects
 to its base through 5.1 kohm. The firmware drives it with 2.4 kHz PWM. The
 hard switch stays in the buzzer 5 V wire.
+
+`kBuzzerVolumePercent` sets the electrical tone amplitude. The firmware maps
+this value to the PWM waveform for the passive piezo. Acoustic loudness is not
+linear and depends on the buzzer and its enclosure, so adjust the value after
+the case is assembled.
 
 ## Firmware modules
 
@@ -52,13 +76,14 @@ hard switch stays in the buzzer 5 V wire.
 | Board profile | `include/board_profile.h` | GPIO pins and optional switched power |
 | User settings | `include/config.h` | K, N, X, threshold, colors, and timing |
 | Audio input | `include/audio_input.h`, `src/audio_input.cpp` | INMP441 and dBFS frames |
-| Detector | `include/noise_detector.h`, `src/noise_detector.cpp` | High-frame count and X decision |
+| Detector | `include/noise_detector.h`, `src/noise_detector.cpp` | Observation maximum, rolling history, and X decision |
 | Alarm output | `include/alarm_output.h`, `src/alarm_output.cpp` | SK6812, buzzer, and optional power switch |
 | Mute control | `include/mute_button.h`, `src/mute_button.cpp` | Button filtering |
 | Scheduler | `src/main.cpp` | Sample, wait, alarm, mute, and sleep states |
 
-The `esp32dev` environment uses permanent USB peripheral power. The
-`lolin32_lite` environment adds
+The `esp32dev` environment uses permanent USB peripheral power and the tested
+100% LED brightness. The `lolin32_lite` environment keeps the 25% brightness
+limit and adds
 `ESPNOISE_SWITCHED_PERIPHERAL_POWER=1`. Detection code does not change between
 the two power systems.
 
@@ -82,15 +107,27 @@ change a connected board.
 
 Edit `include/config.h` for the first adjustment. The main values are:
 
-- `kNoiseThresholdDbfs`: sound set point
-- `kSampleDurationMs`: listening time K
-- `kSamplePeriodMs`: period N
-- `kHighFrameRatio`: high-frame ratio X
-- `kOrangeRatioMargin` and `kRedRatioMargin`: alarm color limits
+- `kGreenThresholdDbfs`: alarm trigger sound set point
+- `kOrangeThresholdDbfs` and `kRedThresholdDbfs`: louder sound bands
+- `kSampleDurationMs`: observation time K
+- `kSamplePeriodMs`: observation period N
+- `kDecisionWindowMs`: rolling history time
+- `kTriggerSampleRatio`: saved maxima ratio X
+- `kHistorySampleCount` and `kMinimumHistorySamples`: history requirements
+- `kAlarmClearSampleDurationMs`, `kAlarmOutputWindowMs`, and
+  `kQuietSamplesToClear`: active-alarm clear behavior
+- `kBuzzerSettleMs`: silent time between a buzzer pattern and microphone start
+- `kSampleWarningMs`: silent color-flash time after a high normal observation
+- `kFastRearmWindowMs` and `kFastRearmSampleGapMs`: quick restart checks after
+  an alarm stops
+- `kEscalateToOrangeMs` and `kEscalateToRedMs`: time escalation
+- `kGreenStyle`, `kOrangeStyle`, and `kRedStyle`: colors, blink rates, and
+  buzzer patterns
 - `kLedCount`: number of pixels in the data chain
 - `kLedBrightness`: global power and brightness limit
 - `kPeripheralPowerEnablePin`: battery-build boost control
-- `kBuzzerEnabled`: optional buzzer output
+- `kBuzzerEnabled` and `kBuzzerVolumePercent`: buzzer output
+- `kMicrophoneWarmupMs`: ignored microphone settling time after each wake
 
 The firmware is set for 10 SK6812 RGB plus warm-white pixels with the `GRBW`
 data order. Some sellers call these pixels `RGBWW`. If a one-pixel test gives
@@ -101,12 +138,13 @@ Change GPIO pins in `include/board_profile.h`. If you change a pin, also change
 
 ## Serial output
 
-The firmware prints one line each second while it takes a sound sample:
+The firmware prints the current and maximum levels during an observation:
 
 ```text
-level=-53.2 dBFS high=12/62 mute=off
+level=-53.2 dBFS max=-41.7 dBFS frames=63 mute=off
 ```
 
-It prints the final high-frame percentage after each sample. The ESP32 uses
-light sleep between samples when the alarm is off. In the battery build, the
-firmware also turns off the 5 V boost when the alarm is off.
+It prints the saved-history count and green, orange, and red observation
+percentages after each normal observation. Both board profiles use light sleep
+between observations. The battery profile also turns off the 5 V boost when
+the alarm is off.

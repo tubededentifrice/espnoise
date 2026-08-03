@@ -1,8 +1,13 @@
 # ESPNoise
 
 ESPNoise is a room noise warning sign. An ESP32 reads an INMP441 digital
-microphone. If the sound stays high for a set part of a sample, the sign
+microphone. If enough recent observations are above a set level, the sign
 flashes `NOISE`. An optional buzzer can also give a short warning.
+
+The product is for a coworking space. It helps participants notice when they
+are too loud for a sustained time. They can then lower their volume or move to
+another place. A sporadic cough, dropped object, or other short sound must not
+start the warning by itself.
 
 This repository contains the first hardware design and a firmware base. The
 3D case will follow after the parts are measured.
@@ -37,7 +42,7 @@ target adds the switched 5 V power module only when it is selected.
 
 - Microphone: INMP441 I2S module at 16 kHz
 - Sign light: ten SK6812 RGB plus warm-white pixels from a 60-pixel/m strip
-- Light levels: yellow, orange, and red from the high-frame result
+- Light levels: green, orange, and red from separate sound thresholds
 - Controls: one 30-minute mute button and one hard buzzer switch
 - Sound: tested passive piezo buzzer with a 5 V, 2N3904 driver; the hard
   switch cuts its 5 V supply
@@ -49,10 +54,12 @@ Some sellers call this strip `RGBWW`. For this project, this name means red,
 green, blue, and one warm-white channel. It is a four-channel, 32-bit SK6812
 pixel. It is not a five-channel RGB plus two-white strip.
 
-The default rule listens for 10 seconds in each 60-second period. It divides
-the sample into short level frames. More than 50% of the frames must be above
-the set level before the alarm starts. The sample time, period, ratio, and
-level are easy to change in one configuration file.
+The default rule listens for one second every ten seconds. It saves the maximum
+level from each observation. At least four of the last six observations must
+cross a threshold before the alarm starts. Thus, one sporadic loud sound does
+not start the warning. Two consecutive quiet one-second checks clear an active
+alarm within the configured five-second limit. The thresholds, ratios, timing,
+colors, and buzzer patterns are in one configuration file.
 
 ## Start here
 

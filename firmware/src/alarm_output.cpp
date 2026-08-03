@@ -2,6 +2,7 @@
 
 #include <Adafruit_NeoPixel.h>
 
+#include <cmath>
 #include <cstdint>
 
 #include "board_profile.h"
@@ -19,6 +20,10 @@
 #define ESPNOISE_BUZZER_MELODY_TEST 0
 #endif
 
+#ifndef ESPNOISE_PRODUCTION_STARTUP_CHECK
+#define ESPNOISE_PRODUCTION_STARTUP_CHECK 0
+#endif
+
 namespace alarm_output {
 namespace {
 
@@ -29,9 +34,36 @@ Adafruit_NeoPixel pixels(config::kLedCount, board_profile::kLedDataPin,
 
 bool peripheralPowerOn = false;
 uint32_t displayedColor = UINT32_MAX;
+uint32_t currentBuzzerFrequencyHz = 0;
+
+uint8_t buzzerDutyForVolume() {
+  const uint8_t volume =
+      config::kBuzzerVolumePercent > 100 ? 100 : config::kBuzzerVolumePercent;
+  if (volume == 0) {
+    return 0;
+  }
+
+  // A passive piezo responds to the fundamental part of the PWM waveform.
+  // Map the requested electrical tone amplitude to the short PWM pulse that
+  // produces it. A 100% setting gives the maximum 50% PWM duty.
+  constexpr float kPi = 3.14159265F;
+  const float amplitude = static_cast<float>(volume) / 100.0F;
+  const float duty = asinf(amplitude) / kPi;
+  return static_cast<uint8_t>(lroundf(duty * 255.0F));
+}
 
 void setBuzzer(bool on) {
-  ledcWrite(kBuzzerPwmChannel, on ? config::kBuzzerDuty : 0);
+  static const uint8_t duty = buzzerDutyForVolume();
+  ledcWrite(kBuzzerPwmChannel, on ? duty : 0);
+}
+
+void setBuzzerFrequency(uint32_t frequencyHz) {
+  if (frequencyHz == currentBuzzerFrequencyHz) {
+    return;
+  }
+  setBuzzer(false);
+  ledcSetup(kBuzzerPwmChannel, frequencyHz, 8);
+  currentBuzzerFrequencyHz = frequencyHz;
 }
 
 void playTestMelody() {
@@ -40,14 +72,14 @@ void playTestMelody() {
 
   for (size_t index = 0;
        index < sizeof(frequencies) / sizeof(frequencies[0]); ++index) {
-    ledcSetup(kBuzzerPwmChannel, frequencies[index], 8);
+    setBuzzerFrequency(frequencies[index]);
     setBuzzer(true);
     delay(durationsMs[index]);
     setBuzzer(false);
     delay(60);
   }
 
-  ledcSetup(kBuzzerPwmChannel, config::kBuzzerFrequencyHz, 8);
+  setBuzzerFrequency(config::kRedStyle.buzzerFrequencyHz);
 }
 
 void setAllPixels(uint32_t color) {
@@ -56,6 +88,29 @@ void setAllPixels(uint32_t color) {
   }
   pixels.show();
   displayedColor = color;
+}
+
+void playProductionStartupCheck() {
+  constexpr uint16_t frequencies[] = {523, 659, 784};
+  constexpr uint16_t durationsMs[] = {90, 90, 140};
+  const uint32_t colors[] = {
+      pixels.Color(0, 255, 0, 0),
+      pixels.Color(255, 50, 0, 0),
+      pixels.Color(255, 0, 0, 24),
+  };
+
+  for (size_t index = 0;
+       index < sizeof(frequencies) / sizeof(frequencies[0]); ++index) {
+    setAllPixels(colors[index]);
+    setBuzzerFrequency(frequencies[index]);
+    setBuzzer(config::kBuzzerEnabled);
+    delay(durationsMs[index]);
+    setBuzzer(false);
+    setAllPixels(0);
+    delay(25);
+  }
+
+  setBuzzerFrequency(config::kRedStyle.buzzerFrequencyHz);
 }
 
 void enablePeripheralPower() {
@@ -73,20 +128,44 @@ void enablePeripheralPower() {
   displayedColor = UINT32_MAX;
 }
 
-uint32_t colorForRatio(float highRatio) {
-  if (highRatio > config::kHighFrameRatio + config::kRedRatioMargin) {
-    return pixels.Color(255, 0, 0, 24);
+const config::AlarmStyle& styleForLevel(AlarmLevel level) {
+  if (level == AlarmLevel::kRed) {
+    return config::kRedStyle;
   }
-  if (highRatio > config::kHighFrameRatio + config::kOrangeRatioMargin) {
-    return pixels.Color(255, 50, 0, 0);
+  if (level == AlarmLevel::kOrange) {
+    return config::kOrangeStyle;
   }
-  return pixels.Color(180, 120, 0, 0);
+  return config::kGreenStyle;
+}
+
+AlarmLevel effectiveLevel(AlarmLevel measuredLevel, uint32_t alarmAgeMs) {
+  AlarmLevel timeLevel = AlarmLevel::kGreen;
+  if (alarmAgeMs >= config::kEscalateToRedMs) {
+    timeLevel = AlarmLevel::kRed;
+  } else if (alarmAgeMs >= config::kEscalateToOrangeMs) {
+    timeLevel = AlarmLevel::kOrange;
+  }
+
+  return static_cast<uint8_t>(measuredLevel) >= static_cast<uint8_t>(timeLevel)
+             ? measuredLevel
+             : timeLevel;
+}
+
+bool buzzerPulseActive(const config::AlarmStyle& style,
+                       uint32_t patternAgeMs) {
+  if (style.buzzerPulseCount == 0 || style.buzzerPulseMs == 0) {
+    return false;
+  }
+  const uint32_t stepMs = style.buzzerPulseMs + style.buzzerGapMs;
+  const uint32_t pulseIndex = patternAgeMs / stepMs;
+  return pulseIndex < style.buzzerPulseCount &&
+         patternAgeMs % stepMs < style.buzzerPulseMs;
 }
 
 }  // namespace
 
 void begin() {
-  ledcSetup(kBuzzerPwmChannel, config::kBuzzerFrequencyHz, 8);
+  setBuzzerFrequency(config::kRedStyle.buzzerFrequencyHz);
   ledcAttachPin(board_profile::kBuzzerPin, kBuzzerPwmChannel);
   setBuzzer(false);
 
@@ -99,6 +178,10 @@ void begin() {
   pixels.setBrightness(config::kLedBrightness);
   enablePeripheralPower();
   setAllPixels(0);
+
+  if (ESPNOISE_PRODUCTION_STARTUP_CHECK != 0) {
+    playProductionStartupCheck();
+  }
 
   if (ESPNOISE_LED_STARTUP_TEST != 0) {
     setAllPixels(pixels.Color(255, 0, 0, 0));
@@ -144,30 +227,53 @@ void off() {
 }
 
 void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
-            float highRatio) {
-  // Keep the local outputs off during a sample. This prevents feedback into
-  // the microphone result.
-  if (muted || sampleActive || !alarmActive) {
+            AlarmLevel measuredLevel, uint32_t alarmAgeMs,
+            uint32_t patternAgeMs) {
+  (void)now;
+  if (muted || !alarmActive) {
     off();
     return;
   }
 
   enablePeripheralPower();
-  const uint32_t phase = now % (2 * config::kAlarmHalfPeriodMs);
-  const bool lightOn = phase < config::kAlarmHalfPeriodMs;
-  const uint32_t wantedColor = lightOn ? colorForRatio(highRatio) : 0;
+  const AlarmLevel level = effectiveLevel(measuredLevel, alarmAgeMs);
+  const config::AlarmStyle& style = styleForLevel(level);
+  const uint32_t lightPhase =
+      alarmAgeMs % (2 * style.blinkHalfPeriodMs);
+  const bool lightOn = lightPhase < style.blinkHalfPeriodMs;
+  const uint32_t wantedColor =
+      lightOn ? pixels.Color(style.red, style.green, style.blue,
+                             style.warmWhite)
+              : 0;
   if (wantedColor != displayedColor) {
     setAllPixels(wantedColor);
   }
 
-  const bool buzzerOn = config::kBuzzerEnabled && phase < config::kBuzzerOnMs;
+  // Keep the buzzer off during every microphone check. The scheduler also
+  // adds a settling gap before it starts I2S and ignores the I2S warm-up data.
+  // The lights can continue to flash during a check.
+  setBuzzerFrequency(style.buzzerFrequencyHz);
+  const bool buzzerOn = config::kBuzzerEnabled && !sampleActive &&
+                        buzzerPulseActive(style, patternAgeMs);
   setBuzzer(buzzerOn);
 }
+
+void silenceBuzzer() { setBuzzer(false); }
 
 void showMicrophoneError(bool on) {
   enablePeripheralPower();
   setAllPixels(on ? pixels.Color(32, 0, 32, 0) : 0);
   setBuzzer(false);
 }
+
+void showSampleWarning(AlarmLevel level) {
+  enablePeripheralPower();
+  const config::AlarmStyle& style = styleForLevel(level);
+  setAllPixels(
+      pixels.Color(style.red, style.green, style.blue, style.warmWhite));
+  setBuzzer(false);
+}
+
+void showCalibrationTarget(AlarmLevel level) { showSampleWarning(level); }
 
 }  // namespace alarm_output

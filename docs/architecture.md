@@ -37,29 +37,40 @@ the power source.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Sample
-  Sample --> Alarm: More than X of the sample frames are high
-  Sample --> Wait: X or less is high
-  Wait --> Sample: N-second period starts
-  Alarm --> Sample: N-second period starts
+  [*] --> Observation
+  Observation --> History: Save one-second maximum
+  History --> AlarmOutput: More than X of the last six maxima cross a threshold
+  History --> Wait: No threshold has more than X
+  Wait --> Observation: N-second period starts
+  AlarmOutput --> Recheck: 250 ms output ends
+  Recheck --> AlarmOutput: Maximum reaches green, or fewer than three quiet checks
+  Recheck --> Wait: Three consecutive quiet checks; reset history
   Wait --> Muted: Mute button is pressed
-  Alarm --> Muted: Mute button is pressed
-  Sample --> Muted: Mute button is pressed
-  Muted --> Sample: 30 minutes ends
+  AlarmOutput --> Muted: Mute button is pressed
+  Recheck --> Muted: Mute button is pressed
+  Observation --> Muted: Mute button is pressed
+  Muted --> Observation: 30 minutes ends
 ```
 
-## Light result
+## Alarm result
 
-The final high-frame ratio controls the alarm color. The sign stays off when
-the ratio is X or less.
+Separate dBFS thresholds control the alarm level. At least four of the six
+saved one-second maxima must cross a threshold to start its level. A sustained
+alarm also becomes more urgent with time.
 
-| High-frame ratio | Color |
-| --- | --- |
-| More than X, up to X + 15 percentage points | Yellow |
-| More than X + 15, up to X + 30 percentage points | Orange |
-| More than X + 30 percentage points | Red with a small warm-white value |
+| Level | Default threshold | Light | Buzzer |
+| --- | ---: | --- | --- |
+| Green | -48 dBFS | Slow green blink | Silent |
+| Orange | -42 dBFS | Medium orange blink | Two warning notes |
+| Red | -36 dBFS | Fast red blink | Three angry notes |
 
-The brightness limit applies after the color is set. The default limit is 25%.
+After 15 seconds, the minimum alarm level is orange. After 30 seconds, it is
+red. During an active alarm, each one-second maximum can update the level.
+Three consecutive quiet checks clear the alarm within the configured
+five-second limit.
+
+The brightness limit applies after the color is set. The tested USB-powered
+`esp32dev` profile uses 100%. The untested battery profile stays at 25%.
 
 ## Design choices
 
@@ -87,12 +98,14 @@ pixels behind each letter give an even light level. Ten pixels use about
 A later version can add a Bluetooth Low Energy service. Keep these settings as
 separate values so the phone can change them:
 
-- Sound set point
-- Sample time K
-- Sample period N
-- High-frame ratio X
+- Green, orange, and red sound set points
+- Observation time K
+- Observation period N
+- Decision-window time and saved-sample ratio X
+- Quiet checks and clear time
+- Time escalation points
 - Alarm colors and brightness
-- Buzzer enable
+- Buzzer enable, volume, pitches, and patterns
 - Mute time
 
 Do not enable Bluetooth in the first version. It adds test work and power use.
