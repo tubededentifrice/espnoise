@@ -363,7 +363,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     }
 
     private func tearDownBluetooth() {
-        centralManager?.stopScan()
+        if centralManager?.state == .poweredOn {
+            centralManager?.stopScan()
+        }
         for runtime in runtimes.values { stop(runtime) }
         centralManager?.delegate = nil
         centralManager = nil
@@ -412,6 +414,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
 
     private func requestConnection(_ runtime: Runtime) {
         guard let centralManager, let peripheral = runtime.peripheral,
+              centralManager.state == .poweredOn,
               !runtime.connectPending, peripheral.state == .disconnected else { return }
         runtime.connectPending = true
         runtime.connectionText = "Connecting"
@@ -460,7 +463,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.nameAcknowledgementWorkItems = []
         runtime.statusExpiryWorkItem?.cancel()
         runtime.reconnectWorkItem?.cancel()
-        if let peripheral = runtime.peripheral {
+        if let peripheral = runtime.peripheral,
+           centralManager?.state == .poweredOn {
             centralManager?.cancelPeripheralConnection(peripheral)
         }
         runtime.peripheral = nil
@@ -867,7 +871,6 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         if central.state == .poweredOn {
             connectAuthorizedDevices()
         } else {
-            central.stopScan()
             for runtime in runtimes.values {
                 runtime.isConnected = false
                 runtime.connectPending = false
@@ -908,7 +911,9 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard centralManager === central, let runtime = runtimes[peripheral.identifier] else {
-            central.cancelPeripheralConnection(peripheral)
+            if central.state == .poweredOn {
+                central.cancelPeripheralConnection(peripheral)
+            }
             return
         }
         runtime.reconnectWorkItem?.cancel()
