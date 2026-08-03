@@ -8,12 +8,12 @@ written part specification. Seller names and listing titles can be incorrect.
 | Qty | Part | Required specification |
 | ---: | --- | --- |
 | 1 | ESP32 development board | Full-size ESP32, USB-C service port, `esp32dev` PlatformIO support |
-| 1 | Digital microphone | INMP441 I2S module, 3.3 V |
+| 1 | Digital microphone | TDK InvenSense ICS-43434, I2S, LCSC C5656610; factory placed on the carrier |
 | 10 | Addressable pixels | SK6812 RGB plus warm-white, 5 V, 32-bit data; normally cut from a 60-pixel/m strip |
-| 1 | Data buffer | SN74AHCT125N, DIP-14; the part number must include `AHCT` |
-| 1 | Data resistor | 330 ohm, 0.25 W |
-| 1 | Buffer bypass capacitor | 100 nF ceramic, 50 V |
-| 1 | LED rail capacitor | 1,000 uF, 10 V or 16 V, 105 degrees C |
+| 1 | Data buffer | SN74AHCT125PWR, TSSOP-14; the part number must include `AHCT` |
+| 1 | Data resistor | 330 ohm, 0603; factory placed on the carrier |
+| 2 | Bypass capacitor | 100 nF ceramic, 0603; factory placed on the carrier |
+| 1 | LED rail capacitor | 1,000 uF, 10 V, 105 degrees C; factory placed on the carrier |
 
 Ten pixels from a 60-pixel/m strip have a nominal length of 166.7 mm. Cut only
 at a marked cut line. Keep the data arrows in the direction from `DIN` to
@@ -25,13 +25,14 @@ at a marked cut line. Keep the data arrows in the direction from `DIN` to
 | ---: | --- | --- |
 | 1 | Mute button | SHOU HAN 7-7 WS, momentary DPDT, LCSC C5379890 |
 | 1 | Buzzer switch | SHOU HAN 7-7 ZS, latching DPDT, LCSC C5379891; use one pole in the buzzer 5 V wire |
-| 1 | Buzzer | Passive piezo buzzer, suitable for the tested 2.4 kHz drive |
-| 1 | Driver transistor | 2N3904 NPN |
-| 1 | Base resistor | 5.1 kohm, 0.25 W or higher |
+| 1 | Buzzer | FUET-1370F-05, passive electromagnetic, 5 V, 2.4 kHz, LCSC C2690507 |
+| 1 | Driver transistor | MMBT3904 NPN, LCSC C181119 |
+| 1 | Base resistor | 1 kohm, 0603, LCSC C21190 |
+| 1 | Flyback diode | 1N5819WS, LCSC C191023 |
 
 The buzzer switch is a hard power cut. Do not replace it with a software-only
-control. Confirm the transistor pin order for the purchased part before you
-solder it.
+control. The factory assembly places the transistor and diode. Check their
+orientation in the JLCPCB preview.
 
 ## Power
 
@@ -96,7 +97,7 @@ alarm.
 ## Technical sources
 
 - [ESP32-DevKitC documentation](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html)
-- [INMP441 data sheet](https://invensense.tdk.com/wp-content/uploads/2015/02/INMP441.pdf)
+- [ICS-43434 data sheet](https://invensense.tdk.com/wp-content/uploads/2016/02/DS-000069-ICS-43434-v1.2.pdf)
 - [SN74AHCT125 data sheet](https://www.ti.com/lit/gpn/SN74AHCT125)
 - [SK6812 RGBW data sheet](https://cdn-shop.adafruit.com/product-files/2757/p2757_SK6812RGBW_REV01.pdf)
 - [TPS61023 data](https://www.ti.com/product/TPS61023)

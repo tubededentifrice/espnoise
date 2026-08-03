@@ -232,10 +232,10 @@ def add_edge(start: tuple[float, float], end: tuple[float, float]) -> None:
 
 
 for a, b in [
-    ((0, 0), (96, 0)),
-    ((96, 0), (96, 38)),
-    ((96, 38), (0, 38)),
-    ((0, 38), (0, 0)),
+    ((0, 0), (80, 0)),
+    ((80, 0), (80, 20)),
+    ((80, 20), (0, 20)),
+    ((0, 20), (0, 0)),
 ]:
     add_edge(a, b)
 
@@ -252,30 +252,15 @@ def add_text(text: str, x: float, y: float, layer: int, size: float = 1.0) -> No
     board.Add(item)
 
 
-# Mounting holes are for a new printed carrier or standoffs. Their positions do
-# not claim compatibility with the present enclosure.
-for ref, x, y in [("H1", 4, 4), ("H2", 92, 4)]:
-    add_footprint(
-        "MountingHole",
-        "MountingHole_3.2mm_M3",
-        ref,
-        "M3 mounting hole",
-        x,
-        y,
-        side="Top",
-        place=False,
-        description="3.2 mm non-plated mounting hole",
-    )
-
-
-# The two switch centers follow the measured openings in the current case.
+# The user-facing parts share the board centerline. The microphone is on the
+# lower face. Its bottom port listens through the non-plated PCB hole.
 sw2 = add_footprint(
     "ESPNoise",
     "ESPNoise_7x7_DPDT_Pushbutton",
     "SW2",
     "BUZZER ENABLE",
-    22.9,
-    11.4,
+    7.0,
+    10.0,
     side="Top",
     lcsc="C5379891",
     manufacturer="SHOU HAN",
@@ -289,8 +274,8 @@ sw1 = add_footprint(
     "ESPNoise_7x7_DPDT_Pushbutton",
     "SW1",
     "MUTE",
-    52.9,
-    10.1,
+    20.0,
+    10.0,
     side="Top",
     lcsc="C5379890",
     manufacturer="SHOU HAN",
@@ -299,14 +284,46 @@ sw1 = add_footprint(
 )
 set_pad_nets(sw1, {"2": "MUTE_N", "3": "GND"})
 
+mic1 = add_footprint(
+    "Sensor_Audio",
+    "InvenSense_ICS-43434-6_3.5x2.65mm",
+    "MIC1",
+    "ICS-43434",
+    29.5,
+    10.71,
+    lcsc="C5656610",
+    manufacturer="TDK InvenSense",
+    mpn="ICS-43434",
+    description="I2S bottom-port MEMS microphone; acoustic port faces the top through the PCB hole",
+)
+set_pad_nets(
+    mic1,
+    {"1": "MIC_WS", "2": "GND", "3": "GND", "4": "MIC_SCK", "5": "+3V3", "6": "MIC_SD"},
+)
+
+bz1 = add_footprint(
+    "ESPNoise",
+    "ESPNoise_FUET-1370F-05",
+    "BZ1",
+    "FUET-1370F-05",
+    69.0,
+    10.0,
+    side="Top",
+    lcsc="C2690507",
+    manufacturer="FUET",
+    mpn="FUET-1370F-05",
+    description="5 V, 2.4 kHz passive electromagnetic buzzer with top sound port",
+)
+set_pad_nets(bz1, {"1": "+5V_BUZZER_SW", "2": "BUZZER_COLLECTOR"})
+
 
 j2 = add_footprint(
     "Connector_JST",
     "JST_PH_B10B-PH-SM4-TB_1x10-1MP_P2.00mm_Vertical",
     "J2",
     "CONTROLLER",
-    15,
-    31,
+    44.5,
+    15.0,
     lcsc="C265112",
     manufacturer="JST",
     mpn="B10B-PH-SM4-TBT(LF)(SN)",
@@ -328,27 +345,13 @@ set_pad_nets(
     },
 )
 
-j4 = add_footprint(
-    "Connector_JST",
-    "JST_PH_B6B-PH-SM4-TB_1x06-1MP_P2.00mm_Vertical",
-    "J4",
-    "MICROPHONE",
-    37,
-    31,
-    lcsc="C265088",
-    manufacturer="JST",
-    mpn="B6B-PH-SM4-TBT(LF)(SN)",
-    description="INMP441 cable, JST PH 6 pin, lower face",
-)
-set_pad_nets(j4, {"1": "+3V3", "2": "GND", "3": "MIC_SCK", "4": "MIC_WS", "5": "MIC_SD", "6": "GND"})
-
 j3 = add_footprint(
     "Connector_JST",
     "JST_PH_B5B-PH-SM4-TB_1x05-1MP_P2.00mm_Vertical",
     "J3",
     "LED STRIP",
-    53.5,
-    31,
+    62.5,
+    5.0,
     lcsc="C265086",
     manufacturer="JST",
     mpn="B5B-PH-SM4-TBT(LF)(SN)",
@@ -360,9 +363,9 @@ j1 = add_footprint(
     "Connector_JST",
     "JST_PH_B2B-PH-SM4-TB_1x02-1MP_P2.00mm_Vertical",
     "J1",
-    "5V INPUT",
-    66,
-    31,
+    "USB-C 5V",
+    75.2,
+    5.0,
     lcsc="C265003",
     manufacturer="JST",
     mpn="B2B-PH-SM4-TBT(LF)(SN)",
@@ -370,29 +373,15 @@ j1 = add_footprint(
 )
 set_pad_nets(j1, {"1": "+5V_IN", "2": "GND"})
 
-j5 = add_footprint(
-    "Connector_JST",
-    "JST_PH_B2B-PH-SM4-TB_1x02-1MP_P2.00mm_Vertical",
-    "J5",
-    "BUZZER",
-    76.5,
-    31,
-    lcsc="C265003",
-    manufacturer="JST",
-    mpn="B2B-PH-SM4-TBT(LF)(SN)",
-    description="Passive piezo buzzer cable, lower face",
-)
-set_pad_nets(j5, {"1": "+5V_BUZZER_SW", "2": "BUZZER_COLLECTOR"})
-
 
 u1 = add_footprint(
     "Package_SO",
     "TSSOP-14_4.4x5mm_P0.65mm",
     "U1",
     "SN74AHCT125PWR",
-    47,
-    21,
-    rotation=90,
+    39.5,
+    5.0,
+    rotation=0,
     lcsc="C36365",
     manufacturer="Texas Instruments",
     mpn="SN74AHCT125PWR",
@@ -420,9 +409,9 @@ c1 = add_footprint(
     "C_0603_1608Metric",
     "C1",
     "100nF",
-    42,
-    21,
-    rotation=90,
+    30.5,
+    4.0,
+    rotation=0,
     lcsc="C14663",
     manufacturer="Yageo",
     mpn="CC0603KRX7R9BB104",
@@ -430,14 +419,29 @@ c1 = add_footprint(
 )
 set_pad_nets(c1, {"1": "+5V_PERIPH", "2": "GND"})
 
+c3 = add_footprint(
+    "Capacitor_SMD",
+    "C_0603_1608Metric",
+    "C3",
+    "100nF",
+    26.5,
+    10.0,
+    rotation=90,
+    lcsc="C14663",
+    manufacturer="Yageo",
+    mpn="CC0603KRX7R9BB104",
+    description="Microphone bypass capacitor, 50 V X7R",
+)
+set_pad_nets(c3, {"1": "+3V3", "2": "GND"})
+
 r1 = add_footprint(
     "Resistor_SMD",
     "R_0603_1608Metric",
     "R1",
     "330R",
-    54,
-    21,
-    rotation=90,
+    48.5,
+    5.0,
+    rotation=0,
     lcsc="C23138",
     manufacturer="UNI-ROYAL",
     mpn="0603WAF3300T5E",
@@ -450,8 +454,9 @@ f1 = add_footprint(
     "Fuse_1206_3216Metric",
     "F1",
     "0.5A PTC",
-    65,
-    22,
+    24.5,
+    4.0,
+    rotation=90,
     lcsc="C163512",
     manufacturer="Littelfuse",
     mpn="1206L050YR",
@@ -461,14 +466,14 @@ set_pad_nets(f1, {"1": "+5V_IN", "2": "+5V_PERIPH"})
 
 c2 = add_footprint(
     "Capacitor_SMD",
-    "CP_Elec_10x10.5",
+    "CP_Elec_8x10.5",
     "C2",
-    "1000uF 16V",
-    88.5,
-    22,
-    lcsc="C970714",
-    manufacturer="DMBJ",
-    mpn="RVT1C102M1010",
+    "1000uF 10V",
+    72.0,
+    15.0,
+    lcsc="C5246577",
+    manufacturer="KNSCHA",
+    mpn="RVT1000UF10V167RV0083",
     description="LED rail bulk capacitor, 105 C, observe polarity",
 )
 set_pad_nets(c2, {"1": "+5V_PERIPH", "2": "GND"})
@@ -478,9 +483,9 @@ q1 = add_footprint(
     "SOT-23",
     "Q1",
     "MMBT3904",
-    76,
-    21,
-    rotation=90,
+    60.5,
+    14.0,
+    rotation=0,
     lcsc="C181119",
     manufacturer="Hottech",
     mpn="MMBT3904",
@@ -492,12 +497,13 @@ r2 = add_footprint(
     "Resistor_SMD",
     "R_0603_1608Metric",
     "R2",
-    "5.1k",
-    70,
-    18,
-    lcsc="C23186",
+    "1k",
+    60.0,
+    17.0,
+    rotation=0,
+    lcsc="C21190",
     manufacturer="UNI-ROYAL",
-    mpn="0603WAF5101T5E",
+    mpn="0603WAF1001T5E",
     description="Buzzer transistor base resistor",
 )
 set_pad_nets(r2, {"1": "BUZZER_PWM", "2": "BUZZER_BASE"})
@@ -507,8 +513,8 @@ r3 = add_footprint(
     "R_0603_1608Metric",
     "R3",
     "100k",
-    76,
-    16,
+    64.0,
+    17.0,
     rotation=90,
     lcsc="C25803",
     manufacturer="UNI-ROYAL",
@@ -517,88 +523,124 @@ r3 = add_footprint(
 )
 set_pad_nets(r3, {"1": "BUZZER_BASE", "2": "GND"})
 
+d1 = add_footprint(
+    "Diode_SMD",
+    "D_SOD-323",
+    "D1",
+    "1N5819WS",
+    59.0,
+    7.8,
+    side="Top",
+    rotation=0,
+    lcsc="C191023",
+    manufacturer="Hottech",
+    mpn="1N5819WS",
+    description="Buzzer flyback diode; cathode on switched 5 V",
+)
+set_pad_nets(d1, {"1": "+5V_BUZZER_SW", "2": "BUZZER_COLLECTOR"})
 
-# The four microphone signals use separate upper and lower paths. Two signals
-# change layer so no route crosses another route.
-route("+3V3", [xy(pad(j2, "3")), (10.0, 36.0), (32.0, 36.0), xy(pad(j4, "1"))])
-route("MIC_WS", [xy(pad(j2, "5")), (14.0, 25.0), (38.0, 25.0), xy(pad(j4, "4"))])
-route("MIC_SCK", [xy(pad(j2, "4")), (12.0, 33.5)], layer=pcbnew.B_Cu)
-add_via("MIC_SCK", (12.0, 33.5))
-route("MIC_SCK", [(12.0, 33.5), (12.0, 35.0), (36.0, 35.0), (36.0, 33.5)], layer=pcbnew.F_Cu)
-add_via("MIC_SCK", (36.0, 33.5))
-route("MIC_SCK", [(36.0, 33.5), xy(pad(j4, "3"))], layer=pcbnew.B_Cu)
-route("MIC_SD", [xy(pad(j2, "6")), (16.0, 29.0)], layer=pcbnew.B_Cu)
-add_via("MIC_SD", (16.0, 29.0))
-route("MIC_SD", [(16.0, 29.0), (16.0, 27.0), (40.0, 27.0), (40.0, 29.0)], layer=pcbnew.F_Cu)
-add_via("MIC_SD", (40.0, 29.0))
-route("MIC_SD", [(40.0, 29.0), xy(pad(j4, "5"))], layer=pcbnew.B_Cu)
 
-# The input rail splits before the fuse. It supplies the controller directly.
-j2_5v = xy(pad(j2, "1"))
-j1_5v = xy(pad(j1, "1"))
-route("+5V_IN", [j2_5v, (6.0, 34.5)], width=0.90)
-add_via("+5V_IN", (6.0, 34.5))
-route("+5V_IN", [(6.0, 34.5), (6.0, 36.5), (65.0, 36.5), (65.0, 34.5)], width=0.90, layer=pcbnew.F_Cu)
-add_via("+5V_IN", (65.0, 34.5))
-route("+5V_IN", [(65.0, 34.5), j1_5v], width=0.90)
-f1_in = xy(pad(f1, "1"))
-route("+5V_IN", [j1_5v, (62.0, 30.5), (62.0, 28.0)], width=0.90)
-add_via("+5V_IN", (62.0, 28.0))
-route("+5V_IN", [(62.0, 28.0), (69.0, 20.0), (63.6, 20.0)], width=0.90, layer=pcbnew.F_Cu)
-add_via("+5V_IN", (63.6, 20.0))
-route("+5V_IN", [(63.6, 20.0), f1_in], width=0.90)
+# Routing is added below after placement. Keep ground connections in the two
+# filled ground planes.
 
-# The fused rail uses a 1.0 mm lower-face trunk.
-f1_out = xy(pad(f1, "2"))
-route("+5V_PERIPH", [f1_out, (66.4, 26.2), (42.0, 26.2)], width=0.80)
-route("+5V_PERIPH", [f1_out, (84.3, 26.2), xy(pad(c2, "1"))], width=0.80)
-for target in [pad(j3, "1"), pad(j3, "4")]:
-    target_xy = xy(target)
-    route("+5V_PERIPH", [(target_xy[0], 26.2), target_xy], width=0.80)
-route("+5V_PERIPH", [(42.0, 26.2), (40.0, 26.2), (40.0, 20.23), xy(pad(c1, "1"))], width=0.45)
-for target in [pad(u1, "14"), pad(u1, "13"), pad(u1, "10")]:
-    target_xy = xy(target)
-    route("+5V_PERIPH", [(target_xy[0], 26.2), target_xy], width=0.35)
-route("+5V_PERIPH", [xy(pad(u1, "4")), (47.0, 16.0), (51.0, 16.0), (51.0, 26.2)], width=0.35)
+# The unfused input rail supplies the controller and the PTC input.
+route("+5V_IN", [xy(pad(j1, "1")), (72.8, 3.0)], width=0.80)
+add_via("+5V_IN", (72.8, 3.0))
+route("+5V_IN", [(72.8, 3.0), (72.8, 1.2), (24.5, 1.2)], width=0.80, layer=pcbnew.F_Cu)
+add_via("+5V_IN", (24.5, 1.2))
+route("+5V_IN", [(24.5, 1.2), xy(pad(f1, "1"))], width=0.80)
+route("+5V_IN", [xy(pad(j2, "1")), (35.5, 17.5)], width=0.80)
+add_via("+5V_IN", (35.5, 17.5))
+route("+5V_IN", [(35.5, 17.5), (13.0, 17.5), (13.0, 1.2), (24.5, 1.2)], width=0.80, layer=pcbnew.F_Cu)
 
-# Pin 1 and pin 2 of SW2 are connected when the plunger is extended.
-route("+5V_PERIPH", [(61.0, 26.2), (61.0, 10.1), (27.0, 10.1), (27.0, 5.5), (22.9, 5.5), xy(pad(sw2, "2"))], width=0.70)
-route("+5V_BUZZER_SW", [xy(pad(sw2, "1")), (18.5, 8.9), (18.5, 3.5), (85.0, 3.5), (85.0, 30.0), (74.0, 30.0)], width=0.70, layer=pcbnew.F_Cu)
-add_via("+5V_BUZZER_SW", (74.0, 30.0))
-route("+5V_BUZZER_SW", [(74.0, 30.0), xy(pad(j5, "1"))], width=0.70)
+# The fused 5 V rail has a top-layer trunk and short lower-face branches.
+route("+5V_PERIPH", [xy(pad(f1, "2")), (25.8, 5.4)], width=0.70)
+add_via("+5V_PERIPH", (25.8, 5.4))
+route("+5V_PERIPH", [(25.8, 5.4), (25.8, 2.8), (66.8, 2.8)], width=0.70, layer=pcbnew.F_Cu)
+route("+5V_PERIPH", [xy(pad(f1, "2")), (11.0, 5.4), (11.0, 6.0), (7.0, 6.0), xy(pad(sw2, "2"))], width=0.70)
 
-# LED data buffer.
-route("LED_DATA_3V3", [xy(pad(j2, "7")), (18.0, 29.0)])
-add_via("LED_DATA_3V3", (18.0, 29.0))
-route("LED_DATA_3V3", [(18.0, 29.0), (18.0, 31.3), (44.0, 31.3), (44.0, 16.0), (45.7, 16.0)], layer=pcbnew.F_Cu)
-add_via("LED_DATA_3V3", (45.7, 16.0), size=0.60, drill=0.30)
-route("LED_DATA_3V3", [(45.7, 16.0), xy(pad(u1, "2"))])
-route("LED_DATA_5V_RAW", [xy(pad(u1, "3")), (46.35, 14.5), (54.0, 14.5), xy(pad(r1, "1"))])
-route("LED_DATA_5V", [xy(pad(r1, "2")), (56.0, 21.83)])
-add_via("LED_DATA_5V", (56.0, 21.83))
-route("LED_DATA_5V", [(56.0, 21.83), (58.0, 27.0), (58.0, 29.0), (53.5, 29.0)], layer=pcbnew.F_Cu)
-add_via("LED_DATA_5V", (53.5, 29.0))
-route("LED_DATA_5V", [(53.5, 29.0), xy(pad(j3, "3"))])
+for via_xy, target, target_path in [
+    ((29.0, 3.0), pad(c1, "1"), [(29.0, 3.0)]),
+    ((44.2, 4.35), pad(u1, "10"), [(44.2, 4.35)]),
+    ((58.5, 3.1), pad(j3, "1"), [(58.5, 3.1)]),
+    ((64.5, 3.1), pad(j3, "4"), [(64.5, 3.1)]),
+]:
+    route("+5V_PERIPH", [(via_xy[0], 2.8), via_xy], width=0.40, layer=pcbnew.F_Cu)
+    add_via("+5V_PERIPH", via_xy)
+    route("+5V_PERIPH", [*target_path, xy(target)], width=0.40)
+route("+5V_PERIPH", [(35.0, 2.8), (35.0, 5.0)], width=0.25, layer=pcbnew.F_Cu)
+add_via("+5V_PERIPH", (35.0, 5.0), size=0.60, drill=0.30)
+route("+5V_PERIPH", [(35.0, 5.0), xy(pad(u1, "4"))], width=0.25)
+route("+5V_PERIPH", [xy(pad(u1, "13")), (44.2, 6.3), (44.2, 4.35)], width=0.35)
+route("+5V_PERIPH", [xy(pad(u1, "14")), (45.0, 6.95), (45.0, 4.35), (44.2, 4.35)], width=0.35)
+route("+5V_PERIPH", [(66.8, 2.8), (66.8, 15.0)], width=0.70, layer=pcbnew.F_Cu)
+add_via("+5V_PERIPH", (66.8, 15.0))
+route("+5V_PERIPH", [(66.8, 15.0), xy(pad(c2, "1"))], width=0.70)
 
-# Mute uses the top layer and approaches the center switch pin from the board
-# edge. This avoids the unused pin in the second switch row.
-route("MUTE_N", [xy(pad(j2, "9")), (22.0, 33.5)])
-add_via("MUTE_N", (22.0, 33.5))
-route("MUTE_N", [(22.0, 33.5), (24.0, 32.5), (70.0, 32.5), (70.0, 15.0), (75.0, 15.0), (75.0, 5.5), (52.9, 5.5), xy(pad(sw1, "2"))], layer=pcbnew.F_Cu)
+# SW2 remains a hard series switch in the buzzer positive power wire.
+route("+5V_BUZZER_SW", [xy(pad(sw2, "1")), (3.0, 7.5), (3.0, 19.0), (77.8, 19.0), (77.8, 10.0), xy(pad(bz1, "1"))], width=0.70, layer=pcbnew.F_Cu)
+route("+5V_BUZZER_SW", [xy(pad(d1, "1")), (55.0, 7.8), (55.0, 10.6)], layer=pcbnew.F_Cu)
+add_via("+5V_BUZZER_SW", (55.0, 10.6))
+route("+5V_BUZZER_SW", [(55.0, 10.6), (76.5, 10.6)], width=0.40, layer=pcbnew.B_Cu)
+add_via("+5V_BUZZER_SW", (76.5, 10.6))
+route("+5V_BUZZER_SW", [(76.5, 10.6), xy(pad(bz1, "1"))], width=0.40, layer=pcbnew.F_Cu)
 
-# Buzzer driver.
-route("BUZZER_PWM", [xy(pad(j2, "8")), (20.0, 29.0)])
-add_via("BUZZER_PWM", (20.0, 29.0))
-route("BUZZER_PWM", [(20.0, 29.0), (20.0, 30.0), (42.0, 30.0), (42.0, 23.5), (28.0, 23.5), (28.0, 11.0), (68.0, 11.0), (68.0, 18.0)], layer=pcbnew.F_Cu)
-add_via("BUZZER_PWM", (68.0, 18.0))
-route("BUZZER_PWM", [(68.0, 18.0), xy(pad(r2, "1"))])
-route("BUZZER_BASE", [xy(pad(r2, "2")), xy(pad(q1, "1"))])
-route("BUZZER_BASE", [xy(pad(q1, "1")), (73.5, 16.0), xy(pad(r3, "1"))])
-route("BUZZER_COLLECTOR", [xy(pad(q1, "3")), (78.0, 21.94)])
-add_via("BUZZER_COLLECTOR", (78.0, 21.94))
-route("BUZZER_COLLECTOR", [(78.0, 21.94), (80.0, 26.5), (80.0, 28.0), (77.5, 28.0)], width=0.50, layer=pcbnew.F_Cu)
-add_via("BUZZER_COLLECTOR", (77.5, 28.0))
-route("BUZZER_COLLECTOR", [(77.5, 28.0), xy(pad(j5, "2"))], width=0.50)
+# The four microphone connections use parallel top-layer paths.
+route("+3V3", [xy(pad(j2, "3")), (39.5, 13.9)])
+add_via("+3V3", (39.5, 13.9), size=0.60, drill=0.30)
+route("+3V3", [(39.5, 13.9), (31.0, 13.9)], layer=pcbnew.F_Cu)
+add_via("+3V3", (31.0, 13.9), size=0.60, drill=0.30)
+route("+3V3", [(31.0, 13.9), (31.0, 12.074), xy(pad(mic1, "5"))])
+route("+3V3", [xy(pad(mic1, "5")), (30.8, 14.2), (25.2, 14.2), (25.2, 9.225), xy(pad(c3, "1"))])
+
+route("MIC_SCK", [xy(pad(j2, "4")), (41.5, 11.8)])
+add_via("MIC_SCK", (41.5, 11.8), size=0.60, drill=0.30)
+route("MIC_SCK", [(41.5, 11.8), (32.5, 11.8)], layer=pcbnew.F_Cu)
+add_via("MIC_SCK", (32.5, 11.8), size=0.60, drill=0.30)
+route("MIC_SCK", [(32.5, 11.8), (32.5, 11.252), xy(pad(mic1, "4"))])
+
+route("MIC_WS", [xy(pad(j2, "5")), (43.5, 12.5)])
+add_via("MIC_WS", (43.5, 12.5), size=0.60, drill=0.30)
+route("MIC_WS", [(43.5, 12.5), (27.3, 12.5)], layer=pcbnew.F_Cu)
+add_via("MIC_WS", (27.3, 12.5), size=0.60, drill=0.30)
+route("MIC_WS", [(27.3, 12.5), xy(pad(mic1, "1"))])
+
+route("MIC_SD", [xy(pad(j2, "6")), (45.5, 13.2)])
+add_via("MIC_SD", (45.5, 13.2), size=0.60, drill=0.30)
+route("MIC_SD", [(45.5, 13.2), (29.5, 13.2)], layer=pcbnew.F_Cu)
+add_via("MIC_SD", (29.5, 13.2), size=0.60, drill=0.30)
+route("MIC_SD", [(29.5, 13.2), xy(pad(mic1, "6"))])
+
+# LED data enters U1 on pin 2 and leaves through R1.
+route("LED_DATA_3V3", [xy(pad(j2, "7")), (47.5, 10.8), (34.5, 10.8), (34.5, 6.3), xy(pad(u1, "2"))])
+
+route("LED_DATA_5V_RAW", [xy(pad(u1, "3")), (33.5, 5.65)])
+add_via("LED_DATA_5V_RAW", (33.5, 5.65))
+route("LED_DATA_5V_RAW", [(33.5, 5.65), (33.5, 9.5), (46.5, 9.5), (46.5, 5.0)], layer=pcbnew.F_Cu)
+add_via("LED_DATA_5V_RAW", (46.5, 5.0))
+route("LED_DATA_5V_RAW", [(46.5, 5.0), xy(pad(r1, "1"))])
+route("LED_DATA_5V", [xy(pad(r1, "2")), (50.0, 5.0), (50.0, 9.8), (62.5, 9.8), xy(pad(j3, "3"))])
+
+# MUTE_N approaches the top switch from above its unused contact row.
+route("MUTE_N", [xy(pad(j2, "9")), (51.5, 15.7)])
+add_via("MUTE_N", (51.5, 15.7))
+route("MUTE_N", [(51.5, 15.7), (14.5, 15.7), (14.5, 5.5), (20.0, 5.5), xy(pad(sw1, "2"))], layer=pcbnew.F_Cu)
+
+# Q1 drives the magnetic buzzer. D1 clamps its inductive turn-off pulse.
+route("BUZZER_PWM", [xy(pad(j2, "8")), (49.5, 11.8)])
+add_via("BUZZER_PWM", (49.5, 11.8))
+route("BUZZER_PWM", [(49.5, 11.8), (59.175, 11.8)], layer=pcbnew.F_Cu)
+add_via("BUZZER_PWM", (59.175, 11.8))
+route("BUZZER_PWM", [(59.175, 11.8), (57.6, 11.8), (57.6, 17.0), xy(pad(r2, "1"))])
+route("BUZZER_BASE", [xy(pad(r2, "2")), (60.825, 15.8), xy(pad(q1, "1"))])
+route("BUZZER_BASE", [xy(pad(q1, "1")), (62.2, 14.95), (62.2, 17.0), xy(pad(r3, "1"))])
+route("BUZZER_COLLECTOR", [xy(pad(q1, "3")), (62.0, 14.0), (62.0, 12.0)], width=0.45)
+add_via("BUZZER_COLLECTOR", (62.0, 12.0))
+route("BUZZER_COLLECTOR", [(62.0, 12.0), xy(pad(bz1, "2"))], width=0.45, layer=pcbnew.F_Cu)
+route("BUZZER_COLLECTOR", [xy(pad(d1, "2")), (61.0, 7.8), (61.0, 10.0), xy(pad(bz1, "2"))], width=0.40, layer=pcbnew.F_Cu)
+
+route("GND", [xy(pad(q1, "2")), (61.0, 13.05)])
+add_via("GND", (61.0, 13.05))
 
 
 def add_ground_zone(layer: int) -> None:
@@ -612,7 +654,7 @@ def add_ground_zone(layer: int) -> None:
     zone.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
     outline = zone.Outline()
     outline.NewOutline()
-    for x, y in [(0.5, 0.5), (95.5, 0.5), (95.5, 37.5), (0.5, 37.5)]:
+    for x, y in [(0.5, 0.5), (79.5, 0.5), (79.5, 19.5), (0.5, 19.5)]:
         outline.Append(point(x, y))
     board.Add(zone)
 
@@ -620,12 +662,16 @@ def add_ground_zone(layer: int) -> None:
 add_ground_zone(pcbnew.F_Cu)
 add_ground_zone(pcbnew.B_Cu)
 
-add_text("ESPNoise carrier rev A", 48, 2.2, pcbnew.F_SilkS, 1.2)
-add_text("BUZZER ENABLE", 22.9, 5.2, pcbnew.F_SilkS, 0.9)
-add_text("EXTENDED = ON", 22.9, 17.8, pcbnew.F_SilkS, 0.8)
-add_text("MUTE", 52.9, 4.5, pcbnew.F_SilkS, 0.9)
-add_text("LOWER FACE - CABLES DOWN", 48, 6.2, pcbnew.B_SilkS, 1.0)
-add_text("J2 CTRL  J4 MIC  J3 LED  J1 5V  J5 BUZZ", 48, 36.6, pcbnew.B_SilkS, 0.75)
+add_text("ESPNoise rev B", 40, 1.3, pcbnew.F_SilkS, 0.75)
+add_text("BUZZ ON", 7.0, 4.7, pcbnew.F_SilkS, 0.65)
+add_text("EXTENDED=ON", 7.0, 15.3, pcbnew.F_SilkS, 0.55)
+add_text("MUTE", 20.0, 4.7, pcbnew.F_SilkS, 0.65)
+add_text("MIC", 29.5, 7.9, pcbnew.F_SilkS, 0.55)
+add_text("BUZZER", 69.0, 2.3, pcbnew.F_SilkS, 0.65)
+add_text("BOTTOM - CONNECTORS DOWN", 40, 18.8, pcbnew.B_SilkS, 0.65)
+add_text("J2 CTRL", 44.5, 10.4, pcbnew.B_SilkS, 0.55)
+add_text("J3 LED", 62.5, 10.4, pcbnew.B_SilkS, 0.55)
+add_text("J1 USB-C 5V", 74.0, 10.4, pcbnew.B_SilkS, 0.50)
 
 
 pcbnew.ZONE_FILLER(board).Fill(board.Zones())
@@ -635,7 +681,7 @@ pcbnew.SaveBoard(str(BOARD_FILE), board)
 JLC_DIR.mkdir(parents=True, exist_ok=True)
 
 with (JLC_DIR / "espnoise-carrier-bom.csv").open("w", newline="", encoding="utf-8") as handle:
-    writer = csv.writer(handle)
+    writer = csv.writer(handle, lineterminator="\n")
     writer.writerow(["Comment", "Designator", "Footprint", "LCSC Part #"])
     groups: dict[tuple[str, str, str], list[str]] = {}
     for item in placements:
@@ -647,7 +693,7 @@ with (JLC_DIR / "espnoise-carrier-bom.csv").open("w", newline="", encoding="utf-
         writer.writerow([value, ",".join(sorted(refs)), footprint, lcsc])
 
 with (JLC_DIR / "espnoise-carrier-cpl.csv").open("w", newline="", encoding="utf-8") as handle:
-    writer = csv.writer(handle)
+    writer = csv.writer(handle, lineterminator="\n")
     writer.writerow(["Designator", "Mid X", "Mid Y", "Layer", "Rotation"])
     for item in sorted(placements, key=lambda row: str(row["ref"])):
         if not item["place"] or not item["lcsc"]:
@@ -664,7 +710,7 @@ with (JLC_DIR / "espnoise-carrier-cpl.csv").open("w", newline="", encoding="utf-
 
 with (JLC_DIR / "espnoise-carrier-parts.csv").open("w", newline="", encoding="utf-8") as handle:
     fields = ["ref", "value", "manufacturer", "mpn", "lcsc", "side", "description"]
-    writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+    writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     writer.writerows(sorted(placements, key=lambda row: str(row["ref"])))
 

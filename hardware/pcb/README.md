@@ -1,17 +1,22 @@
 # ESPNoise carrier PCB
 
 This directory contains the carrier PCB for the USB-powered ESPNoise build.
-The ESP32 stays on a removable cable. The PCB contains the controls, LED data
-buffer, buzzer driver, fuse, and keyed module connectors.
+The ESP32 stays on a removable cable. The PCB contains the controls, digital
+microphone, buzzer, LED data buffer, buzzer driver, fuse, and keyed connectors.
 
-The board is 96 mm by 38 mm. Its nominal stack is two copper layers, 1.6 mm
+The board is 80 mm by 20 mm. Its nominal stack is two copper layers, 1.6 mm
 FR-4, 1 oz copper, lead-free HASL, and a green solder mask.
 
 ## Interface summary
 
-The controller and LED connectors are JST PH vertical headers on the lower
-face. A cable enters each connector in the direction away from the lower PCB
-face. This placement keeps the cables away from the two top controls.
+The controller, LED, and USB-C power connectors are JST PH vertical headers on
+the lower face. A cable enters each connector in the direction away from that
+face. The two switches, microphone opening, and buzzer are on the 10 mm board
+centerline and face the case top.
+
+MIC1 is on the lower face because it is a bottom-port microphone. A 0.5 mm
+non-plated hole carries sound from the case top to the microphone port. Do not
+cover this hole with glue, foam, or a label.
 
 The controller interface uses signal names. It does not depend on the physical
 size of the ESP32 board. Make one adapter cable for the selected controller.
@@ -29,8 +34,8 @@ The `jlcpcb` directory contains these order files:
 
 Upload the Gerber ZIP in the JLCPCB PCB order page. Enable PCB assembly, and
 then upload the BOM and CPL files. Check every mapped part and orientation in
-the assembly preview. In particular, check the polarity of C2, pin 1 of all
-JST connectors, and the six switch pins.
+the assembly preview. In particular, check C2 and D1 polarity, MIC1 pin 1, pin
+1 of all JST connectors, BZ1 polarity, and the six pins on each switch.
 
 JLCPCB stock can change. Do not submit the order if the site replaces a part
 without a new electrical and footprint check.

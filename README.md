@@ -33,10 +33,10 @@ battery is necessary.
 | Item | Production specification |
 | --- | --- |
 | Controller | Full-size ESP32 development board with USB-C |
-| Microphone | INMP441 digital I2S module |
+| Microphone | ICS-43434 digital I2S microphone on the carrier PCB |
 | Display | 10 SK6812 RGB plus warm-white, 32-bit pixels |
-| Data buffer | SN74AHCT125N, 3.3 V input to 5 V output |
-| Sound | Passive piezo buzzer and 2N3904 driver |
+| Data buffer | SN74AHCT125PWR, 3.3 V input to 5 V output |
+| Sound | 5 V passive electromagnetic buzzer and MMBT3904 driver |
 | Controls | Momentary mute button and maintained hard buzzer switch |
 | Power | Regulated 5 V, 2 A minimum; 3 A recommended |
 | Enclosure | 164 mm × 54 mm × 54.5 mm main case envelope |
@@ -78,15 +78,15 @@ flowchart LR
   SPLIT --> FUSE["0.5 A hold fuse"]
   FUSE --> RAIL["5 V peripheral rail"]
 
-  ESP -->|"3V3, GND<br>GPIO26 SCK<br>GPIO25 WS<br>GPIO32 SD"| MIC["INMP441<br>L/R to GND"]
-  ESP -->|"GPIO18"| AHCT["SN74AHCT125N<br>5 V supply"]
+  ESP -->|"3V3, GND<br>GPIO26 SCK<br>GPIO25 WS<br>GPIO32 SD"| MIC["ICS-43434<br>L/R to GND"]
+  ESP -->|"GPIO18"| AHCT["SN74AHCT125PWR<br>5 V supply"]
   AHCT -->|"330 ohm"| LED["10 × SK6812 RGBW<br>5 V at both ends"]
   RAIL --> AHCT
   RAIL --> LED
 
-  ESP -->|"GPIO23 PWM<br>through 5.1 kohm"| Q1["2N3904 driver"]
+  ESP -->|"GPIO23 PWM<br>through 1 kohm"| Q1["MMBT3904 driver"]
   RAIL --> SW["Hard buzzer<br>power switch"]
-  SW --> BUZ["Passive piezo buzzer"]
+  SW --> BUZ["Passive magnetic buzzer"]
   BUZ --> Q1
 
   BTN["Mute button<br>GPIO27 to GND"] --> ESP
@@ -94,11 +94,11 @@ flowchart LR
 
 | Function | ESP32 pin |
 | --- | ---: |
-| INMP441 clock | GPIO26 |
-| INMP441 word select | GPIO25 |
-| INMP441 data | GPIO32 |
-| SK6812 data through SN74AHCT125N | GPIO18 |
-| Buzzer PWM through 5.1 kohm and 2N3904 | GPIO23 |
+| ICS-43434 clock | GPIO26 |
+| ICS-43434 word select | GPIO25 |
+| ICS-43434 data | GPIO32 |
+| SK6812 data through SN74AHCT125PWR | GPIO18 |
+| Buzzer PWM through 1 kohm and MMBT3904 | GPIO23 |
 | Mute button to GND | GPIO27 |
 | Optional battery-boost enable | GPIO13 |
 
