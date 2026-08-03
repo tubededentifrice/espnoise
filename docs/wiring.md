@@ -17,6 +17,31 @@ pins and the main startup-configuration pins.
 | 30-minute mute | Button to GND | GPIO27 | Internal pull-up |
 | Buzzer enable | SPST switch in buzzer positive wire | No GPIO | Hard power cut |
 
+## Carrier PCB
+
+The production carrier PCB is in `hardware/pcb`. It keeps the ESP32 removable
+and presents controller signals on the 10-pin J2 connector. J1, J2, J3, J4,
+and J5 are on the lower PCB face, and their cables point down.
+
+For the full-size ESP32, connect J2 as follows:
+
+| J2 pin | Signal | ESP32 connection |
+| ---: | --- | --- |
+| 1 | 5 V input | `5V` or `VIN` |
+| 2 | GND | GND |
+| 3 | 3.3 V | `3V3` |
+| 4 | Microphone clock | GPIO26 |
+| 5 | Microphone word select | GPIO25 |
+| 6 | Microphone data | GPIO32 |
+| 7 | LED data | GPIO18 |
+| 8 | Buzzer PWM | GPIO23 |
+| 9 | Mute input | GPIO27 |
+| 10 | GND | GND |
+
+The carrier is also electrically usable with an ESP32-C3 adapter cable, but
+the current firmware does not have an ESP32-C3 build. See
+`hardware/pcb/controller-adapters.md` before you make that cable.
+
 ## USB-powered build
 
 Use this production circuit with the full-size USB-C ESP32. Do not install a
@@ -33,7 +58,7 @@ flowchart TB
   ESP3["ESP32 3V3 pin"] --> MIC["INMP441"]
   V5 --> LEVEL["74AHCT125"]
   V5 --> LED["10 SK6812 RGBW pixels"]
-  V5 --> SW["SPST buzzer switch"]
+  V5 --> SW["Latching hard buzzer switch"]
   SW --> BUZZER["Tested passive piezo buzzer"]
   ESP -->|"GPIO18"| LEVEL
   LEVEL -->|"330 ohm"| LED
@@ -80,7 +105,7 @@ flowchart TB
   WEMOS -->|"3V3"| MIC["INMP441"]
   V5 --> LEVEL["74AHCT125"]
   V5 --> LED["10 SK6812 RGBW pixels"]
-  V5 --> SW["SPST buzzer switch"]
+  V5 --> SW["Latching hard buzzer switch"]
   SW --> BUZZER["Tested passive piezo buzzer"]
   WEMOS -->|"GPIO18"| LEVEL
   LEVEL -->|"330 ohm"| LED
@@ -159,7 +184,7 @@ The passive buzzer gave a clear tone from 3.3 V. The tested 5 V circuit is
 much louder. Use this circuit:
 
 ```text
-5 V peripheral rail -> SPST buzzer switch -> buzzer +
+5 V peripheral rail -> latching hard switch -> buzzer +
 Buzzer other pin -> 2N3904 collector
 2N3904 emitter -> GND
 ESP32 GPIO23 -> 5.1 kohm -> 2N3904 base
@@ -183,9 +208,10 @@ side to GPIO27. One press stops the current sample, turns off the alarm, and
 prevents new samples for 30 minutes. A second press starts a new 30-minute
 period.
 
-Use a maintained SPST switch for the buzzer. Put it between the 5 V peripheral
-rail and the buzzer positive pin. This switch does not use a separate ESP32
-input.
+Use the maintained switch as a hard switch for the buzzer. The carrier uses
+one pole of a DPDT push-push switch between the 5 V peripheral rail and the
+buzzer positive pin. Its extended state connects power and enables the buzzer.
+The switch does not use a separate ESP32 input.
 
 ## Test order
 

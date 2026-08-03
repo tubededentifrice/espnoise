@@ -1,0 +1,18 @@
+ref,value,manufacturer,mpn,lcsc,side,description
+C1,100nF,Yageo,CC0603KRX7R9BB104,C14663,Bottom,"AHCT bypass capacitor, 50 V X7R"
+C2,1000uF 16V,DMBJ,RVT1C102M1010,C970714,Bottom,"LED rail bulk capacitor, 105 C, observe polarity"
+F1,0.5A PTC,Littelfuse,1206L050YR,C163512,Bottom,"0.50 A hold resettable fuse, 6 V"
+H1,M3 mounting hole,,,,Top,3.2 mm non-plated mounting hole
+H2,M3 mounting hole,,,,Top,3.2 mm non-plated mounting hole
+J1,5V INPUT,JST,B2B-PH-SM4-TBT(LF)(SN),C265003,Bottom,"External power-only USB-C module cable, lower face"
+J2,CONTROLLER,JST,B10B-PH-SM4-TBT(LF)(SN),C265112,Bottom,"Controller adapter cable, JST PH 10 pin, lower face"
+J3,LED STRIP,JST,B5B-PH-SM4-TBT(LF)(SN),C265086,Bottom,"SK6812 RGBW cable with power at both strip ends, lower face"
+J4,MICROPHONE,JST,B6B-PH-SM4-TBT(LF)(SN),C265088,Bottom,"INMP441 cable, JST PH 6 pin, lower face"
+J5,BUZZER,JST,B2B-PH-SM4-TBT(LF)(SN),C265003,Bottom,"Passive piezo buzzer cable, lower face"
+Q1,MMBT3904,Hottech,MMBT3904,C181119,Bottom,"NPN low-side buzzer driver; pin 1 base, 2 emitter, 3 collector"
+R1,330R,UNI-ROYAL,0603WAF3300T5E,C23138,Bottom,SK6812 series data resistor
+R2,5.1k,UNI-ROYAL,0603WAF5101T5E,C23186,Bottom,Buzzer transistor base resistor
+R3,100k,UNI-ROYAL,0603WAF1003T5E,C25803,Bottom,Buzzer transistor base pull-down
+SW1,MUTE,SHOU HAN,7-7 WS,C5379890,Top,7x7 mm DPDT momentary pushbutton
+SW2,BUZZER ENABLE,SHOU HAN,7-7 ZS,C5379891,Top,7x7 mm DPDT latching pushbutton; extended state enables buzzer
+U1,SN74AHCT125PWR,Texas Instruments,SN74AHCT125PWR,C36365,Bottom,5 V AHCT quad buffer for SK6812 data

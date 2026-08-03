@@ -14,6 +14,8 @@
 *~
 **/xcuserdata/
 *.xcuserstate
+*.kicad_prl
+~*.kicad_pro.lck
 
 # macOS
 .DS_Store

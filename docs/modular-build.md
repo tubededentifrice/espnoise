@@ -20,6 +20,12 @@ the ESP32 board.
 Mark pin 1 on each plug and socket. Use different pin counts where possible so
 that one module cannot connect to the wrong socket.
 
+The production carrier PCB replaces these prototype plugs with JST PH
+connectors. It combines controller signals in J2 and supplies LED power at both
+strip ends through J3. Use `hardware/pcb/controller-adapters.md` as the
+production connector table. Do not use the prototype JST-XH pin count as a
+carrier PCB pin count.
+
 ## Stage 0: Two-wire USB-C power module
 
 Test the two-wire USB-C connector before you connect it to the ESP32:

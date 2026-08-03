@@ -23,8 +23,8 @@ at a marked cut line. Keep the data arrows in the direction from `DIN` to
 
 | Qty | Part | Required specification |
 | ---: | --- | --- |
-| 1 | Mute button | Momentary, normally open |
-| 1 | Buzzer switch | Maintained SPST switch; install it in the buzzer 5 V wire |
+| 1 | Mute button | SHOU HAN 7-7 WS, momentary DPDT, LCSC C5379890 |
+| 1 | Buzzer switch | SHOU HAN 7-7 ZS, latching DPDT, LCSC C5379891; use one pole in the buzzer 5 V wire |
 | 1 | Buzzer | Passive piezo buzzer, suitable for the tested 2.4 kHz drive |
 | 1 | Driver transistor | 2N3904 NPN |
 | 1 | Base resistor | 5.1 kohm, 0.25 W or higher |
@@ -56,13 +56,14 @@ this 5 V build.
 
 | Qty | Part | Required specification |
 | ---: | --- | --- |
-| 1 | Prototype board or PCB | Sufficient space for the buffer, driver, fuse, and connectors |
+| 1 | Carrier PCB | `hardware/pcb/espnoise-carrier.kicad_pcb`; use the Gerber ZIP, BOM, and CPL in `hardware/pcb/jlcpcb` |
 | As needed | Module connectors | Keyed connectors, with different pin counts where practical |
 | As needed | Power wire | 22 AWG stranded copper, red and black |
 | As needed | Signal wire | 26 AWG stranded copper, multiple colors |
 | As needed | Heat-shrink tube | 2:1 ratio, sizes that fit the joints |
 
-The modular build guide specifies the recommended connector pin counts.
+The production carrier uses bottom-entry JST PH cable interfaces. The adapter
+pin orders and cable housings are in `hardware/pcb/controller-adapters.md`.
 
 ## Optional battery build
 
