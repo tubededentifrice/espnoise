@@ -20,14 +20,6 @@ struct ContentView: View {
                     }
                 }
 
-                Section {
-                    Button("Add Device", systemImage: "plus.circle") {
-                        syncManager.addDevice()
-                    }
-                    LabeledContent("Setup", value: syncManager.setupText)
-                        .font(.caption)
-                }
-
                 Section("Devices") {
                     if syncManager.devices.isEmpty {
                         Text("No devices are added.")
@@ -42,6 +34,9 @@ struct ContentView: View {
                         } label: {
                             DeviceRow(device: device)
                         }
+                    }
+                    Button("Add Device", systemImage: "plus.circle") {
+                        syncManager.addDevice()
                     }
                 }
 
