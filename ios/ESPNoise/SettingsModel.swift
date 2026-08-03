@@ -12,6 +12,135 @@ enum NoiseLevelScale {
     }
 }
 
+enum ThresholdSliderScale {
+    static let minimum = 40.0
+    static let maximum = NoiseLevelScale.maximum
+    static let range = minimum...maximum
+    static let step = 1.0
+    static let orderGapTenths: Int16 = 10
+
+    static func normalizedSettings(_ source: NoiseSettings) -> NoiseSettings {
+        var result = source
+        var green = normalizedLevel(source.greenThresholdTenths)
+        green = min(green, Int(maximum) - 2)
+        var orange = normalizedLevel(source.orangeThresholdTenths)
+        orange = min(max(orange, green + 1), Int(maximum) - 1)
+        var red = normalizedLevel(source.redThresholdTenths)
+        red = min(max(red, orange + 1), Int(maximum))
+        result.greenThresholdTenths = tenths(green)
+        result.orangeThresholdTenths = tenths(orange)
+        result.redThresholdTenths = tenths(red)
+        return result
+    }
+
+    static func normalizedOverrides(
+        _ source: DeviceOverrides,
+        global: NoiseSettings
+    ) -> DeviceOverrides {
+        var result = source
+        // Use the stored global values because SettingsStore applies device
+        // overrides to this exact base when the user saves the page.
+        let inherited = global
+        if let green = result.greenThresholdTenths {
+            result.greenThresholdTenths = tenths(normalizedLevel(green))
+        }
+        if let orange = result.orangeThresholdTenths {
+            result.orangeThresholdTenths = tenths(normalizedLevel(orange))
+        }
+        if let red = result.redThresholdTenths {
+            result.redThresholdTenths = tenths(normalizedLevel(red))
+        }
+
+        for _ in 0..<4 {
+            let green = result.greenThresholdTenths
+                ?? inherited.greenThresholdTenths
+            let orange = result.orangeThresholdTenths
+                ?? inherited.orangeThresholdTenths
+            let red = result.redThresholdTenths
+                ?? inherited.redThresholdTenths
+            if green + orderGapTenths > orange {
+                if result.greenThresholdTenths != nil {
+                    result.greenThresholdTenths = wholeAtMost(
+                        orange - orderGapTenths
+                    )
+                } else if result.orangeThresholdTenths != nil {
+                    result.orangeThresholdTenths = wholeAtLeast(
+                        green + orderGapTenths
+                    )
+                }
+            }
+            let adjustedOrange = result.orangeThresholdTenths
+                ?? inherited.orangeThresholdTenths
+            if adjustedOrange + orderGapTenths > red {
+                if result.redThresholdTenths != nil {
+                    result.redThresholdTenths = wholeAtLeast(
+                        adjustedOrange + orderGapTenths
+                    )
+                } else if result.orangeThresholdTenths != nil {
+                    result.orangeThresholdTenths = wholeAtMost(
+                        red - orderGapTenths
+                    )
+                }
+            }
+            clampOverrides(&result)
+        }
+
+        let green = result.greenThresholdTenths
+            ?? inherited.greenThresholdTenths
+        let orange = result.orangeThresholdTenths
+            ?? inherited.orangeThresholdTenths
+        let red = result.redThresholdTenths ?? inherited.redThresholdTenths
+        guard green + orderGapTenths <= orange,
+              orange + orderGapTenths <= red else {
+            result.greenThresholdTenths = nil
+            result.orangeThresholdTenths = nil
+            result.redThresholdTenths = nil
+            return result
+        }
+        return result
+    }
+
+    private static func normalizedLevel(_ value: Int16) -> Int {
+        let level = Int(
+            NoiseLevelScale.positiveLevel(fromDbfsTenths: value).rounded()
+        )
+        return min(Int(maximum), max(Int(minimum), level))
+    }
+
+    private static func tenths(_ level: Int) -> Int16 {
+        NoiseLevelScale.dbfsTenths(fromPositiveLevel: Double(level))
+    }
+
+    private static func wholeAtMost(_ value: Int16) -> Int16 {
+        let raw = Int(value)
+        let remainder = raw % Int(orderGapTenths)
+        guard remainder != 0 else { return value }
+        let quotient = raw / Int(orderGapTenths) - (raw < 0 ? 1 : 0)
+        return Int16(quotient * Int(orderGapTenths))
+    }
+
+    private static func wholeAtLeast(_ value: Int16) -> Int16 {
+        let raw = Int(value)
+        let remainder = raw % Int(orderGapTenths)
+        guard remainder != 0 else { return value }
+        let quotient = raw / Int(orderGapTenths) + (raw > 0 ? 1 : 0)
+        return Int16(quotient * Int(orderGapTenths))
+    }
+
+    private static func clampOverrides(_ overrides: inout DeviceOverrides) {
+        let minimumTenths = tenths(Int(minimum))
+        if let green = overrides.greenThresholdTenths {
+            overrides.greenThresholdTenths = min(0, max(minimumTenths, green))
+        }
+        if let orange = overrides.orangeThresholdTenths {
+            overrides.orangeThresholdTenths = min(0, max(minimumTenths, orange))
+        }
+        if let red = overrides.redThresholdTenths {
+            overrides.redThresholdTenths = min(0, max(minimumTenths, red))
+        }
+    }
+}
+
 struct NoiseSettings: Codable, Equatable, Sendable {
     var brightnessPercent: UInt8 = 100
     var buzzerPercent: UInt8 = 50

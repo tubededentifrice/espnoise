@@ -137,6 +137,78 @@ final class PacketCodecTests: XCTestCase {
         XCTAssertEqual(NoiseLevelScale.dbfsTenths(fromPositiveLevel: 72), -480)
     }
 
+    func testThresholdSliderScaleNormalizesLegacyValues() {
+        var settings = NoiseSettings()
+        settings.greenThresholdTenths = -1_000
+        settings.orangeThresholdTenths = -795
+        settings.redThresholdTenths = 0
+        let normalized = ThresholdSliderScale.normalizedSettings(settings)
+        XCTAssertEqual(
+            NoiseLevelScale.positiveLevel(
+                fromDbfsTenths: normalized.greenThresholdTenths
+            ),
+            40
+        )
+        XCTAssertEqual(
+            NoiseLevelScale.positiveLevel(
+                fromDbfsTenths: normalized.orangeThresholdTenths
+            ),
+            41
+        )
+        XCTAssertEqual(
+            NoiseLevelScale.positiveLevel(
+                fromDbfsTenths: normalized.redThresholdTenths
+            ),
+            120
+        )
+
+        var overrides = DeviceOverrides()
+        overrides.greenThresholdTenths = -1_000
+        overrides.orangeThresholdTenths = -475
+        let normalizedOverrides = ThresholdSliderScale.normalizedOverrides(
+            overrides,
+            global: NoiseSettings()
+        )
+        XCTAssertEqual(normalizedOverrides.greenThresholdTenths, -800)
+        XCTAssertEqual(normalizedOverrides.orangeThresholdTenths, -470)
+        XCTAssertEqual(ThresholdSliderScale.range, 40...120)
+        XCTAssertEqual(ThresholdSliderScale.step, 1)
+
+        var closeLegacyGlobal = NoiseSettings()
+        closeLegacyGlobal.greenThresholdTenths = -800
+        closeLegacyGlobal.orangeThresholdTenths = -795
+        closeLegacyGlobal.redThresholdTenths = -790
+        var closeLegacyOverrides = DeviceOverrides()
+        closeLegacyOverrides.orangeThresholdTenths = -795
+        let safeOverrides = ThresholdSliderScale.normalizedOverrides(
+            closeLegacyOverrides,
+            global: closeLegacyGlobal
+        )
+        XCTAssertNil(safeOverrides.greenThresholdTenths)
+        XCTAssertNil(safeOverrides.orangeThresholdTenths)
+        XCTAssertNil(safeOverrides.redThresholdTenths)
+        XCTAssertNoThrow(
+            try safeOverrides.applying(to: closeLegacyGlobal).validated()
+        )
+
+        var halfStepGlobal = NoiseSettings()
+        halfStepGlobal.orangeThresholdTenths = -785
+        var halfStepOverrides = DeviceOverrides()
+        halfStepOverrides.greenThresholdTenths = -790
+        let wholeStepOverrides = ThresholdSliderScale.normalizedOverrides(
+            halfStepOverrides,
+            global: halfStepGlobal
+        )
+        XCTAssertEqual(wholeStepOverrides.greenThresholdTenths, -800)
+        XCTAssertEqual(
+            wholeStepOverrides.greenThresholdTenths.map { $0 % 10 },
+            0
+        )
+        XCTAssertNoThrow(
+            try wholeStepOverrides.applying(to: halfStepGlobal).validated()
+        )
+    }
+
     func testMeasurementHistoryRejectsDuplicatesAndAcceptsSequenceWrap() {
         var history = NoiseMeasurementHistory()
         let now = Date(timeIntervalSince1970: 1_000)

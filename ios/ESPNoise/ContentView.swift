@@ -114,7 +114,11 @@ struct GlobalSettingsView: View {
 
     init(syncManager: NoiseSyncManager) {
         self.syncManager = syncManager
-        _draft = State(initialValue: syncManager.globalSettings)
+        _draft = State(
+            initialValue: ThresholdSliderScale.normalizedSettings(
+                syncManager.globalSettings
+            )
+        )
     }
 
     var body: some View {
@@ -309,7 +313,10 @@ struct DeviceSettingsView: View {
         guard let record = syncManager.deviceRecord(id: deviceID) else { return }
         name = record.customName
         loadedName = record.customName
-        overrides = record.overrides
+        overrides = ThresholdSliderScale.normalizedOverrides(
+            record.overrides,
+            global: syncManager.globalSettings
+        )
     }
 
     private var syncedDeviceName: String? {
@@ -464,8 +471,8 @@ private struct SettingsControls: View {
                 value.wrappedValue
             ),
             value: value,
-            range: NoiseLevelScale.minimum...NoiseLevelScale.maximum,
-            step: 0.5,
+            range: ThresholdSliderScale.range,
+            step: ThresholdSliderScale.step,
             tint: color
         )
     }
@@ -494,17 +501,24 @@ private struct SettingsControls: View {
                 case .green:
                     settings.greenThresholdTenths = min(
                         candidate,
-                        settings.orangeThresholdTenths - 5
+                        settings.orangeThresholdTenths
+                            - ThresholdSliderScale.orderGapTenths
                     )
                 case .orange:
                     settings.orangeThresholdTenths = min(
-                        max(candidate, settings.greenThresholdTenths + 5),
-                        settings.redThresholdTenths - 5
+                        max(
+                            candidate,
+                            settings.greenThresholdTenths
+                                + ThresholdSliderScale.orderGapTenths
+                        ),
+                        settings.redThresholdTenths
+                            - ThresholdSliderScale.orderGapTenths
                     )
                 case .red:
                     settings.redThresholdTenths = max(
                         candidate,
-                        settings.orangeThresholdTenths + 5
+                        settings.orangeThresholdTenths
+                            + ThresholdSliderScale.orderGapTenths
                     )
                 }
             }
@@ -746,23 +760,31 @@ private struct OverrideControls: View {
                         case .green:
                             value.wrappedValue = min(
                                 candidate,
-                                effectiveOrangeThreshold - 5
+                                effectiveOrangeThreshold
+                                    - ThresholdSliderScale.orderGapTenths
                             )
                         case .orange:
                             value.wrappedValue = min(
-                                max(candidate, effectiveGreenThreshold + 5),
-                                effectiveRedThreshold - 5
+                                max(
+                                    candidate,
+                                    effectiveGreenThreshold
+                                        + ThresholdSliderScale.orderGapTenths
+                                ),
+                                effectiveRedThreshold
+                                    - ThresholdSliderScale.orderGapTenths
                             )
                         case .red:
                             value.wrappedValue = max(
                                 candidate,
-                                effectiveOrangeThreshold + 5
+                                effectiveOrangeThreshold
+                                    + ThresholdSliderScale.orderGapTenths
                             )
                         }
+                        normalizeThresholdOverrides()
                     }
                 ),
-                range: NoiseLevelScale.minimum...NoiseLevelScale.maximum,
-                step: 0.5,
+                range: ThresholdSliderScale.range,
+                step: ThresholdSliderScale.step,
                 tint: color
             )
         } else {
@@ -778,39 +800,10 @@ private struct OverrideControls: View {
     }
 
     private func normalizeThresholdOverrides() {
-        for _ in 0..<4 {
-            if effectiveGreenThreshold >= effectiveOrangeThreshold {
-                if overrides.greenThresholdTenths != nil {
-                    overrides.greenThresholdTenths = effectiveOrangeThreshold - 5
-                } else if overrides.orangeThresholdTenths != nil {
-                    overrides.orangeThresholdTenths = effectiveGreenThreshold + 5
-                }
-            }
-            if effectiveOrangeThreshold >= effectiveRedThreshold {
-                if overrides.redThresholdTenths != nil {
-                    overrides.redThresholdTenths = effectiveOrangeThreshold + 5
-                } else if overrides.orangeThresholdTenths != nil {
-                    overrides.orangeThresholdTenths = effectiveRedThreshold - 5
-                }
-            }
-            if let green = overrides.greenThresholdTenths {
-                overrides.greenThresholdTenths = min(0, max(-1_200, green))
-            }
-            if let orange = overrides.orangeThresholdTenths {
-                overrides.orangeThresholdTenths = min(0, max(-1_200, orange))
-            }
-            if let red = overrides.redThresholdTenths {
-                overrides.redThresholdTenths = min(0, max(-1_200, red))
-            }
-        }
-
-        guard effectiveGreenThreshold < effectiveOrangeThreshold,
-              effectiveOrangeThreshold < effectiveRedThreshold else {
-            overrides.greenThresholdTenths = nil
-            overrides.orangeThresholdTenths = nil
-            overrides.redThresholdTenths = nil
-            return
-        }
+        overrides = ThresholdSliderScale.normalizedOverrides(
+            overrides,
+            global: global
+        )
     }
 }
 
