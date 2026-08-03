@@ -29,35 +29,16 @@ bool hasPending = false;
 volatile bool connected = false;
 volatile bool slowAdvertising = false;
 uint32_t advertisingStartMs = 0;
-std::array<uint8_t, 16> lastStatusPacket{};
+std::array<uint8_t, 20> lastStatusPacket{};
 bool haveStatus = false;
 bool firstPairingPending = false;
-constexpr uint32_t kStatusHeartbeatSeconds = 10;
+uint32_t lastStatusSentMs = 0;
+constexpr uint32_t kStatusHeartbeatMs = 10UL * 1000UL;
+constexpr uint32_t kLiveStatusIntervalMs = 250;
 
 bool pairingOpen() {
   return firstPairingPending ||
          millis() - advertisingStartMs < kFastAdvertisingDurationMs;
-}
-
-void writeU32(uint8_t* data, uint32_t value) {
-  data[0] = static_cast<uint8_t>(value);
-  data[1] = static_cast<uint8_t>(value >> 8);
-  data[2] = static_cast<uint8_t>(value >> 16);
-  data[3] = static_cast<uint8_t>(value >> 24);
-}
-
-std::array<uint8_t, 16> encodeStatus(const Status& status) {
-  std::array<uint8_t, 16> packet{};
-  packet[0] = 1;
-  packet[1] = status.alarmState;
-  packet[2] = (status.muted ? 1U : 0U) |
-              (status.sampling ? 2U : 0U) |
-              (status.alarmActive ? 4U : 0U);
-  packet[3] = status.errorCode;
-  writeU32(&packet[4], status.appliedRevision);
-  writeU32(&packet[8], status.fingerprint);
-  writeU32(&packet[12], status.uptimeSeconds);
-  return packet;
 }
 
 void setAdvertisingIntervals(bool slow) {
@@ -259,22 +240,26 @@ void acknowledge(const config_packet::Bytes& appliedPacket,
 
 void setStatus(const Status& status) {
   const auto packet = encodeStatus(status);
+  const uint32_t nowMs = millis();
   if (haveStatus) {
-    const bool stateIsUnchanged =
+    const bool controlIsUnchanged =
         std::equal(packet.begin(), packet.begin() + 12,
                    lastStatusPacket.begin());
-    const uint32_t lastUptime =
-        static_cast<uint32_t>(lastStatusPacket[12]) |
-        static_cast<uint32_t>(lastStatusPacket[13]) << 8 |
-        static_cast<uint32_t>(lastStatusPacket[14]) << 16 |
-        static_cast<uint32_t>(lastStatusPacket[15]) << 24;
-    if (stateIsUnchanged &&
-        status.uptimeSeconds - lastUptime < kStatusHeartbeatSeconds) {
-      return;
+    if (controlIsUnchanged) {
+      const bool measurementIsUnchanged =
+          std::equal(packet.begin() + 12, packet.end(),
+                     lastStatusPacket.begin() + 12);
+      const uint32_t minimumInterval =
+          measurementIsUnchanged ? kStatusHeartbeatMs
+                                 : kLiveStatusIntervalMs;
+      if (nowMs - lastStatusSentMs < minimumInterval) {
+        return;
+      }
     }
   }
   lastStatusPacket = packet;
   haveStatus = true;
+  lastStatusSentMs = nowMs;
   statusCharacteristic->setValue(packet.data(), packet.size());
   statusCharacteristic->notify();
 }

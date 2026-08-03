@@ -58,29 +58,44 @@ void NoiseDetector::resetHistory() {
 
 size_t NoiseDetector::historyCount() const { return historyCount_; }
 
-float NoiseDetector::historyRatioAtOrAbove(float thresholdDbfs) const {
-  if (historyCount_ == 0) {
-    return 0.0F;
-  }
+size_t NoiseDetector::historyCountAtOrAbove(float thresholdDbfs) const {
   size_t highCount = 0;
   for (size_t index = 0; index < historyCount_; ++index) {
     if (history_[index] >= thresholdDbfs) {
       ++highCount;
     }
   }
-  return static_cast<float>(highCount) / historyCount_;
+  return highCount;
+}
+
+size_t NoiseDetector::greenSampleCount() const {
+  return historyCountAtOrAbove(settings_.greenThresholdDbfsX10 / 10.0F);
+}
+
+size_t NoiseDetector::orangeSampleCount() const {
+  return historyCountAtOrAbove(settings_.orangeThresholdDbfsX10 / 10.0F);
+}
+
+size_t NoiseDetector::redSampleCount() const {
+  return historyCountAtOrAbove(settings_.redThresholdDbfsX10 / 10.0F);
 }
 
 float NoiseDetector::greenSampleRatio() const {
-  return historyRatioAtOrAbove(settings_.greenThresholdDbfsX10 / 10.0F);
+  return historyCount_ == 0
+             ? 0.0F
+             : static_cast<float>(greenSampleCount()) / historyCount_;
 }
 
 float NoiseDetector::orangeSampleRatio() const {
-  return historyRatioAtOrAbove(settings_.orangeThresholdDbfsX10 / 10.0F);
+  return historyCount_ == 0
+             ? 0.0F
+             : static_cast<float>(orangeSampleCount()) / historyCount_;
 }
 
 float NoiseDetector::redSampleRatio() const {
-  return historyRatioAtOrAbove(settings_.redThresholdDbfsX10 / 10.0F);
+  return historyCount_ == 0
+             ? 0.0F
+             : static_cast<float>(redSampleCount()) / historyCount_;
 }
 
 AlarmLevel NoiseDetector::historyAlarmLevel() const {

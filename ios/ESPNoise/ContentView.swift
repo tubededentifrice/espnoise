@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct ContentView: View {
@@ -156,6 +157,17 @@ struct DeviceSettingsView: View {
     var body: some View {
         Form {
             if let device = syncManager.devices.first(where: { $0.id == deviceID }) {
+                let previewSettings = overrides.applying(
+                    to: syncManager.globalSettings
+                )
+                let savedSettings = syncManager.effectiveSettings(id: deviceID)
+                LiveNoisePanel(
+                    device: device,
+                    settings: previewSettings,
+                    rulesAreCurrent: device.settingsAreApplied
+                        && previewSettings == savedSettings
+                )
+
                 Section("Device") {
                     TextField("Custom name", text: $name)
                     LabeledContent("Connection", value: device.connectionText)
@@ -339,11 +351,11 @@ private struct SettingsControls: View {
         SettingSlider(
             title: label,
             valueText: String(
-                format: "%.1f dBFS",
+                format: "%.1f",
                 value.wrappedValue
             ),
             value: value,
-            range: -120...0,
+            range: NoiseLevelScale.minimum...NoiseLevelScale.maximum,
             step: 0.5,
             tint: color
         )
@@ -361,10 +373,14 @@ private struct SettingsControls: View {
     private func thresholdValue(_ kind: ThresholdKind) -> Binding<Double> {
         Binding(
             get: {
-                Double(settings[keyPath: kind.keyPath]) / 10
+                NoiseLevelScale.positiveLevel(
+                    fromDbfsTenths: settings[keyPath: kind.keyPath]
+                )
             },
             set: { newValue in
-                let candidate = Int16((newValue * 10).rounded())
+                let candidate = NoiseLevelScale.dbfsTenths(
+                    fromPositiveLevel: newValue
+                )
                 switch kind {
                 case .green:
                     settings.greenThresholdTenths = min(
@@ -594,13 +610,21 @@ private struct OverrideControls: View {
             SettingSlider(
                 title: "\(label) begins",
                 valueText: String(
-                    format: "%.1f dBFS",
-                    Double(value.wrappedValue ?? inherited) / 10
+                    format: "%.1f",
+                    NoiseLevelScale.positiveLevel(
+                        fromDbfsTenths: value.wrappedValue ?? inherited
+                    )
                 ),
                 value: Binding(
-                    get: { Double(value.wrappedValue ?? inherited) / 10 },
+                    get: {
+                        NoiseLevelScale.positiveLevel(
+                            fromDbfsTenths: value.wrappedValue ?? inherited
+                        )
+                    },
                     set: { newValue in
-                        let candidate = Int16((newValue * 10).rounded())
+                        let candidate = NoiseLevelScale.dbfsTenths(
+                            fromPositiveLevel: newValue
+                        )
                         switch kind {
                         case .green:
                             value.wrappedValue = min(
@@ -620,12 +644,12 @@ private struct OverrideControls: View {
                         }
                     }
                 ),
-                range: -120...0,
+                range: NoiseLevelScale.minimum...NoiseLevelScale.maximum,
                 step: 0.5,
                 tint: color
             )
         } else {
-            Text("Inherited \(label.lowercased()): \(Double(inherited) / 10, specifier: "%.1f") dBFS")
+            Text("Inherited \(label.lowercased()): \(NoiseLevelScale.positiveLevel(fromDbfsTenths: inherited), specifier: "%.1f")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -699,6 +723,190 @@ private struct SettingSlider: View {
     }
 }
 
+private struct LiveNoisePanel: View {
+    let device: NoiseDeviceViewState
+    let settings: NoiseSettings
+    let rulesAreCurrent: Bool
+
+    var body: some View {
+        Section("Live Noise") {
+            if let latest = device.measurements.last {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Latest measurement")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(latest.level, format: .number.precision(.fractionLength(1)))
+                            .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(levelReached(latest.level))
+                            .font(.headline)
+                            .foregroundStyle(levelColor(latest.level))
+                        if device.latestStatus?.isSampling == true {
+                            Label("Measuring now", systemImage: "waveform")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        } else {
+                            Text(latest.date, style: .relative)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Chart {
+                    ForEach(device.measurements) { measurement in
+                        LineMark(
+                            x: .value("Time", measurement.date),
+                            y: .value("Noise level", measurement.level)
+                        )
+                        .foregroundStyle(.blue)
+                        .interpolationMethod(.linear)
+                        PointMark(
+                            x: .value("Time", measurement.date),
+                            y: .value("Noise level", measurement.level)
+                        )
+                        .foregroundStyle(.blue)
+                        .symbolSize(18)
+                    }
+                    thresholdRule("Green", value: greenLevel, color: .green)
+                    thresholdRule("Orange", value: orangeLevel, color: .orange)
+                    thresholdRule("Red", value: redLevel, color: .red)
+                }
+                .chartYScale(domain: NoiseLevelScale.minimum...NoiseLevelScale.maximum)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: [0, 20, 40, 60, 80, 100, 120])
+                }
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 4))
+                }
+                .frame(height: 220)
+                .accessibilityLabel("Recent positive noise measurements and alarm thresholds")
+
+                thresholdLegend
+                if !rulesAreCurrent {
+                    Text("The threshold lines are a preview. Save and synchronize these settings before you use the device counts.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                historySummary
+            } else {
+                ContentUnavailableView {
+                    Label("Waiting for a measurement", systemImage: "waveform")
+                } description: {
+                    Text(device.isConnected
+                         ? "The graph will update during the next observation."
+                         : "Bring the device in range to receive measurements.")
+                }
+            }
+        }
+    }
+
+    @ChartContentBuilder
+    private func thresholdRule(
+        _ label: String,
+        value: Double,
+        color: Color
+    ) -> some ChartContent {
+        RuleMark(y: .value("\(label) threshold", value))
+            .foregroundStyle(color)
+            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+    }
+
+    private var thresholdLegend: some View {
+        HStack {
+            legendItem("Green", value: greenLevel, color: .green)
+            Spacer()
+            legendItem("Orange", value: orangeLevel, color: .orange)
+            Spacer()
+            legendItem("Red", value: redLevel, color: .red)
+        }
+    }
+
+    private var historySummary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let status = device.latestStatus, rulesAreCurrent {
+                HStack {
+                    countItem("Green", status.greenSampleCount, color: .green)
+                    Spacer()
+                    countItem("Orange", status.orangeSampleCount, color: .orange)
+                    Spacer()
+                    countItem("Red", status.redSampleCount, color: .red)
+                }
+                Text("History: \(status.historyCount) of \(historyCapacity) observations. After the history is full, an alarm starts when \(requiredCount) observations reach the same threshold.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if device.latestStatus != nil {
+                Text("Device counts are hidden until the saved settings synchronize.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text("The positive level is relative to the digital microphone. It is not calibrated dB SPL. No audio is sent to the phone.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func legendItem(_ label: String, value: Double, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text("\(label) \(value, specifier: "%.1f")")
+        }
+        .font(.caption)
+    }
+
+    private func countItem(_ label: String, _ count: UInt8, color: Color) -> some View {
+        VStack(spacing: 1) {
+            Text("\(count)/\(historyCapacity)")
+                .font(.headline)
+                .monospacedDigit()
+            Text(label).font(.caption2)
+        }
+        .foregroundStyle(color)
+    }
+
+    private var greenLevel: Double {
+        NoiseLevelScale.positiveLevel(fromDbfsTenths: settings.greenThresholdTenths)
+    }
+
+    private var orangeLevel: Double {
+        NoiseLevelScale.positiveLevel(fromDbfsTenths: settings.orangeThresholdTenths)
+    }
+
+    private var redLevel: Double {
+        NoiseLevelScale.positiveLevel(fromDbfsTenths: settings.redThresholdTenths)
+    }
+
+    private var historyCapacity: Int {
+        guard settings.samplePeriodMilliseconds > 0 else { return 0 }
+        return Int(settings.decisionWindowMilliseconds /
+                   settings.samplePeriodMilliseconds)
+    }
+
+    private var requiredCount: Int {
+        historyCapacity * Int(settings.triggerPercent) / 100 + 1
+    }
+
+    private func levelReached(_ level: Double) -> String {
+        let result: String
+        if level >= redLevel { result = "Red reached" }
+        else if level >= orangeLevel { result = "Orange reached" }
+        else if level >= greenLevel { result = "Green reached" }
+        else { result = "Below Green" }
+        return rulesAreCurrent ? result : "Preview: \(result)"
+    }
+
+    private func levelColor(_ level: Double) -> Color {
+        if level >= redLevel { return .red }
+        if level >= orangeLevel { return .orange }
+        if level >= greenLevel { return .green }
+        return .secondary
+    }
+}
+
 private enum ThresholdKind {
     case green
     case orange
@@ -721,9 +929,9 @@ private struct ThresholdOverview: View {
     var body: some View {
         VStack(spacing: 5) {
             HStack {
-                Text("Quieter")
+                Text("0 · Quieter")
                 Spacer()
-                Text("Louder")
+                Text("Louder · 120")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -750,8 +958,14 @@ private struct ThresholdOverview: View {
     }
 
     private func position(_ tenths: Int16, width: Double) -> Double {
-        let value = min(0, max(-1_200, Double(tenths)))
-        return width * (value + 1_200) / 1_200
+        let value = min(
+            NoiseLevelScale.maximum,
+            max(
+                NoiseLevelScale.minimum,
+                NoiseLevelScale.positiveLevel(fromDbfsTenths: tenths)
+            )
+        )
+        return width * value / NoiseLevelScale.maximum
     }
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "config_packet.h"
@@ -18,8 +19,18 @@ struct Status {
   uint8_t errorCode = 0;
   uint32_t appliedRevision = 0;
   uint32_t fingerprint = 0;
-  uint32_t uptimeSeconds = 0;
+  bool measurementValid = false;
+  int16_t observationMaximumDbfsX10 = -1200;
+  uint16_t measurementSequence = 0;
+  uint8_t historyCount = 0;
+  uint8_t greenSampleCount = 0;
+  uint8_t orangeSampleCount = 0;
+  uint8_t redSampleCount = 0;
 };
+
+using StatusPacket = std::array<uint8_t, 20>;
+
+StatusPacket encodeStatus(const Status& status);
 
 void begin(const config_packet::Bytes& appliedPacket);
 void update(uint32_t nowMs);

@@ -4,6 +4,58 @@ import Foundation
 import os
 import UIKit
 
+struct NoiseMeasurement: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let date: Date
+    let level: Double
+}
+
+struct NoiseMeasurementHistory: Equatable, Sendable {
+    static let retentionSeconds: TimeInterval = 300
+    static let maximumPointCount = 180
+
+    private(set) var measurements: [NoiseMeasurement] = []
+    private(set) var lastSequence: UInt16?
+
+    @discardableResult
+    mutating func append(
+        sequence: UInt16,
+        maximumTenths: Int16,
+        at date: Date
+    ) -> Bool {
+        guard sequence != lastSequence else { return false }
+        lastSequence = sequence
+        measurements.append(
+            NoiseMeasurement(
+                id: UUID(),
+                date: date,
+                level: NoiseLevelScale.positiveLevel(
+                    fromDbfsTenths: maximumTenths
+                )
+            )
+        )
+        prune(at: date)
+        if measurements.count > Self.maximumPointCount {
+            measurements.removeFirst(
+                measurements.count - Self.maximumPointCount
+            )
+        }
+        return true
+    }
+
+    @discardableResult
+    mutating func prune(at date: Date) -> Bool {
+        let previousCount = measurements.count
+        let cutoff = date.addingTimeInterval(-Self.retentionSeconds)
+        measurements.removeAll { $0.date <= cutoff }
+        return measurements.count != previousCount
+    }
+
+    mutating func resetSequence() {
+        lastSequence = nil
+    }
+}
+
 struct NoiseDeviceViewState: Identifiable, Equatable {
     let id: UUID
     let name: String
@@ -13,6 +65,9 @@ struct NoiseDeviceViewState: Identifiable, Equatable {
     let lastSyncDate: Date?
     let lastError: String?
     let isConnected: Bool
+    let measurements: [NoiseMeasurement]
+    let latestStatus: DeviceStatus?
+    let settingsAreApplied: Bool
 }
 
 @MainActor
@@ -42,10 +97,12 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         var reconnectWorkItem: DispatchWorkItem?
         var acknowledgementWorkItems: [DispatchWorkItem] = []
         var statusExpiryWorkItem: DispatchWorkItem?
+        var measurementExpiryWorkItem: DispatchWorkItem?
         var sentRevision: UInt32?
         var sentFingerprint: UInt32?
         var status: DeviceStatus?
         var statusDate: Date?
+        var measurementHistory = NoiseMeasurementHistory()
         var lastError: String?
 
         init(identifier: UUID) { self.identifier = identifier }
@@ -465,6 +522,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     private func handleStatus(_ data: Data, for runtime: Runtime) {
         do {
             let status = try StatusPacketCodec.decode(data)
+            appendMeasurement(from: status, to: runtime)
             runtime.status = status
             runtime.statusDate = Date()
             scheduleStatusExpiry(runtime)
@@ -506,6 +564,39 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         publish()
     }
 
+    private func appendMeasurement(from status: DeviceStatus, to runtime: Runtime) {
+        guard let sequence = status.measurementSequence,
+              let maximum = status.observationMaximumTenths else { return }
+        if runtime.measurementHistory.append(
+            sequence: sequence,
+            maximumTenths: maximum,
+            at: Date()
+        ) {
+            scheduleMeasurementExpiry(runtime)
+        }
+    }
+
+    private func scheduleMeasurementExpiry(_ runtime: Runtime) {
+        runtime.measurementExpiryWorkItem?.cancel()
+        guard let oldest = runtime.measurementHistory.measurements.first else {
+            runtime.measurementExpiryWorkItem = nil
+            return
+        }
+        let expiryDate = oldest.date.addingTimeInterval(
+            NoiseMeasurementHistory.retentionSeconds
+        )
+        let delay = max(0.05, expiryDate.timeIntervalSinceNow)
+        let id = runtime.identifier
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let current = self.runtimes[id] else { return }
+            current.measurementHistory.prune(at: Date())
+            self.scheduleMeasurementExpiry(current)
+            self.publish()
+        }
+        runtime.measurementExpiryWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
     private func scheduleStatusExpiry(_ runtime: Runtime) {
         runtime.statusExpiryWorkItem?.cancel()
         let id = runtime.identifier
@@ -521,11 +612,21 @@ final class NoiseSyncManager: NSObject, ObservableObject {
 
     private func publish() {
         globalSettings = settingsStore.record.globalSettings
+        let now = Date()
         devices = runtimes.values.compactMap { runtime in
             guard let device = settingsStore.device(id: runtime.identifier) else { return nil }
-            let alarmText: String?
+            if runtime.measurementHistory.prune(at: now) {
+                scheduleMeasurementExpiry(runtime)
+            }
+            let freshStatus: DeviceStatus?
             if let status = runtime.status, let date = runtime.statusDate,
-               Date().timeIntervalSince(date) < 15 {
+               now.timeIntervalSince(date) < 15 {
+                freshStatus = status
+            } else {
+                freshStatus = nil
+            }
+            let alarmText: String?
+            if let status = freshStatus {
                 var parts = [status.state.label]
                 if status.alarmIsActive { parts.append("alarm active") }
                 if status.isMuted { parts.append("muted") }
@@ -543,7 +644,10 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                 alarmText: alarmText,
                 lastSyncDate: device.lastSuccessfulSync,
                 lastError: runtime.lastError,
-                isConnected: runtime.isConnected
+                isConnected: runtime.isConnected,
+                measurements: runtime.measurementHistory.measurements,
+                latestStatus: freshStatus,
+                settingsAreApplied: !pending
             )
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         updateSetupText()
@@ -635,6 +739,7 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         runtime.connectPending = false
         runtime.isConnected = true
         runtime.connectionText = "Connected; finding services"
+        runtime.measurementHistory.resetSequence()
         adopt(peripheral)
         peripheral.discoverServices([Self.serviceUUID])
         publish()
@@ -667,6 +772,7 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         runtime.statusCharacteristic = nil
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
+        runtime.measurementHistory.resetSequence()
         runtime.connectionText = isReconnecting ? "Out of range; reconnecting" : "Out of range"
         if !isReconnecting { scheduleReconnect(runtime) }
         publish()

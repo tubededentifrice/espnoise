@@ -2,6 +2,9 @@
 #include <WiFi.h>
 #include <esp_bt.h>
 
+#include <algorithm>
+#include <cmath>
+
 #include "alarm_output.h"
 #include "audio_input.h"
 #include "ble_service.h"
@@ -38,6 +41,7 @@ uint32_t fastRearmStartMs = 0;
 uint32_t muteUntilMs = 0;
 uint32_t lastLevelPrintMs = 0;
 uint8_t settingsErrorCode = 0;
+uint16_t measurementSequence = 0;
 
 bool timeIsBefore(uint32_t now, uint32_t end) {
   return static_cast<int32_t>(now - end) < 0;
@@ -246,7 +250,19 @@ ble_service::Status makeBleStatus(uint32_t now) {
   status.errorCode = settingsErrorCode;
   status.appliedRevision = appliedRevision;
   status.fingerprint = config_packet::fingerprint(appliedPacket);
-  status.uptimeSeconds = now / 1000UL;
+  status.measurementValid = noiseDetector.frameCount() > 0;
+  const float maximumDbfs = std::max(
+      -120.0F, std::min(0.0F, noiseDetector.sampleMaximumDbfs()));
+  status.observationMaximumDbfsX10 =
+      static_cast<int16_t>(std::lround(maximumDbfs * 10.0F));
+  status.measurementSequence = measurementSequence;
+  status.historyCount = static_cast<uint8_t>(noiseDetector.historyCount());
+  status.greenSampleCount =
+      static_cast<uint8_t>(noiseDetector.greenSampleCount());
+  status.orangeSampleCount =
+      static_cast<uint8_t>(noiseDetector.orangeSampleCount());
+  status.redSampleCount =
+      static_cast<uint8_t>(noiseDetector.redSampleCount());
   return status;
 }
 
@@ -375,6 +391,7 @@ void loop() {
 
   if (sampleActive && audioInput.readFrame(currentDbfs)) {
     noiseDetector.addFrame(currentDbfs);
+    ++measurementSequence;
   }
 
   now = millis();

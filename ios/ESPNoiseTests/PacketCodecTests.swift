@@ -96,6 +96,89 @@ final class PacketCodecTests: XCTestCase {
         XCTAssertEqual(status.appliedRevision, 0x1234_5678)
         XCTAssertEqual(status.fingerprint, 0x90AB_CDEF)
         XCTAssertEqual(status.uptimeSeconds, 0x0102_0304)
+        XCTAssertNil(status.observationMaximumTenths)
+    }
+
+    func testLiveStatusPacketDecodesMeasurementAndHistory() throws {
+        let bytes: [UInt8] = [
+            2, 2, 0x0A, 0,
+            0x78, 0x56, 0x34, 0x12,
+            0xEF, 0xCD, 0xAB, 0x90,
+            0x20, 0xFE,
+            0x34, 0x12,
+            6, 4, 3, 1,
+        ]
+        let status = try StatusPacketCodec.decode(Data(bytes))
+        XCTAssertEqual(status.state, .orange)
+        XCTAssertTrue(status.isSampling)
+        XCTAssertEqual(status.observationMaximumTenths, -480)
+        XCTAssertEqual(status.measurementSequence, 0x1234)
+        XCTAssertEqual(status.historyCount, 6)
+        XCTAssertEqual(status.greenSampleCount, 4)
+        XCTAssertEqual(status.orangeSampleCount, 3)
+        XCTAssertEqual(status.redSampleCount, 1)
+        XCTAssertNil(status.uptimeSeconds)
+    }
+
+    func testLiveStatusRejectsImpossibleHistoryCounts() {
+        var bytes = [UInt8](repeating: 0, count: 20)
+        bytes[0] = 2
+        bytes[12] = 0x20
+        bytes[13] = 0xFE
+        bytes[16] = 3
+        bytes[17] = 4
+        XCTAssertThrowsError(try StatusPacketCodec.decode(Data(bytes)))
+    }
+
+    func testPositiveNoiseLevelScaleRoundTrips() {
+        XCTAssertEqual(NoiseLevelScale.positiveLevel(fromDbfsTenths: -1_200), 0)
+        XCTAssertEqual(NoiseLevelScale.positiveLevel(fromDbfsTenths: -550), 65)
+        XCTAssertEqual(NoiseLevelScale.positiveLevel(fromDbfsTenths: 0), 120)
+        XCTAssertEqual(NoiseLevelScale.dbfsTenths(fromPositiveLevel: 72), -480)
+    }
+
+    func testMeasurementHistoryRejectsDuplicatesAndAcceptsSequenceWrap() {
+        var history = NoiseMeasurementHistory()
+        let now = Date(timeIntervalSince1970: 1_000)
+        XCTAssertTrue(history.append(
+            sequence: UInt16.max,
+            maximumTenths: -500,
+            at: now
+        ))
+        XCTAssertFalse(history.append(
+            sequence: UInt16.max,
+            maximumTenths: -400,
+            at: now.addingTimeInterval(1)
+        ))
+        XCTAssertTrue(history.append(
+            sequence: 0,
+            maximumTenths: -400,
+            at: now.addingTimeInterval(2)
+        ))
+        XCTAssertEqual(history.measurements.map(\.level), [70, 80])
+    }
+
+    func testMeasurementHistoryPrunesAfterFiveMinutesWithoutAppend() {
+        var history = NoiseMeasurementHistory()
+        let start = Date(timeIntervalSince1970: 1_000)
+        history.append(sequence: 1, maximumTenths: -600, at: start)
+        history.append(
+            sequence: 2,
+            maximumTenths: -500,
+            at: start.addingTimeInterval(1)
+        )
+        XCTAssertTrue(history.prune(
+            at: start.addingTimeInterval(
+                NoiseMeasurementHistory.retentionSeconds
+            )
+        ))
+        XCTAssertEqual(history.measurements.count, 1)
+        XCTAssertTrue(history.prune(
+            at: start.addingTimeInterval(
+                NoiseMeasurementHistory.retentionSeconds + 1
+            )
+        ))
+        XCTAssertTrue(history.measurements.isEmpty)
     }
 
     func testStatusLengthAndVersionAreChecked() {

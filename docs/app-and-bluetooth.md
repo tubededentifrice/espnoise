@@ -5,7 +5,8 @@ Bluetooth Low Energy. It does not need Wi-Fi, an Internet service, an account,
 location data, or analytics.
 
 The firmware does not send or save raw microphone audio. It sends only the
-current alarm state and settings status.
+current observation maximum, rolling threshold counts, alarm state, and
+settings status.
 
 ## Settings model
 
@@ -14,7 +15,7 @@ A device can override these values:
 
 - LED brightness
 - Buzzer volume
-- Green, orange, and red dBFS thresholds
+- Green, orange, and red positive relative-level thresholds
 - Mute-button duration
 
 Observation time K, observation period N, decision-window time, and sample
@@ -23,6 +24,11 @@ ratio X are global values. A device cannot override them.
 Each device page shows the inherited or overridden state of each applicable
 value. A reset action removes the override. It does not copy the current
 global value into a new override.
+
+The firmware keeps thresholds as signed dBFS values. The app presents them as
+a positive relative level from 0 through 120. It adds 120 to the dBFS value,
+so louder sound has a larger displayed number. This value is not calibrated
+dB SPL.
 
 ## Synchronization rule
 
@@ -57,8 +63,11 @@ The home page shows these important values for each device:
 - Synced, pending, or error state
 - Time of the last successful settings synchronization
 
-Each device has a separate page for its overrides, effective values, manual
-synchronization, and removal.
+Each device has a separate page for its live measurement graph, rolling alarm
+counts, overrides, effective values, manual synchronization, and removal. The
+graph uses the same positive 0-through-120 scale as the threshold controls.
+It keeps up to five minutes of observation maxima in app memory. It does not
+save this history or raw audio.
 
 The app has no configured device-count limit. The practical count of active
 Bluetooth connections depends on iOS, the radio environment, and the distance
@@ -117,9 +126,28 @@ The configuration value is a 32-byte, little-endian packet.
 The settings fingerprint is FNV-1a 32 over bytes 0 through 27. The revision is
 not part of the fingerprint.
 
-The status value is a 16-byte, little-endian packet. It contains the protocol
-version, alarm state, mute/sample/alarm flags, error code, applied revision,
-settings fingerprint, and device uptime.
+The current status value is a 20-byte, little-endian packet.
+
+| Byte | Value |
+| ---: | --- |
+| 0 | Status protocol version, `2` |
+| 1 | Alarm state |
+| 2 | Mute, sampling, alarm-active, and measurement-valid flags |
+| 3 | Error code |
+| 4-7 | Applied phone revision |
+| 8-11 | Settings fingerprint |
+| 12-13 | Current observation maximum in signed tenths of one dBFS |
+| 14-15 | Measurement sequence |
+| 16 | Saved observation count |
+| 17 | Saved observations at or above Green |
+| 18 | Saved observations at or above Orange |
+| 19 | Saved observations at or above Red |
+
+The 20-byte value fits the default Bluetooth LE notification payload. Live
+measurement changes are limited to four notifications each second. A control
+state change can send an immediate notification. An unchanged status has a
+ten-second heartbeat. The app can also read the old 16-byte status version,
+but that version has no measurement graph data.
 
 Error code `1` means that the device could not save the settings. The app keeps
 the change pending and does not report a successful synchronization.
@@ -165,4 +193,5 @@ release:
 7. Remove one device and confirm that the other devices stay connected.
 8. Test locked-phone restoration separately from an intentional force-quit.
 9. Confirm with a radio scanner that the name and service UUID are present.
-10. Confirm that the battery build never drives the LEDs above its safe limit.
+10. Confirm that live maxima and threshold counts update during observations.
+11. Confirm that the battery build never drives the LEDs above its safe limit.

@@ -1,5 +1,6 @@
 #include <unity.h>
 
+#include "ble_service.h"
 #include "config_packet.h"
 #include "noise_detector.h"
 
@@ -56,6 +57,36 @@ void testFingerprintDoesNotIncludeRevision() {
   auto changed = second;
   changed[2] = 20;
   TEST_ASSERT_FALSE(config_packet::effectiveDataEqual(first, changed));
+}
+
+void testStatusPacketLayout() {
+  ble_service::Status status;
+  status.alarmState = 2;
+  status.muted = true;
+  status.sampling = true;
+  status.alarmActive = false;
+  status.errorCode = 4;
+  status.appliedRevision = 0x12345678UL;
+  status.fingerprint = 0x90ABCDEFUL;
+  status.measurementValid = true;
+  status.observationMaximumDbfsX10 = -480;
+  status.measurementSequence = 0x1234;
+  status.historyCount = 6;
+  status.greenSampleCount = 4;
+  status.orangeSampleCount = 3;
+  status.redSampleCount = 1;
+
+  const auto packet = ble_service::encodeStatus(status);
+  constexpr uint8_t expected[] = {
+      0x02, 0x02, 0x0B, 0x04, 0x78, 0x56, 0x34, 0x12,
+      0xEF, 0xCD, 0xAB, 0x90, 0x20, 0xFE, 0x34, 0x12,
+      0x06, 0x04, 0x03, 0x01,
+  };
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, packet.data(), packet.size());
+
+  status.measurementValid = false;
+  const auto invalidMeasurement = ble_service::encodeStatus(status);
+  TEST_ASSERT_EQUAL_HEX8(0x03, invalidMeasurement[2]);
 }
 
 config_packet::ValidationResult decodeResult(
@@ -126,12 +157,16 @@ void testDetectorUsesDynamicWindowThresholdAndPercent() {
   addSample(detector, -54.0F);
   addSample(detector, -60.0F);
   addSample(detector, -60.0F);
+  TEST_ASSERT_EQUAL_UINT(2, detector.greenSampleCount());
+  TEST_ASSERT_EQUAL_UINT(0, detector.orangeSampleCount());
+  TEST_ASSERT_EQUAL_UINT(0, detector.redSampleCount());
   TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kQuiet),
                         static_cast<int>(detector.historyAlarmLevel()));
 
   addSample(detector, -54.0F);
   addSample(detector, -54.0F);
   addSample(detector, -54.0F);
+  TEST_ASSERT_EQUAL_UINT(3, detector.greenSampleCount());
   TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kGreen),
                         static_cast<int>(detector.historyAlarmLevel()));
 
@@ -151,6 +186,7 @@ int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(testPacketLayoutAndDecode);
   RUN_TEST(testFingerprintDoesNotIncludeRevision);
+  RUN_TEST(testStatusPacketLayout);
   RUN_TEST(testLimitsRejectInvalidRelatedValues);
   RUN_TEST(testDetectorUsesDynamicWindowThresholdAndPercent);
   return UNITY_END();

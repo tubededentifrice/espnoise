@@ -131,6 +131,12 @@ pairing available. After the first bond succeeds, new-phone pairing lasts two
 minutes after startup. Slow connectable advertising continues after this time
 for a bonded phone. Wi-Fi stays off.
 
+The encrypted 20-byte status notification sends the current observation
+maximum and the saved Green, Orange, and Red threshold counts. Live status is
+limited to four measurement notifications each second. A control state change
+can send an immediate notification. It sends scalar levels only. It does not
+send or save raw microphone audio.
+
 The main compiled values are:
 
 - `kGreenThresholdDbfsX10`: alarm trigger sound set point in signed tenths

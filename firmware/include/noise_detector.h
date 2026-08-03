@@ -20,13 +20,16 @@ class NoiseDetector {
   void commitSample();
   void resetHistory();
   size_t historyCount() const;
+  size_t greenSampleCount() const;
+  size_t orangeSampleCount() const;
+  size_t redSampleCount() const;
   float greenSampleRatio() const;
   float orangeSampleRatio() const;
   float redSampleRatio() const;
   AlarmLevel historyAlarmLevel() const;
 
  private:
-  float historyRatioAtOrAbove(float thresholdDbfs) const;
+  size_t historyCountAtOrAbove(float thresholdDbfs) const;
 
   RuntimeSettings settings_;
 

@@ -38,7 +38,13 @@ struct DeviceStatus: Equatable, Sendable {
     let errorCode: UInt8
     let appliedRevision: UInt32
     let fingerprint: UInt32
-    let uptimeSeconds: UInt32
+    let uptimeSeconds: UInt32?
+    let observationMaximumTenths: Int16?
+    let measurementSequence: UInt16?
+    let historyCount: UInt8
+    let greenSampleCount: UInt8
+    let orangeSampleCount: UInt8
+    let redSampleCount: UInt8
 }
 
 enum ConfigPacketCodec {
@@ -87,9 +93,69 @@ enum ConfigPacketCodec {
 
 enum StatusPacketCodec {
     static func decode(_ data: Data) throws -> DeviceStatus {
-        guard data.count == 16 else { throw PacketCodecError.invalidLength }
         let bytes = [UInt8](data)
-        guard bytes[0] == 1 else { throw PacketCodecError.unsupportedVersion }
+        guard let version = bytes.first else { throw PacketCodecError.invalidLength }
+        switch version {
+        case 1:
+            return try decodeVersion1(bytes)
+        case 2:
+            return try decodeVersion2(bytes)
+        default:
+            throw PacketCodecError.unsupportedVersion
+        }
+    }
+
+    private static func decodeVersion1(_ bytes: [UInt8]) throws -> DeviceStatus {
+        guard bytes.count == 16 else { throw PacketCodecError.invalidLength }
+        return try commonStatus(
+            bytes,
+            uptimeSeconds: uint32(bytes, at: 12),
+            observationMaximumTenths: nil,
+            measurementSequence: nil,
+            historyCount: 0,
+            greenSampleCount: 0,
+            orangeSampleCount: 0,
+            redSampleCount: 0
+        )
+    }
+
+    private static func decodeVersion2(_ bytes: [UInt8]) throws -> DeviceStatus {
+        guard bytes.count == 20 else { throw PacketCodecError.invalidLength }
+        let measurementIsValid = bytes[2] & 0x08 != 0
+        let maximum = int16(bytes, at: 12)
+        let historyCount = bytes[16]
+        let greenCount = bytes[17]
+        let orangeCount = bytes[18]
+        let redCount = bytes[19]
+        guard historyCount <= 120,
+              greenCount <= historyCount,
+              orangeCount <= greenCount,
+              redCount <= orangeCount,
+              !measurementIsValid || (-1_200...0).contains(maximum) else {
+            throw PacketCodecError.invalidSettings
+        }
+        return try commonStatus(
+            bytes,
+            uptimeSeconds: nil,
+            observationMaximumTenths: measurementIsValid ? maximum : nil,
+            measurementSequence: measurementIsValid ? uint16(bytes, at: 14) : nil,
+            historyCount: historyCount,
+            greenSampleCount: greenCount,
+            orangeSampleCount: orangeCount,
+            redSampleCount: redCount
+        )
+    }
+
+    private static func commonStatus(
+        _ bytes: [UInt8],
+        uptimeSeconds: UInt32?,
+        observationMaximumTenths: Int16?,
+        measurementSequence: UInt16?,
+        historyCount: UInt8,
+        greenSampleCount: UInt8,
+        orangeSampleCount: UInt8,
+        redSampleCount: UInt8
+    ) throws -> DeviceStatus {
         guard let state = AlarmState(rawValue: bytes[1]) else {
             throw PacketCodecError.invalidSettings
         }
@@ -101,8 +167,22 @@ enum StatusPacketCodec {
             errorCode: bytes[3],
             appliedRevision: uint32(bytes, at: 4),
             fingerprint: uint32(bytes, at: 8),
-            uptimeSeconds: uint32(bytes, at: 12)
+            uptimeSeconds: uptimeSeconds,
+            observationMaximumTenths: observationMaximumTenths,
+            measurementSequence: measurementSequence,
+            historyCount: historyCount,
+            greenSampleCount: greenSampleCount,
+            orangeSampleCount: orangeSampleCount,
+            redSampleCount: redSampleCount
         )
+    }
+
+    private static func uint16(_ bytes: [UInt8], at offset: Int) -> UInt16 {
+        UInt16(bytes[offset]) | UInt16(bytes[offset + 1]) << 8
+    }
+
+    private static func int16(_ bytes: [UInt8], at offset: Int) -> Int16 {
+        Int16(bitPattern: uint16(bytes, at: offset))
     }
 
     private static func uint32(_ bytes: [UInt8], at offset: Int) -> UInt32 {

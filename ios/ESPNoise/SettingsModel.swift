@@ -1,5 +1,17 @@
 import Foundation
 
+enum NoiseLevelScale {
+    static let minimum = 0.0
+    static let maximum = 120.0
+    static func positiveLevel(fromDbfsTenths value: Int16) -> Double {
+        Double(value) / 10 + 120
+    }
+
+    static func dbfsTenths(fromPositiveLevel value: Double) -> Int16 {
+        Int16((value * 10).rounded()) - 1_200
+    }
+}
+
 struct NoiseSettings: Codable, Equatable, Sendable {
     var brightnessPercent: UInt8 = 100
     var buzzerPercent: UInt8 = 50
@@ -87,7 +99,7 @@ enum NoiseSettingsValidationError: LocalizedError, Equatable {
         case .percentOutOfRange:
             "Brightness and buzzer volume must be from 0 through 100%. X must be from 1 through 99%."
         case .thresholdOutOfRange:
-            "Each threshold must be from -120.0 through 0.0 dBFS."
+            "Each displayed noise threshold must be from 0 through 120."
         case .thresholdOrder:
             "Set the green threshold below orange, and set orange below red."
         case .samplingTiming:
