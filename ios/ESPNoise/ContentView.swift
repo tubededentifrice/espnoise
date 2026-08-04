@@ -921,11 +921,26 @@ private struct LiveNoisePanel: View {
         if let status = device.latestStatus {
             if rulesAreCurrent {
                 HStack {
-                    countItem("Green", status.greenSampleCount, color: .green)
+                    countItem(
+                        "Green",
+                        status.greenSampleCount,
+                        total: status.historyCount,
+                        color: .green
+                    )
                     Spacer()
-                    countItem("Orange", status.orangeSampleCount, color: .orange)
+                    countItem(
+                        "Orange",
+                        status.orangeSampleCount,
+                        total: status.historyCount,
+                        color: .orange
+                    )
                     Spacer()
-                    countItem("Red", status.redSampleCount, color: .red)
+                    countItem(
+                        "Red",
+                        status.redSampleCount,
+                        total: status.historyCount,
+                        color: .red
+                    )
                 }
             }
         }
@@ -939,9 +954,14 @@ private struct LiveNoisePanel: View {
         .font(.caption)
     }
 
-    private func countItem(_ label: String, _ count: UInt8, color: Color) -> some View {
+    private func countItem(
+        _ label: String,
+        _ count: UInt8,
+        total: UInt8,
+        color: Color
+    ) -> some View {
         VStack(spacing: 1) {
-            Text("\(count)/\(historyCapacity)")
+            Text("\(count)/\(total)")
                 .font(.headline)
                 .monospacedDigit()
             Text(label).font(.caption2)
@@ -959,12 +979,6 @@ private struct LiveNoisePanel: View {
 
     private var redLevel: Double {
         NoiseLevelScale.positiveLevel(fromDbfsTenths: settings.redThresholdTenths)
-    }
-
-    private var historyCapacity: Int {
-        guard settings.samplePeriodMilliseconds > 0 else { return 0 }
-        return Int(settings.decisionWindowMilliseconds /
-                   settings.samplePeriodMilliseconds)
     }
 
     private func levelReached(_ level: Double) -> String {
