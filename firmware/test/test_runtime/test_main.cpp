@@ -5,6 +5,7 @@
 #include "device_name.h"
 #include "mute_state.h"
 #include "noise_detector.h"
+#include "noise_analytics.h"
 
 namespace {
 
@@ -362,6 +363,85 @@ void testMixedThresholdObservationsSelectGreen() {
                         static_cast<int>(detector.historyAlarmLevel()));
 }
 
+uint16_t packet16(const noise_analytics::Packet& packet, size_t offset) {
+  return static_cast<uint16_t>(packet[offset]) |
+         static_cast<uint16_t>(packet[offset + 1]) << 8;
+}
+
+uint32_t packet32(const noise_analytics::Packet& packet, size_t offset) {
+  uint32_t value = 0;
+  for (size_t index = 0; index < 4; ++index) {
+    value |= static_cast<uint32_t>(packet[offset + index]) << (index * 8);
+  }
+  return value;
+}
+
+void testAnalyticsMakesPrivateFifteenMinuteSummary() {
+  noise_analytics::History history;
+  for (uint16_t second = 0;
+       second < noise_analytics::kBucketDurationSeconds; ++second) {
+    const AlarmLevel level = second < 300
+                                 ? AlarmLevel::kGreen
+                                 : (second < 420 ? AlarmLevel::kOrange
+                                                 : AlarmLevel::kQuiet);
+    history.addSecond(level, second == 10 ? -300 : -600, true);
+  }
+
+  TEST_ASSERT_EQUAL_UINT(1, history.recordCount());
+  noise_analytics::Bucket bucket;
+  TEST_ASSERT_TRUE(history.recordAt(0, bucket));
+  TEST_ASSERT_EQUAL_UINT32(1, bucket.sequence);
+  TEST_ASSERT_EQUAL_UINT16(900, bucket.durationSeconds);
+  TEST_ASSERT_EQUAL_UINT16(900, bucket.peakPositiveLevelX10);
+  TEST_ASSERT_EQUAL_UINT16(300, bucket.greenSeconds);
+  TEST_ASSERT_EQUAL_UINT16(120, bucket.orangeSeconds);
+  TEST_ASSERT_EQUAL_UINT16(0, bucket.redSeconds);
+
+  const auto packet = history.packetFor(bucket);
+  TEST_ASSERT_EQUAL_UINT8(1, packet[0]);
+  TEST_ASSERT_EQUAL_UINT8(0, packet[1]);
+  TEST_ASSERT_EQUAL_UINT32(1, packet32(packet, 2));
+  TEST_ASSERT_EQUAL_UINT16(1, packet16(packet, 6));
+  TEST_ASSERT_EQUAL_UINT16(900, packet16(packet, 8));
+  TEST_ASSERT_EQUAL_UINT16(300, packet16(packet, 14));
+  TEST_ASSERT_EQUAL_UINT16(120, packet16(packet, 16));
+}
+
+void testAnalyticsStorageRoundTripsAndRejectsDamage() {
+  noise_analytics::History source;
+  for (uint16_t second = 0;
+       second < noise_analytics::kBucketDurationSeconds; ++second) {
+    source.addSecond(AlarmLevel::kRed, -400, true);
+  }
+  noise_analytics::Storage storage{};
+  const size_t length = source.encodeStorage(storage);
+
+  noise_analytics::History restored;
+  TEST_ASSERT_TRUE(restored.decodeStorage(storage.data(), length));
+  TEST_ASSERT_EQUAL_UINT(1, restored.recordCount());
+  TEST_ASSERT_EQUAL_UINT32(2, restored.currentSequence());
+  TEST_ASSERT_TRUE(restored.restoreCurrentSequence(9));
+  TEST_ASSERT_EQUAL_UINT32(9, restored.currentSequence());
+  TEST_ASSERT_FALSE(restored.restoreCurrentSequence(1));
+  noise_analytics::Bucket bucket;
+  TEST_ASSERT_TRUE(restored.recordAt(0, bucket));
+  TEST_ASSERT_EQUAL_UINT16(900, bucket.redSeconds);
+
+  storage[0] = 0;
+  TEST_ASSERT_FALSE(restored.decodeStorage(storage.data(), length));
+}
+
+void testAnalyticsRequestAndSequenceRules() {
+  constexpr uint8_t request[] = {1, 1, 0x78, 0x56, 0x34, 0x12, 0, 0};
+  uint32_t after = 0;
+  TEST_ASSERT_TRUE(noise_analytics::History::decodeRequest(
+      request, sizeof(request), after));
+  TEST_ASSERT_EQUAL_HEX32(0x12345678UL, after);
+  TEST_ASSERT_TRUE(noise_analytics::History::sequenceIsAfter(10, 9));
+  TEST_ASSERT_FALSE(noise_analytics::History::sequenceIsAfter(9, 10));
+  TEST_ASSERT_TRUE(noise_analytics::History::sequenceIsAfter(1, UINT32_MAX));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -381,5 +461,8 @@ int main(int argc, char** argv) {
   RUN_TEST(testMuteTimerWorksAcrossMillisWrap);
   RUN_TEST(testRollingCountsControlEveryLevelChange);
   RUN_TEST(testMixedThresholdObservationsSelectGreen);
+  RUN_TEST(testAnalyticsMakesPrivateFifteenMinuteSummary);
+  RUN_TEST(testAnalyticsStorageRoundTripsAndRejectsDamage);
+  RUN_TEST(testAnalyticsRequestAndSequenceRules);
   return UNITY_END();
 }

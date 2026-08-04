@@ -15,12 +15,14 @@
 #include "mute_button.h"
 #include "mute_state.h"
 #include "noise_detector.h"
+#include "noise_analytics.h"
 #include "settings_storage.h"
 
 namespace {
 
 AudioInput audioInput;
 NoiseDetector noiseDetector;
+noise_analytics::History analyticsHistory;
 MuteButton muteButton;
 MuteState muteState;
 RuntimeSettings runtimeSettings;
@@ -40,6 +42,12 @@ uint32_t alarmPatternStartMs = 0;
 uint32_t lastLevelPrintMs = 0;
 uint8_t settingsErrorCode = 0;
 uint16_t measurementSequence = 0;
+uint32_t lastAnalyticsSecondMs = 0;
+uint32_t lastAnalyticsNotifyMs = 0;
+uint32_t analyticsAfterSequence = 0;
+size_t analyticsSyncCursor = 0;
+bool analyticsCurrentIsPending = false;
+bool analyticsSyncIsActive = false;
 
 device_name::Value defaultDeviceName() {
   device_name::Value name;
@@ -307,6 +315,72 @@ void answerNameReadRequest() {
   }
 }
 
+void updateAnalytics(uint32_t now) {
+  while (now - lastAnalyticsSecondMs >= 1000) {
+    lastAnalyticsSecondMs += 1000;
+    const float maximumDbfs = std::max(
+        -120.0F, std::min(0.0F, noiseDetector.sampleMaximumDbfs()));
+    analyticsHistory.addSecond(
+        currentAlarmLevel,
+        static_cast<int16_t>(std::lround(maximumDbfs * 10.0F)),
+        noiseDetector.frameCount() > 0);
+  }
+
+  if (!sampleActive && analyticsHistory.persistenceIsDue()) {
+    if (settings_storage::saveAnalytics(analyticsHistory)) {
+      analyticsHistory.markPersisted();
+      Serial.println("Analytics history saved");
+    } else {
+      Serial.println("ERROR: Analytics history save failed");
+    }
+  }
+  if (analyticsHistory.sequencePersistenceIsDue()) {
+    if (settings_storage::saveAnalyticsSequence(
+            analyticsHistory.currentSequence())) {
+      analyticsHistory.markSequencePersisted();
+    } else {
+      Serial.println("ERROR: Analytics sequence save failed");
+    }
+  }
+}
+
+void updateAnalyticsSync(uint32_t now) {
+  uint32_t requestedAfterSequence = 0;
+  if (ble_service::takeAnalyticsRequest(requestedAfterSequence)) {
+    analyticsAfterSequence = requestedAfterSequence;
+    analyticsSyncCursor = 0;
+    analyticsCurrentIsPending = true;
+    analyticsSyncIsActive = true;
+  }
+  if (!analyticsSyncIsActive || now - lastAnalyticsNotifyMs < 60) {
+    return;
+  }
+
+  if (analyticsCurrentIsPending) {
+    if (ble_service::notifyAnalytics(analyticsHistory.currentPacket())) {
+      analyticsCurrentIsPending = false;
+      lastAnalyticsNotifyMs = now;
+    }
+    return;
+  }
+
+  noise_analytics::Bucket bucket;
+  while (analyticsSyncCursor < analyticsHistory.recordCount()) {
+    if (!analyticsHistory.recordAt(analyticsSyncCursor++, bucket) ||
+        !noise_analytics::History::sequenceIsAfter(
+            bucket.sequence, analyticsAfterSequence)) {
+      continue;
+    }
+    if (ble_service::notifyAnalytics(analyticsHistory.packetFor(bucket))) {
+      lastAnalyticsNotifyMs = now;
+    } else {
+      --analyticsSyncCursor;
+    }
+    return;
+  }
+  analyticsSyncIsActive = false;
+}
+
 }  // namespace
 
 void setup() {
@@ -327,6 +401,9 @@ void setup() {
     }
     if (!settings_storage::loadName(appliedDeviceName)) {
       appliedDeviceName = defaultDeviceName();
+    }
+    if (!settings_storage::loadAnalytics(analyticsHistory)) {
+      Serial.println("Saved analytics history is absent or invalid");
     }
   }
   if (config_packet::decode(appliedPacket.data(), appliedPacket.size(),
@@ -364,6 +441,7 @@ void setup() {
   alarm_output::begin();
   ble_service::begin(appliedPacket, appliedDeviceName);
   nextSampleStartMs = millis();
+  lastAnalyticsSecondMs = nextSampleStartMs;
   printActiveSettings();
   Serial.println("ESPNoise started");
 }
@@ -404,6 +482,8 @@ void loop() {
   }
 
   ble_service::setStatus(makeBleStatus(now));
+  updateAnalytics(now);
+  updateAnalyticsSync(now);
 
   // Let the BLE and Arduino tasks run. NimBLE manages its radio sleep.
   delay(1);

@@ -307,6 +307,137 @@ final class PacketCodecTests: XCTestCase {
         bytes[19] = 1
         XCTAssertThrowsError(try DeviceNamePacketCodec.decode(Data(bytes)))
     }
+
+    func testAnalyticsPacketHasExactLayoutAndRequest() throws {
+        let bytes: [UInt8] = [
+            1, 0,
+            0x78, 0x56, 0x34, 0x12,
+            2, 0,
+            0x84, 0x03,
+            0x8A, 0x02,
+            0x84, 0x03,
+            0x2C, 0x01,
+            120, 0,
+            30, 0,
+        ]
+        let packet = try AnalyticsPacketCodec.decode(Data(bytes))
+        XCTAssertEqual(packet.sequence, 0x1234_5678)
+        XCTAssertEqual(packet.ageBuckets, 2)
+        XCTAssertEqual(packet.durationSeconds, 900)
+        XCTAssertEqual(packet.meanLevel, 65)
+        XCTAssertEqual(packet.peakLevel, 90)
+        XCTAssertEqual(packet.greenSeconds, 300)
+        XCTAssertEqual(packet.orangeSeconds, 120)
+        XCTAssertEqual(packet.redSeconds, 30)
+        XCTAssertFalse(packet.isPartial)
+
+        XCTAssertEqual(
+            [UInt8](AnalyticsPacketCodec.request(after: 0x1234_5678)),
+            [1, 1, 0x78, 0x56, 0x34, 0x12, 0, 0]
+        )
+    }
+
+    func testAnalyticsPacketRejectsImpossibleStateTime() {
+        var bytes = [UInt8](repeating: 0, count: 20)
+        bytes[0] = 1
+        bytes[2] = 1
+        bytes[6] = 1
+        bytes[8] = 10
+        bytes[14] = 11
+        XCTAssertThrowsError(try AnalyticsPacketCodec.decode(Data(bytes)))
+    }
+
+    func testFleetAnalyticsUsesTimeWeightedValues() {
+        let first = UUID()
+        let second = UUID()
+        let now = Date(timeIntervalSince1970: 100_000)
+        let firstBucket = NoiseAnalyticsBucket(
+            sequence: 1,
+            startDate: now.addingTimeInterval(-900),
+            endDate: now,
+            meanLevel: 60,
+            peakLevel: 80,
+            greenSeconds: 300,
+            orangeSeconds: 0,
+            redSeconds: 0,
+            isPartial: false
+        )
+        let secondBucket = NoiseAnalyticsBucket(
+            sequence: 1,
+            startDate: now.addingTimeInterval(-450),
+            endDate: now,
+            meanLevel: 90,
+            peakLevel: 100,
+            greenSeconds: 0,
+            orangeSeconds: 0,
+            redSeconds: 450,
+            isPartial: true
+        )
+        let result = AnalyticsEngine.snapshot(
+            recordsByDevice: [first: [firstBucket], second: [secondBucket]],
+            selectedDeviceIDs: [first, second],
+            names: [first: "First", second: "Second"],
+            range: .day,
+            now: now
+        )
+        XCTAssertEqual(result.meanLevel, 70, accuracy: 0.001)
+        XCTAssertEqual(result.peakLevel, 100)
+        XCTAssertEqual(result.warningPercent, 750 / 1_350 * 100, accuracy: 0.001)
+        XCTAssertEqual(result.devices.first?.name, "Second")
+        XCTAssertFalse(result.trend.isEmpty)
+    }
+
+    func testAnalyticsStoreReplacesPartialRecordAndPersists() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ESPNoiseAnalyticsTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let deviceID = UUID()
+        let now = Date()
+        var store = AnalyticsStore(directory: directory)
+        let partial = NoiseAnalyticsBucket(
+            sequence: 4,
+            startDate: now.addingTimeInterval(-60),
+            endDate: now,
+            meanLevel: 60,
+            peakLevel: 70,
+            greenSeconds: 10,
+            orangeSeconds: 0,
+            redSeconds: 0,
+            isPartial: true
+        )
+        _ = store.upsert(partial, deviceID: deviceID, now: now)
+        let complete = NoiseAnalyticsBucket(
+            sequence: 4,
+            startDate: now.addingTimeInterval(-900),
+            endDate: now,
+            meanLevel: 65,
+            peakLevel: 80,
+            greenSeconds: 300,
+            orangeSeconds: 60,
+            redSeconds: 0,
+            isPartial: false
+        )
+        let updated = store.upsert(complete, deviceID: deviceID, now: now)
+        XCTAssertEqual(updated, [complete])
+        store.save(deviceID: deviceID)
+
+        var restored = AnalyticsStore(directory: directory)
+        let loaded = restored.load(deviceID: deviceID, now: now)
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded.first?.sequence, complete.sequence)
+        XCTAssertEqual(loaded.first?.meanLevel, complete.meanLevel)
+        XCTAssertEqual(
+            loaded.first?.startDate.timeIntervalSince1970 ?? 0,
+            complete.startDate.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            loaded.first?.endDate.timeIntervalSince1970 ?? 0,
+            complete.endDate.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(restored.lastCompletedSequence(deviceID: deviceID), 4)
+    }
 }
 
 final class SettingsStoreTests: XCTestCase {

@@ -8,6 +8,8 @@ namespace {
 constexpr char kNamespace[] = "espnoise";
 constexpr char kPacketKey[] = "config";
 constexpr char kNameKey[] = "name_v1";
+constexpr char kAnalyticsKey[] = "analytics_v1";
+constexpr char kAnalyticsSequenceKey[] = "analytics_seq";
 Preferences preferences;
 bool ready = false;
 
@@ -71,6 +73,41 @@ bool saveName(const device_name::Value& name) {
   const auto packet = device_name::encode(name);
   return preferences.putBytes(kNameKey, packet.data(), packet.size()) ==
          packet.size();
+}
+
+bool loadAnalytics(noise_analytics::History& history) {
+  if (!ready) {
+    return false;
+  }
+  const size_t length = preferences.getBytesLength(kAnalyticsKey);
+  bool historyWasLoaded = false;
+  if (length >= noise_analytics::kStorageHeaderLength &&
+      length <= noise_analytics::kMaximumStorageLength) {
+    noise_analytics::Storage storage{};
+    historyWasLoaded =
+        preferences.getBytes(kAnalyticsKey, storage.data(), length) == length &&
+        history.decodeStorage(storage.data(), length);
+  }
+  const uint32_t savedSequence =
+      preferences.getUInt(kAnalyticsSequenceKey, 0);
+  const bool sequenceWasLoaded =
+      savedSequence != 0 && history.restoreCurrentSequence(savedSequence);
+  return historyWasLoaded || sequenceWasLoaded;
+}
+
+bool saveAnalytics(const noise_analytics::History& history) {
+  if (!ready) {
+    return false;
+  }
+  noise_analytics::Storage storage{};
+  const size_t length = history.encodeStorage(storage);
+  return preferences.putBytes(kAnalyticsKey, storage.data(), length) == length;
+}
+
+bool saveAnalyticsSequence(uint32_t sequence) {
+  return ready && sequence != 0 &&
+         preferences.putUInt(kAnalyticsSequenceKey, sequence) ==
+             sizeof(sequence);
 }
 
 }  // namespace settings_storage

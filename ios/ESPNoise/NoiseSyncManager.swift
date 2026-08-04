@@ -102,11 +102,13 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     static let configUUID = CBUUID(string: "0235A089-40E1-4985-A78B-046EA4D983A9")
     static let statusUUID = CBUUID(string: "214F1B5A-DD35-4626-8247-FA07DA61EE64")
     static let nameUUID = CBUUID(string: "AC1D60EF-369C-4640-8055-506A1514BD49")
+    static let analyticsUUID = CBUUID(string: "7D4677B7-4B75-4BC8-90A8-0954BFF64EB1")
 
     @Published private(set) var devices: [NoiseDeviceViewState] = []
     @Published private(set) var globalSettings = NoiseSettings()
     @Published private(set) var setupText = "Starting accessory setup"
     @Published private(set) var lastError: String?
+    @Published private(set) var analyticsByDevice: [UUID: [NoiseAnalyticsBucket]] = [:]
 
     private enum Keys {
         static let restorationIdentifier = "ESPNoise.centralRestorationIdentifier"
@@ -118,6 +120,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         var configCharacteristic: CBCharacteristic?
         var statusCharacteristic: CBCharacteristic?
         var nameCharacteristic: CBCharacteristic?
+        var analyticsCharacteristic: CBCharacteristic?
         var connectionText = "Waiting for Bluetooth"
         var isConnected = false
         var connectPending = false
@@ -139,11 +142,19 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         var measurementHistory = NoiseMeasurementHistory()
         var lastError: String?
         var nameError: String?
+        var analyticsError: String?
+        var analyticsSyncAnchor: Date?
+        var analyticsPartialSeconds: UInt16 = 0
+        var analyticsRequestedAfter: UInt32 = 0
+        var analyticsResetRetryWasSent = false
+        var analyticsRequestWasSent = false
+        var analyticsSaveWorkItem: DispatchWorkItem?
 
         init(identifier: UUID) { self.identifier = identifier }
     }
 
     private var settingsStore = SettingsStore()
+    private var analyticsStore = AnalyticsStore()
     private let defaults = UserDefaults.standard
     private let accessorySession = ASAccessorySession()
     private let logger = Logger(
@@ -263,8 +274,10 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.lastError = nil
         runtime.nameError = nil
         runtime.reconnectAttempts = 0
+        runtime.analyticsRequestWasSent = false
         if runtime.isConnected {
             sendDesired(to: runtime)
+            requestAnalytics(from: runtime)
         } else {
             runtime.connectionText = "Connecting"
             connectAuthorizedDevices()
@@ -290,6 +303,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                 }
                 self.runtimes.removeValue(forKey: id)
                 self.settingsStore.removeDevice(id: id)
+                self.analyticsStore.remove(deviceID: id)
+                self.analyticsByDevice.removeValue(forKey: id)
                 let remaining = self.onboarding.authorizedDevices.filter {
                     $0.bluetoothIdentifier != id
                 }
@@ -386,6 +401,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                     identifier: device.bluetoothIdentifier
                 )
             }
+            analyticsByDevice[device.bluetoothIdentifier] =
+                analyticsStore.load(deviceID: device.bluetoothIdentifier)
         }
         publish()
     }
@@ -462,6 +479,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             runtime.configCharacteristic = nil
             runtime.statusCharacteristic = nil
             runtime.nameCharacteristic = nil
+            runtime.analyticsCharacteristic = nil
         }
         runtime.peripheral = peripheral
         peripheral.delegate = self
@@ -517,6 +535,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
         runtime.nameAcknowledgementWorkItems = []
         runtime.statusExpiryWorkItem?.cancel()
+        analyticsStore.save(deviceID: runtime.identifier)
+        runtime.analyticsSaveWorkItem?.cancel()
         runtime.reconnectWorkItem?.cancel()
         if let peripheral = runtime.peripheral,
            centralManager?.state == .poweredOn {
@@ -526,6 +546,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.configCharacteristic = nil
         runtime.statusCharacteristic = nil
         runtime.nameCharacteristic = nil
+        runtime.analyticsCharacteristic = nil
+        runtime.analyticsSyncAnchor = nil
+        runtime.analyticsPartialSeconds = 0
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
         runtime.settingsWriteQueue.reset()
@@ -533,6 +556,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.sentName = nil
         runtime.nameQueryWritePending = false
         runtime.hasReceivedName = false
+        runtime.analyticsResetRetryWasSent = false
+        runtime.analyticsRequestWasSent = false
         runtime.isConnected = false
         runtime.connectPending = false
     }
@@ -541,6 +566,128 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         sendDesiredSettings(to: runtime)
         sendDesiredName(to: runtime)
         publish()
+    }
+
+    private func requestAnalytics(
+        from runtime: Runtime,
+        after requestedSequence: UInt32? = nil,
+        isResetRetry: Bool = false
+    ) {
+        guard runtime.isConnected,
+              let peripheral = runtime.peripheral,
+              let characteristic = runtime.analyticsCharacteristic
+                ?? runtime.configCharacteristic else { return }
+        if !isResetRetry, runtime.analyticsRequestWasSent {
+            return
+        }
+        if runtime.analyticsCharacteristic == nil {
+            guard !runtime.settingsWriteQueue.writeIsActive,
+                  runtime.sentRevision == nil,
+                  !runtime.nameWritePending,
+                  !runtime.nameQueryWritePending,
+                  !settingsStore.isPending(id: runtime.identifier) else { return }
+        }
+        let after = requestedSequence
+            ?? analyticsStore.lastCompletedSequence(deviceID: runtime.identifier)
+        let packet = AnalyticsPacketCodec.request(after: after)
+        guard peripheral.maximumWriteValueLength(for: .withResponse)
+                >= packet.count else {
+            runtime.analyticsError =
+                "The Bluetooth connection cannot transfer analytics history."
+            return
+        }
+        runtime.analyticsSyncAnchor = Date()
+        runtime.analyticsPartialSeconds = 0
+        runtime.analyticsRequestedAfter = after
+        if !isResetRetry {
+            runtime.analyticsResetRetryWasSent = false
+        }
+        runtime.analyticsError = nil
+        runtime.analyticsRequestWasSent = true
+        peripheral.writeValue(packet, for: characteristic, type: .withResponse)
+    }
+
+    private func handleAnalytics(_ data: Data, for runtime: Runtime) {
+        do {
+            let packet = try AnalyticsPacketCodec.decode(data)
+            let deviceHistoryWasReset = packet.isPartial
+                && runtime.analyticsRequestedAfter != 0
+                && !AnalyticsPacketCodec.sequenceIsAfter(
+                    packet.sequence,
+                    runtime.analyticsRequestedAfter
+                )
+            if deviceHistoryWasReset,
+               !runtime.analyticsResetRetryWasSent {
+                analyticsStore.remove(deviceID: runtime.identifier)
+                analyticsByDevice[runtime.identifier] = []
+            }
+            let anchor: Date
+            if packet.isPartial {
+                anchor = Date()
+                runtime.analyticsSyncAnchor = anchor
+                runtime.analyticsPartialSeconds = packet.durationSeconds
+            } else if let existingAnchor = runtime.analyticsSyncAnchor {
+                anchor = existingAnchor
+            } else {
+                runtime.analyticsError = "The device sent analytics history out of order."
+                return
+            }
+
+            let endDate: Date
+            if packet.isPartial {
+                endDate = anchor
+            } else {
+                let completedBucketsBefore = max(0, Int(packet.ageBuckets) - 1)
+                let ageSeconds = TimeInterval(runtime.analyticsPartialSeconds)
+                    + TimeInterval(completedBucketsBefore)
+                        * TimeInterval(NoiseAnalyticsPacket.bucketDurationSeconds)
+                endDate = anchor.addingTimeInterval(-ageSeconds)
+            }
+            let startDate = endDate.addingTimeInterval(
+                -TimeInterval(packet.durationSeconds)
+            )
+            let bucket = NoiseAnalyticsBucket(
+                sequence: packet.sequence,
+                startDate: startDate,
+                endDate: endDate,
+                meanLevel: packet.meanLevel,
+                peakLevel: packet.peakLevel,
+                greenSeconds: Double(packet.greenSeconds),
+                orangeSeconds: Double(packet.orangeSeconds),
+                redSeconds: Double(packet.redSeconds),
+                isPartial: packet.isPartial
+            )
+            analyticsByDevice[runtime.identifier] = analyticsStore.upsert(
+                bucket,
+                deviceID: runtime.identifier
+            )
+            scheduleAnalyticsSave(runtime)
+            runtime.analyticsError = nil
+
+            if deviceHistoryWasReset,
+               !runtime.analyticsResetRetryWasSent {
+                runtime.analyticsResetRetryWasSent = true
+                requestAnalytics(
+                    from: runtime,
+                    after: 0,
+                    isResetRetry: true
+                )
+            }
+        } catch {
+            runtime.analyticsError = "The device sent invalid analytics history."
+        }
+        publish()
+    }
+
+    private func scheduleAnalyticsSave(_ runtime: Runtime) {
+        runtime.analyticsSaveWorkItem?.cancel()
+        let id = runtime.identifier
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.analyticsStore.save(deviceID: id)
+        }
+        runtime.analyticsSaveWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
     private func sendDesiredSettings(to runtime: Runtime) {
@@ -824,6 +971,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         } catch {
             runtime.nameError = "The device sent an invalid name packet."
         }
+        requestAnalytics(from: runtime)
         publish()
     }
 
@@ -902,6 +1050,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                 id: runtime.identifier
             )
             let displayedError = runtime.lastError ?? runtime.nameError
+                ?? runtime.analyticsError
             let syncText = displayedError != nil
                 ? "Error"
                 : (pending ? "Pending" : "Synchronized")
@@ -1041,6 +1190,10 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         runtime.configCharacteristic = nil
         runtime.statusCharacteristic = nil
         runtime.nameCharacteristic = nil
+        runtime.analyticsCharacteristic = nil
+        runtime.analyticsSyncAnchor = nil
+        runtime.analyticsPartialSeconds = 0
+        runtime.analyticsRequestWasSent = false
         runtime.nameQueryWritePending = false
         runtime.hasReceivedName = false
         runtime.sentRevision = nil
@@ -1071,7 +1224,12 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
             return
         }
         peripheral.discoverCharacteristics(
-            [Self.configUUID, Self.statusUUID, Self.nameUUID],
+            [
+                Self.configUUID,
+                Self.statusUUID,
+                Self.nameUUID,
+                Self.analyticsUUID,
+            ],
             for: service
         )
     }
@@ -1091,6 +1249,9 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
             if characteristic.uuid == Self.configUUID { runtime.configCharacteristic = characteristic }
             if characteristic.uuid == Self.statusUUID { runtime.statusCharacteristic = characteristic }
             if characteristic.uuid == Self.nameUUID { runtime.nameCharacteristic = characteristic }
+            if characteristic.uuid == Self.analyticsUUID {
+                runtime.analyticsCharacteristic = characteristic
+            }
         }
         guard runtime.configCharacteristic != nil,
               let status = runtime.statusCharacteristic else {
@@ -1105,6 +1266,9 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
             peripheral.setNotifyValue(true, for: configuration)
         }
         peripheral.setNotifyValue(true, for: status)
+        if let analytics = runtime.analyticsCharacteristic {
+            peripheral.setNotifyValue(true, for: analytics)
+        }
     }
 
     func peripheral(
@@ -1114,7 +1278,12 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
     ) {
         guard let runtime = runtimes[peripheral.identifier] else { return }
         if let error {
-            if characteristic.uuid == Self.nameUUID {
+            if characteristic.uuid == Self.analyticsUUID {
+                runtime.analyticsError = safeError(
+                    error,
+                    prefix: "Analytics notifications failed"
+                )
+            } else if characteristic.uuid == Self.nameUUID {
                 let label = "Name notifications failed"
                 runtime.nameError = safeError(error, prefix: label)
             } else {
@@ -1124,11 +1293,14 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
                 runtime.lastError = safeError(error, prefix: label)
             }
         } else if characteristic.isNotifying {
-            if characteristic.uuid != Self.nameUUID {
+            if characteristic.uuid == Self.configUUID
+                || characteristic.uuid == Self.statusUUID {
                 peripheral.readValue(for: characteristic)
             }
             if characteristic.uuid == Self.statusUUID {
                 sendDesired(to: runtime)
+            } else if characteristic.uuid == Self.analyticsUUID {
+                requestAnalytics(from: runtime)
             } else if characteristic.uuid == Self.configUUID
                         || characteristic.uuid == Self.nameUUID {
                 requestDeviceName(from: runtime)
@@ -1144,7 +1316,12 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
     ) {
         guard let runtime = runtimes[peripheral.identifier] else { return }
         if let error {
-            if characteristic.uuid == Self.nameUUID {
+            if characteristic.uuid == Self.analyticsUUID {
+                runtime.analyticsError = safeError(
+                    error,
+                    prefix: "Analytics history transfer failed"
+                )
+            } else if characteristic.uuid == Self.nameUUID {
                 let label = "Device name read failed"
                 runtime.nameError = safeError(error, prefix: label)
             } else {
@@ -1156,11 +1333,17 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
         } else if let data = characteristic.value {
             if characteristic.uuid == Self.statusUUID {
                 handleStatus(data, for: runtime)
+            } else if characteristic.uuid == Self.analyticsUUID {
+                handleAnalytics(data, for: runtime)
             } else if characteristic.uuid == Self.nameUUID {
                 handleName(data, for: runtime)
             } else if characteristic.uuid == Self.configUUID,
                       data.count == DeviceNamePacketCodec.packetLength {
-                handleName(data, for: runtime)
+                if (try? AnalyticsPacketCodec.decode(data)) != nil {
+                    handleAnalytics(data, for: runtime)
+                } else {
+                    handleName(data, for: runtime)
+                }
             }
         }
         publish()
@@ -1173,8 +1356,23 @@ extension NoiseSyncManager: @preconcurrency CBPeripheralDelegate {
     ) {
         guard let runtime = runtimes[peripheral.identifier] else { return }
         if let error {
-            if characteristic.uuid == Self.configUUID {
-                if runtime.nameCharacteristic == nil,
+            if characteristic.uuid == Self.analyticsUUID {
+                runtime.analyticsError = safeError(
+                    error,
+                    prefix: "Analytics history request failed"
+                )
+            } else if characteristic.uuid == Self.configUUID {
+                if runtime.analyticsCharacteristic == nil,
+                   runtime.analyticsRequestWasSent,
+                   !runtime.nameWritePending,
+                   !runtime.nameQueryWritePending,
+                   !runtime.settingsWriteQueue.writeIsActive {
+                    runtime.analyticsRequestWasSent = false
+                    runtime.analyticsError = safeError(
+                        error,
+                        prefix: "Analytics history request failed"
+                    )
+                } else if runtime.nameCharacteristic == nil,
                    runtime.nameWritePending {
                     runtime.nameAcknowledgementWorkItems.forEach { $0.cancel() }
                     runtime.nameAcknowledgementWorkItems = []

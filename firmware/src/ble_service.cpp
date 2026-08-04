@@ -21,6 +21,7 @@ NimBLEAdvertising* advertising = nullptr;
 NimBLECharacteristic* configCharacteristic = nullptr;
 NimBLECharacteristic* statusCharacteristic = nullptr;
 NimBLECharacteristic* nameCharacteristic = nullptr;
+NimBLECharacteristic* analyticsCharacteristic = nullptr;
 config_packet::Bytes currentPacket{};
 config_packet::Bytes pendingPacket{};
 device_name::Value currentName;
@@ -31,6 +32,8 @@ portMUX_TYPE pendingMutex = portMUX_INITIALIZER_UNLOCKED;
 bool hasPending = false;
 bool hasPendingName = false;
 bool hasNameReadRequest = false;
+bool hasAnalyticsRequest = false;
+uint32_t analyticsAfterSequence = 0;
 volatile bool connected = false;
 volatile bool slowAdvertising = false;
 uint32_t advertisingStartMs = 0;
@@ -115,6 +118,9 @@ class ServerCallbacks : public NimBLEServerCallbacks {
   void onDisconnect(NimBLEServer* source) override {
     (void)source;
     connected = false;
+    portENTER_CRITICAL(&pendingMutex);
+    hasAnalyticsRequest = false;
+    portEXIT_CRITICAL(&pendingMutex);
     setAdvertisingIntervals(slowAdvertising);
     advertising->start();
   }
@@ -139,6 +145,23 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 class ConfigCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* characteristic) override {
     const std::string value = characteristic->getValue();
+
+    if (value.size() == noise_analytics::kRequestLength) {
+      uint32_t afterSequence = 0;
+      const bool requestIsValid = noise_analytics::History::decodeRequest(
+          reinterpret_cast<const uint8_t*>(value.data()), value.size(),
+          afterSequence);
+      config_packet::Bytes readback{};
+      portENTER_CRITICAL(&pendingMutex);
+      readback = currentPacket;
+      if (requestIsValid) {
+        analyticsAfterSequence = afterSequence;
+        hasAnalyticsRequest = true;
+      }
+      portEXIT_CRITICAL(&pendingMutex);
+      characteristic->setValue(readback.data(), readback.size());
+      return;
+    }
 
     if (value.size() == device_name::kPacketLength) {
       device_name::Value candidate;
@@ -218,9 +241,26 @@ class NameCallbacks : public NimBLECharacteristicCallbacks {
   }
 };
 
+class AnalyticsCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* characteristic) override {
+    const std::string value = characteristic->getValue();
+    uint32_t afterSequence = 0;
+    if (!noise_analytics::History::decodeRequest(
+            reinterpret_cast<const uint8_t*>(value.data()), value.size(),
+            afterSequence)) {
+      return;
+    }
+    portENTER_CRITICAL(&pendingMutex);
+    analyticsAfterSequence = afterSequence;
+    hasAnalyticsRequest = true;
+    portEXIT_CRITICAL(&pendingMutex);
+  }
+};
+
 ServerCallbacks serverCallbacks;
 ConfigCallbacks configCallbacks;
 NameCallbacks nameCallbacks;
+AnalyticsCallbacks analyticsCallbacks;
 
 }  // namespace
 
@@ -249,8 +289,12 @@ void begin(const config_packet::Bytes& appliedPacket,
                      NIMBLE_PROPERTY::READ_ENC |
                      NIMBLE_PROPERTY::WRITE_ENC |
                      NIMBLE_PROPERTY::NOTIFY);
+  analyticsCharacteristic = service->createCharacteristic(
+      kAnalyticsUuid, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC |
+                          NIMBLE_PROPERTY::NOTIFY);
   configCharacteristic->setCallbacks(&configCallbacks);
   nameCharacteristic->setCallbacks(&nameCallbacks);
+  analyticsCharacteristic->setCallbacks(&analyticsCallbacks);
   configCharacteristic->setValue(currentPacket.data(), currentPacket.size());
   const auto initialNamePacket = device_name::encode(currentName);
   nameCharacteristic->setValue(initialNamePacket.data(),
@@ -341,6 +385,18 @@ bool takeNameReadRequest() {
   return requested;
 }
 
+bool takeAnalyticsRequest(uint32_t& afterSequence) {
+  bool requested = false;
+  portENTER_CRITICAL(&pendingMutex);
+  if (hasAnalyticsRequest) {
+    afterSequence = analyticsAfterSequence;
+    hasAnalyticsRequest = false;
+    requested = true;
+  }
+  portEXIT_CRITICAL(&pendingMutex);
+  return requested;
+}
+
 void acknowledge(const config_packet::Bytes& appliedPacket,
                  const Status& status) {
   portENTER_CRITICAL(&pendingMutex);
@@ -397,6 +453,25 @@ void setStatus(const Status& status) {
   lastStatusSentMs = nowMs;
   statusCharacteristic->setValue(packet.data(), packet.size());
   statusCharacteristic->notify();
+}
+
+bool notifyAnalytics(const noise_analytics::Packet& packet) {
+  if (!connected || analyticsCharacteristic == nullptr) {
+    return false;
+  }
+  if (analyticsCharacteristic->getSubscribedCount() > 0) {
+    analyticsCharacteristic->setValue(packet.data(), packet.size());
+    analyticsCharacteristic->notify();
+    return true;
+  }
+  configCharacteristic->setValue(packet.data(), packet.size());
+  configCharacteristic->notify();
+  config_packet::Bytes readback{};
+  portENTER_CRITICAL(&pendingMutex);
+  readback = currentPacket;
+  portEXIT_CRITICAL(&pendingMutex);
+  configCharacteristic->setValue(readback.data(), readback.size());
+  return true;
 }
 
 }  // namespace ble_service

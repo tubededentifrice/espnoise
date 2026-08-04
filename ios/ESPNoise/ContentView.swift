@@ -7,6 +7,17 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Analytics") {
+                    NavigationLink {
+                        AnalyticsView(syncManager: syncManager)
+                    } label: {
+                        Label("Noise Analytics", systemImage: "chart.xyaxis.line")
+                    }
+                    Text("Review private 15-minute summaries for one device, a group, or the full office.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Global Settings") {
                     NavigationLink {
                         GlobalSettingsView(syncManager: syncManager)
@@ -42,7 +53,7 @@ struct ContentView: View {
                 }
 
                 Section("Privacy") {
-                    Text("ESPNoise uses Bluetooth only. It does not use the Internet, location, accounts, analytics, or raw microphone audio.")
+                    Text("ESPNoise uses Bluetooth only. It does not use the Internet, location, accounts, external analytics, or raw microphone audio. Aggregated noise history stays on the devices and this phone.")
                         .font(.footnote)
                     Text("iOS controls background work. Keep the app installed and do not force it to close.")
                         .font(.footnote)

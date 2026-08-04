@@ -2,11 +2,10 @@
 
 The ESPNoise iPhone app manages one or more ESPNoise devices. The app uses
 Bluetooth Low Energy. It does not need Wi-Fi, an Internet service, an account,
-location data, or analytics.
+location data, or an external analytics service.
 
-The firmware does not send or save raw microphone audio. It sends only the
-current observation maximum, rolling threshold counts, alarm state, and
-settings status.
+The firmware does not send or save raw microphone audio. It sends live status
+and private 15-minute noise summaries.
 
 ## Settings model
 
@@ -82,13 +81,40 @@ The home page shows these important values for each device:
 Each device has a separate page for its live measurement graph, rolling alarm
 counts, overrides, effective values, manual synchronization, and removal. The
 graph uses the same positive 0-through-120 scale as the threshold controls.
-It keeps up to five minutes of observation maxima in app memory. It does not
-save this history or raw audio. The alarm uses the highest color whose rolling
-count reaches the required value.
+It keeps up to five minutes of observation maxima in app memory. The alarm uses
+the highest color whose rolling count reaches the required value.
 
 The app has no configured device-count limit. The practical count of active
 Bluetooth connections depends on iOS, the radio environment, and the distance
 to each device.
+
+## Noise analytics
+
+Each device makes one highly aggregated summary for each 15-minute period.
+Each summary has these values:
+
+- Time in the green, orange, and red states
+- Time in the quiet state, calculated from the period length
+- Time-weighted average relative noise level
+- Peak relative noise level
+
+The device keeps at most 72 hours of summaries in a ring. It saves the ring to
+flash once each hour. It saves the next record sequence after each completed
+summary. A power loss can remove the newest unsaved summaries, but it does not
+cause an old sequence to be used again.
+
+The app requests only records that are newer than its last completed record.
+It also requests the current partial period. The phone keeps at most 30 days
+for each device. It gives the records local dates when they arrive because the
+device has no real-time clock. A power loss or a long time out of range can
+cause a gap. The app does not estimate missing data.
+
+The analytics page can select one device, a group, or all devices. It shows
+average and peak levels, warning-state time, trends, device comparisons, a
+weekday and hour heatmap, and device-hours of available data. The device
+comparison shows the 12 devices with the most warning-state time. All selected
+devices still contribute to the other fleet values. This keeps the page useful
+for an office with up to 100 devices.
 
 ## Setting limits
 
@@ -127,6 +153,7 @@ so AccessorySetupKit discovery continues to work.
 | Configuration | `0235A089-40E1-4985-A78B-046EA4D983A9` |
 | Status | `214F1B5A-DD35-4626-8247-FA07DA61EE64` |
 | Device name | `AC1D60EF-369C-4640-8055-506A1514BD49` |
+| Noise analytics | `7D4677B7-4B75-4BC8-90A8-0954BFF64EB1` |
 
 The configuration value is a 32-byte, little-endian packet.
 
@@ -190,6 +217,35 @@ state change can send an immediate notification. An unchanged status has a
 ten-second heartbeat. The app can also read the old 16-byte status version,
 but that version has no measurement graph data.
 
+The noise analytics request is an 8-byte, little-endian packet.
+
+| Byte | Value |
+| ---: | --- |
+| 0 | Protocol version, `1` |
+| 1 | Request type, `1` |
+| 2-5 | Last completed sequence that the phone has, or `0` |
+| 6-7 | Reserved, `0` |
+
+The device first notifies the current partial summary. It then sends each newer
+completed summary. Each notification is 20 bytes.
+
+If iOS has an old Bluetooth service cache, the app sends the same request to
+the configuration characteristic. The device sends the same notifications on
+that characteristic. This fallback does not change the packet layout.
+
+| Byte | Value |
+| ---: | --- |
+| 0 | Protocol version, `1` |
+| 1 | Bit 0 is set for the current partial summary |
+| 2-5 | Summary sequence |
+| 6-7 | Age in 15-minute periods; `0` is current |
+| 8-9 | Summary duration in seconds |
+| 10-11 | Average positive relative level in tenths |
+| 12-13 | Peak positive relative level in tenths |
+| 14-15 | Green seconds |
+| 16-17 | Orange seconds |
+| 18-19 | Red seconds |
+
 Error code `1` means that the device could not save the settings. The app keeps
 the change pending and does not report a successful synchronization.
 
@@ -237,3 +293,7 @@ release:
 9. Confirm with a radio scanner that the name and service UUID are present.
 10. Confirm that live maxima and threshold counts update during observations.
 11. Confirm that the battery build never drives the LEDs above its safe limit.
+12. Leave a device out of range for at least one hour. Reconnect it and confirm
+    that the app receives the missing completed summaries.
+13. Select one device, a group, and all devices on the analytics page. Confirm
+    that each chart uses the selected devices only.

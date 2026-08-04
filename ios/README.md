@@ -50,6 +50,12 @@ The Global Settings page shows one live chart for each device that is in range.
 This short graph history stays in app memory only. The phone does not receive
 raw microphone audio.
 
+The Noise Analytics page reads 15-minute summaries from each device. A device
+keeps at most 72 hours. The phone keeps at most 30 days for each device. The
+page can show one device, a selected group, or all devices. It shows average
+and peak relative levels, state time, time trends, device comparisons, and a
+weekday and hour heatmap. The summaries do not contain audio.
+
 ## Sync rules
 
 Phone settings always win. Global settings, device overrides, and valid device
@@ -64,7 +70,10 @@ time.
 
 ## Privacy
 
-The app uses AccessorySetupKit and Core Bluetooth. It does not use Internet access, location, accounts, or analytics. It does not collect or save raw microphone audio. Logs do not include device settings or device identifiers.
+The app uses AccessorySetupKit and Core Bluetooth. It does not use Internet
+access, location, accounts, or an external analytics service. Aggregated noise
+history stays on the devices and the phone. It does not collect or save raw
+microphone audio. Logs do not include device settings or device identifiers.
 
 ## Physical-device gates
 
@@ -75,6 +84,8 @@ Complete these checks before release:
 - Confirm that an offline edit stays pending and syncs after reconnect.
 - Confirm status notifications, readback, wrong fingerprints, stale revisions, and delayed reports.
 - Confirm operation with multiple authorized devices at the same time.
+- Confirm history recovery after a device stays out of range for one hour.
+- Confirm analytics selection and charts with at least three devices.
 - Confirm that the battery build never drives the LEDs above its 25% board
   limit. The USB build has a completed 100% power test.
 - Confirm that a force-quit app does not claim background operation.
