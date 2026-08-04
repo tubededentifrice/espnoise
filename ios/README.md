@@ -46,6 +46,7 @@ user moves a slider.
 
 The top of each device page graphs live observation maxima against the three
 thresholds. It also shows how many saved observations reached each threshold.
+The Global Settings page shows one live chart for each device that is in range.
 This short graph history stays in app memory only. The phone does not receive
 raw microphone audio.
 

@@ -121,6 +121,25 @@ struct GlobalSettingsView: View {
 
     var body: some View {
         Form {
+            if inRangeDevices.isEmpty {
+                Section("Live Noise") {
+                    ContentUnavailableView {
+                        Label("No devices in range", systemImage: "waveform")
+                    }
+                }
+            } else {
+                ForEach(inRangeDevices) { device in
+                    let previewSettings = previewSettings(for: device.id)
+                    LiveNoisePanel(
+                        device: device,
+                        settings: previewSettings,
+                        rulesAreCurrent: device.settingsAreApplied
+                            && previewSettings
+                                == syncManager.effectiveSettings(id: device.id),
+                        sectionTitle: "Live Noise: \(device.name)"
+                    )
+                }
+            }
             SettingsControls(settings: $draft, includesSampling: true)
             if let errorText {
                 Section("Needs Attention") { Text(errorText).foregroundStyle(.red) }
@@ -164,6 +183,15 @@ struct GlobalSettingsView: View {
         } catch {
             errorText = error.localizedDescription
         }
+    }
+
+    private var inRangeDevices: [NoiseDeviceViewState] {
+        syncManager.devices.filter(\.isConnected)
+    }
+
+    private func previewSettings(for deviceID: UUID) -> NoiseSettings {
+        syncManager.deviceRecord(id: deviceID)?.overrides.applying(to: draft)
+            ?? draft
     }
 }
 
@@ -814,9 +842,10 @@ private struct LiveNoisePanel: View {
     let device: NoiseDeviceViewState
     let settings: NoiseSettings
     let rulesAreCurrent: Bool
+    var sectionTitle = "Live Noise"
 
     var body: some View {
-        Section("Live Noise") {
+        Section(sectionTitle) {
             if let latest = device.measurements.last {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
