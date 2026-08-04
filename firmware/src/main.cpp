@@ -81,6 +81,21 @@ const char* levelName(AlarmLevel level) {
   return "quiet";
 }
 
+void printActiveSettings() {
+  Serial.printf(
+      "Settings active: green=%.1f orange=%.1f red=%.1f dBFS "
+      "K=%lu ms N=%lu ms window=%lu ms X=%u%% required=%u/%u\n",
+      runtimeSettings.greenThresholdDbfsX10 / 10.0F,
+      runtimeSettings.orangeThresholdDbfsX10 / 10.0F,
+      runtimeSettings.redThresholdDbfsX10 / 10.0F,
+      static_cast<unsigned long>(runtimeSettings.sampleDurationMs),
+      static_cast<unsigned long>(runtimeSettings.samplePeriodMs),
+      static_cast<unsigned long>(runtimeSettings.decisionWindowMs),
+      static_cast<unsigned>(runtimeSettings.triggerSamplePercent),
+      static_cast<unsigned>(runtimeSettings.requiredTriggerSampleCount()),
+      static_cast<unsigned>(runtimeSettings.historySampleCount()));
+}
+
 void failMicrophone() {
   Serial.println("ERROR: I2S microphone start failed");
   audioInput.stop();
@@ -326,6 +341,7 @@ void applyPendingSettings(uint32_t now) {
                 static_cast<unsigned long>(appliedRevision),
                 static_cast<unsigned long>(
                     config_packet::fingerprint(appliedPacket)));
+  printActiveSettings();
 }
 
 void applyPendingName() {
@@ -420,6 +436,7 @@ void setup() {
   alarm_output::begin();
   ble_service::begin(appliedPacket, appliedDeviceName);
   nextSampleStartMs = millis();
+  printActiveSettings();
   Serial.println("ESPNoise started");
 }
 

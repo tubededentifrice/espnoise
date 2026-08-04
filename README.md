@@ -114,7 +114,7 @@ assembly.
 ## How detection works
 
 The default rule listens for one second in each ten-second period. It stores
-only the maximum sound level from each observation. At least four of the last
+only the maximum sound level from each observation. At least three of the last
 six observations must cross a threshold before the alarm starts. Two quiet
 checks clear an active alarm.
 

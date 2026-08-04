@@ -112,7 +112,6 @@ private struct DeviceRow: View {
 
 struct GlobalSettingsView: View {
     @ObservedObject var syncManager: NoiseSyncManager
-    @Environment(\.dismiss) private var dismiss
     @State private var draft: NoiseSettings
     @State private var errorText: String?
     @State private var resetText: String?
@@ -132,22 +131,13 @@ struct GlobalSettingsView: View {
                 Section { Text(resetText).foregroundStyle(.secondary) }
             }
             Section {
-                Button("Save Global Settings") {
-                    do {
-                        try syncManager.saveGlobalSettings(draft)
-                        dismiss()
-                    } catch {
-                        errorText = error.localizedDescription
-                    }
-                }
                 Button("Reset Global Values to Defaults") {
                     draft = NoiseSettings()
                     errorText = nil
-                    resetText =
-                        "Default values are ready. Select Save Global Settings to apply them. Device overrides stay unchanged."
+                    resetText = "Default values save automatically. Device overrides stay unchanged."
                 }
             } footer: {
-                Text("A change marks only devices that use the changed value as pending.")
+                Text("Valid changes save automatically. The app synchronizes each device that uses the changed value when it is in range.")
             }
         }
         .navigationTitle("Global Settings")
@@ -156,6 +146,27 @@ struct GlobalSettingsView: View {
             if resetText != nil, newValue != NoiseSettings() {
                 resetText = nil
             }
+        }
+        .task(id: draft) {
+            guard draft != syncManager.globalSettings else { return }
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
+            saveDraft()
+        }
+        .onDisappear { saveDraft() }
+    }
+
+    private func saveDraft() {
+        guard draft != syncManager.globalSettings else { return }
+        do {
+            try syncManager.saveGlobalSettings(draft)
+            errorText = nil
+        } catch {
+            errorText = error.localizedDescription
         }
     }
 }
@@ -167,7 +178,6 @@ struct DeviceSettingsView: View {
     @State private var name = ""
     @State private var overrides = DeviceOverrides()
     @State private var errorText: String?
-    @State private var savedText: String?
     @State private var showRemove = false
     @State private var loadedName = ""
     @State private var isRemoving = false
@@ -190,7 +200,7 @@ struct DeviceSettingsView: View {
                     TextField("Custom name", text: $name)
                         .submitLabel(.done)
                         .onSubmit { saveNameIfNeeded(reportInvalid: true) }
-                    Text("A valid changed name is saved when you leave this page.")
+                    Text("A valid changed name saves automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     LabeledContent("Connection", value: device.connectionText)
@@ -198,7 +208,7 @@ struct DeviceSettingsView: View {
                     if let alarm = device.alarmText {
                         LabeledContent("Current state", value: alarm)
                     }
-                    Button("Send Settings Now") { syncManager.syncNow(id: deviceID) }
+                    Button("Retry Synchronization") { syncManager.syncNow(id: deviceID) }
                 }
             }
 
@@ -221,12 +231,7 @@ struct DeviceSettingsView: View {
             if let errorText {
                 Section("Needs Attention") { Text(errorText).foregroundStyle(.red) }
             }
-            if let savedText {
-                Section { Text(savedText).foregroundStyle(.green) }
-            }
-
             Section {
-                Button("Save Name and Settings") { save() }
                 Button("Reset All Overrides") {
                     do {
                         try syncManager.resetOverrides(id: deviceID)
@@ -236,6 +241,8 @@ struct DeviceSettingsView: View {
                     }
                 }
                 Button("Remove Device", role: .destructive) { showRemove = true }
+            } footer: {
+                Text("Valid changes save automatically and synchronize when the device is in range.")
             }
         }
         .navigationTitle(name.isEmpty ? "Device" : name)
@@ -243,6 +250,28 @@ struct DeviceSettingsView: View {
         .onAppear { load() }
         .onDisappear {
             guard !isRemoving else { return }
+            saveSettings()
+            saveNameIfNeeded()
+        }
+        .task(id: overrides) {
+            guard overrides != syncManager.deviceRecord(id: deviceID)?.overrides
+            else { return }
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
+            saveSettings()
+        }
+        .task(id: name) {
+            guard name != loadedName else { return }
+            do {
+                try await Task.sleep(nanoseconds: 500_000_000)
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
             saveNameIfNeeded()
         }
         .onChange(of: syncedDeviceName) { oldValue, newValue in
@@ -283,28 +312,17 @@ struct DeviceSettingsView: View {
         syncManager.devices.first(where: { $0.id == deviceID })?.name
     }
 
-    private func save() {
-        guard let cleanName = DeviceNameValidation.normalizedUserName(name)
-        else {
-            errorText =
-                "Enter a name of 18 UTF-8 bytes or less. The form Device XXXX is reserved for the hardware name."
-            savedText = nil
-            return
-        }
+    private func saveSettings() {
+        guard overrides != syncManager.deviceRecord(id: deviceID)?.overrides
+        else { return }
         do {
-            try syncManager.saveDevice(
+            try syncManager.saveDeviceSettings(
                 id: deviceID,
-                name: cleanName,
                 overrides: overrides
             )
-            name = cleanName
-            loadedName = cleanName
             errorText = nil
-            savedText =
-                "Saved on this iPhone. The device name and settings will synchronize when the device is available."
         } catch {
             errorText = error.localizedDescription
-            savedText = nil
         }
     }
 
@@ -315,7 +333,6 @@ struct DeviceSettingsView: View {
             if reportInvalid {
                 errorText =
                     "Enter a name of 18 UTF-8 bytes or less. The form Device XXXX is reserved for the hardware name."
-                savedText = nil
             }
             return
         }
@@ -408,7 +425,7 @@ private struct SettingsControls: View {
                 )
                 SettingSlider(
                     title: "X trigger level",
-                    valueText: "More than \(settings.triggerPercent)%",
+                    valueText: "At least \(settings.triggerPercent)%",
                     value: uint8(\.triggerPercent),
                     range: Double(minimumTriggerPercent)...99,
                     step: 1
@@ -544,7 +561,7 @@ private struct SettingsControls: View {
     }
 
     private var minimumTriggerPercent: UInt8 {
-        UInt8((100 + historyCount - 1) / historyCount)
+        UInt8(100 / historyCount + 1)
     }
 
     private func clampTriggerPercent() {
@@ -864,7 +881,7 @@ private struct LiveNoisePanel: View {
 
                 thresholdLegend
                 if !rulesAreCurrent {
-                    Text("The threshold lines are a preview. Save and synchronize these settings before you use the device counts.")
+                    Text("The threshold lines are a preview. Wait for automatic synchronization before you use the device counts.")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -963,7 +980,7 @@ private struct LiveNoisePanel: View {
     }
 
     private var requiredCount: Int {
-        historyCapacity * Int(settings.triggerPercent) / 100 + 1
+        Int(settings.requiredTriggerSampleCount)
     }
 
     private func levelReached(_ level: Double) -> String {

@@ -25,9 +25,11 @@ Each device page shows the inherited or overridden state of each applicable
 value. A reset action removes the override. It does not copy the current
 global value into a new override.
 
-The Global Settings page has a reset button. It puts the compiled default
-values in the draft. The user must select **Save Global Settings** to apply
-them. This action does not remove device overrides or device names.
+The app saves a valid settings change automatically after a short wait.
+This prevents a slider movement from sending one Bluetooth write for each
+intermediate value. When the user leaves a settings page, the app saves the
+latest valid value without a delay. The Global Settings reset action saves the
+compiled defaults. It does not remove device overrides or device names.
 
 A custom device name is saved on the phone and in ESP32 nonvolatile storage.
 It uses a separate synchronization state from the measurement settings. A
@@ -50,7 +52,7 @@ each device connection. Thus, these events start synchronization:
 - The device starts while the phone is in range.
 - The device returns to range.
 - The app starts and reconnects.
-- The user selects **Sync Now**.
+- The user selects **Retry Synchronization**.
 - A saved phone setting changes while the device is connected.
 
 If a setting changes while a device is out of range, the app marks that
@@ -218,7 +220,8 @@ Bluetooth and AccessorySetupKit need a physical iPhone. Test these cases before
 release:
 
 1. Add one device during its startup pairing window.
-2. Change a global value and confirm the device applies it.
+2. Change a global value and confirm that it saves and the device applies it
+   without a separate save action.
 3. Add an override and confirm that a later global change does not replace it.
 4. Change a setting while the device is off. Start the device and confirm an
    immediate synchronization.

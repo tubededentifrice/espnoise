@@ -42,8 +42,8 @@ the power source.
 stateDiagram-v2
   [*] --> Observation
   Observation --> History: Save one-second maximum
-  History --> AlarmOutput: More than X of the last six maxima cross a threshold
-  History --> Wait: No threshold has more than X
+  History --> AlarmOutput: At least X percent of the last six maxima cross a threshold
+  History --> Wait: No threshold has at least X percent
   Wait --> Observation: N-second period starts
   AlarmOutput --> Recheck: 250 ms output ends
   Recheck --> AlarmOutput: Maximum reaches green, or fewer than two quiet checks
@@ -57,7 +57,7 @@ stateDiagram-v2
 
 ## Alarm result
 
-Separate dBFS thresholds control the alarm level. At least four of the six
+Separate dBFS thresholds control the alarm level. At least three of the six
 saved one-second maxima must cross a threshold to start its level. A sustained
 alarm also becomes more urgent with time.
 

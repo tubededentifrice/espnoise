@@ -34,9 +34,10 @@ reserved. Sampling values K, N, decision window, and X
 are global only. The phone sends its complete effective settings after each
 reconnect. Offline settings stay pending.
 
-The Global Settings page can put all compiled defaults in the draft. The user
-must select **Save Global Settings** to apply them. Device overrides and names
-stay unchanged.
+Valid global settings, device overrides, and names save automatically after a
+short wait. The latest valid value saves immediately when the user leaves
+the page. The Global Settings page can restore all compiled defaults. Device
+overrides and names stay unchanged.
 
 Green, orange, and red threshold sliders use the same quieter-to-louder scale.
 The displayed scale is a positive relative level from 0 through 120. It is not

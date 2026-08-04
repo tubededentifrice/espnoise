@@ -20,4 +20,8 @@ struct RuntimeSettings {
   size_t historySampleCount() const {
     return samplePeriodMs == 0 ? 0 : decisionWindowMs / samplePeriodMs;
   }
+
+  size_t requiredTriggerSampleCount() const {
+    return (historySampleCount() * triggerSamplePercent + 99U) / 100U;
+  }
 };

@@ -65,8 +65,8 @@ constexpr size_t kAudioBlockSamples = 256;
 constexpr uint32_t kMicrophoneWarmupMs = 300;
 
 // Listen for K seconds in each N-second period. Save the maximum frame level
-// from each K-second observation. Start the alarm when more than X of the
-// saved observations in the decision window are above a level threshold.
+// from each K-second observation. Start the alarm when at least X percent of
+// the saved observations in the decision window reach a level threshold.
 constexpr uint32_t kSampleDurationMs = ESPNOISE_SAMPLE_DURATION_MS;  // K
 constexpr uint32_t kSamplePeriodMs = ESPNOISE_SAMPLE_PERIOD_MS;      // N
 constexpr uint32_t kDecisionWindowMs = ESPNOISE_DECISION_WINDOW_MS;

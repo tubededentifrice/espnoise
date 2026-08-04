@@ -102,14 +102,14 @@ AlarmLevel NoiseDetector::historyAlarmLevel() const {
   if (historyCount_ < settings_.historySampleCount()) {
     return AlarmLevel::kQuiet;
   }
-  const float triggerRatio = settings_.triggerSamplePercent / 100.0F;
-  if (redSampleRatio() > triggerRatio) {
+  const size_t requiredSamples = settings_.requiredTriggerSampleCount();
+  if (redSampleCount() >= requiredSamples) {
     return AlarmLevel::kRed;
   }
-  if (orangeSampleRatio() > triggerRatio) {
+  if (orangeSampleCount() >= requiredSamples) {
     return AlarmLevel::kOrange;
   }
-  if (greenSampleRatio() > triggerRatio) {
+  if (greenSampleCount() >= requiredSamples) {
     return AlarmLevel::kGreen;
   }
   return AlarmLevel::kQuiet;

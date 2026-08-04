@@ -48,7 +48,7 @@ uv run --locked pio run --environment esp32dev_led_test --target upload
 ```
 
 For a one-pixel bench test, use the fast profile. It listens for 3 seconds in
-each 5-second period, keeps a 15-second history, requires more than 50% of the
+each 5-second period, keeps a 15-second history, requires at least 50% of the
 saved maxima, and uses full LED brightness. It also plays a short buzzer chime
 after the LED test:
 

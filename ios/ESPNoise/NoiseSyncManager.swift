@@ -187,12 +187,13 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         sendPendingToConnectedDevices()
     }
 
-    func saveDevice(
-        id: UUID,
-        name: String,
-        overrides: DeviceOverrides
-    ) throws {
-        try settingsStore.updateDevice(id: id, name: name, overrides: overrides)
+    func saveDeviceSettings(id: UUID, overrides: DeviceOverrides) throws {
+        guard let device = settingsStore.device(id: id) else { return }
+        try settingsStore.updateDevice(
+            id: id,
+            name: device.customName,
+            overrides: overrides
+        )
         publish()
         if let runtime = runtimes[id] { sendDesired(to: runtime) }
     }

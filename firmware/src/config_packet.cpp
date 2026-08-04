@@ -103,9 +103,7 @@ ValidationResult decode(const uint8_t* data, size_t size,
           config::kMaximumTriggerSamplePercent) {
     return ValidationResult::kBadTriggerPercent;
   }
-  const size_t requiredSamples =
-      historyCount * candidate.triggerSamplePercent / 100 + 1;
-  if (requiredSamples < 2) {
+  if (candidate.requiredTriggerSampleCount() < 2) {
     return ValidationResult::kTooFewRequiredSamples;
   }
   if (candidate.muteDurationSeconds <

@@ -11,9 +11,10 @@ level ratio = observations at or above the level threshold / saved observations
 ```
 
 The detector requires a complete history before it can start an alarm. It
-checks red first, then orange, then green. A level starts when more than X of
-the saved maxima are at or above that level threshold. With six observations
-and X set to 50%, at least four observations must cross a threshold.
+checks red first, then orange, then green. A level starts when at least X
+percent of the saved maxima are at or above that level threshold. With six
+observations and X set to 50%, at least three observations must cross a
+threshold.
 
 When the alarm is active, a separate quiet rule lets it stop quickly. Two
 consecutive one-second checks must have maxima below the green threshold. The
@@ -34,7 +35,7 @@ sporadic sound does not make the sign flash.
 | Decision window | Saved observation history | 60 seconds |
 | History size | Decision window divided by N | 6 observations |
 | Minimum history | Observations required before an alarm | 6 observations |
-| X | Saved maxima required to start | More than 50%, or 4 of 6 |
+| X | Saved maxima required to start | At least 50%, or 3 of 6 |
 | Green threshold | Noise, but not very loud | -55 dBFS |
 | Orange threshold | Loud noise | -48 dBFS |
 | Red threshold | Very loud noise | -42 dBFS |
@@ -79,7 +80,7 @@ noise result.
 
 ## Alarm levels and patterns
 
-The highest rolling threshold with at least four of six observations sets the
+The highest rolling threshold with at least three of six observations sets the
 initial alarm level. During an active alarm, each one-second maximum updates
 the measured level when it reaches green, orange, or red.
 
@@ -133,8 +134,8 @@ buzzer pattern duration, and the five-second clear-time limit at startup.
 ## Why this rule helps
 
 A short event can make one saved maximum high. It cannot start the alarm by
-itself because four of six saved maxima must be high. Sustained loud speech or
-other repeated noise is more likely to affect four observations and start the
+itself because three of six saved maxima must be high. Sustained loud speech or
+other repeated noise is more likely to affect three observations and start the
 warning.
 
 The default schedule observes only one second in every ten seconds. It can miss
@@ -155,7 +156,7 @@ the maximum with a 90th-percentile observation value.
 4. Read the level during a quiet sample.
 5. Record six observations in a normal quiet room.
 6. Make one short loud sound and confirm that it does not start the alarm.
-7. Make sustained coworking noise through at least four observations.
+7. Make sustained coworking noise through at least three observations.
 8. Compare the saved green, orange, and red percentages.
 9. Adjust the thresholds, observation period, and X.
 10. Connect the LED circuit and repeat the test.
@@ -200,7 +201,7 @@ After review of the test, the selected thresholds are -55 dBFS for green,
 -48 dBFS for orange, and -42 dBFS for red.
 
 The green and orange ranges overlap. The rolling decision limits the effect of
-one short peak because at least four of six observations must cross a
+one short peak because at least three of six observations must cross a
 threshold. Check the levels again during a normal coworking test.
 
 ## Mute and buzzer controls
