@@ -42,12 +42,11 @@ the power source.
 stateDiagram-v2
   [*] --> Observation
   Observation --> History: Save one-second maximum
-  History --> AlarmOutput: More than X of the last six maxima cross a threshold
-  History --> Wait: No threshold has more than X
+  History --> AlarmOutput: At least X percent of the last six maxima cross a threshold
+  History --> Wait: No threshold has at least X percent
   Wait --> Observation: N-second period starts
   AlarmOutput --> Recheck: 250 ms output ends
-  Recheck --> AlarmOutput: Maximum reaches green, or fewer than two quiet checks
-  Recheck --> Wait: Two consecutive quiet checks; reset history
+  Recheck --> History: Save maximum and remove oldest value
   state Muted {
     [*] --> MutedObservation
     MutedObservation --> MutedWait: Save maximum and update history
@@ -67,9 +66,8 @@ ends mute.
 
 ## Alarm result
 
-Separate dBFS thresholds control the alarm level. At least four of the six
-saved one-second maxima must cross a threshold to start its level. A sustained
-alarm also becomes more urgent with time.
+Separate dBFS thresholds control the alarm level. At least three of the six
+saved one-second maxima must cross a threshold to start its level.
 
 | Level | Default threshold | Light | Buzzer |
 | --- | ---: | --- | --- |
@@ -77,10 +75,9 @@ alarm also becomes more urgent with time.
 | Orange | -48 dBFS | Medium orange blink | Two warning notes |
 | Red | -42 dBFS | Fast red blink | Three warning notes |
 
-After 15 seconds, the minimum alarm level is orange. After 30 seconds, it is
-red. During an active alarm, each one-second maximum can update the level.
-Two consecutive quiet checks clear the alarm within the configured
-five-second limit.
+During an active alarm, each one-second maximum enters the rolling history.
+The highest threshold with at least three values sets the output color. The
+alarm stops when fewer than three values reach Green.
 
 The brightness limit applies after the color is set. The tested USB-powered
 `esp32dev` profile uses 100%. The untested battery profile stays at 25%.

@@ -34,14 +34,9 @@ bool alarmActive = false;
 AlarmLevel currentAlarmLevel = AlarmLevel::kQuiet;
 uint32_t sampleStartMs = 0;
 uint32_t currentSampleDurationMs = config::kSampleDurationMs;
-bool sampleForAlarmClear = false;
-bool sampleForFastRearm = false;
-bool fastRearmActive = false;
-uint8_t quietSampleCount = 0;
 uint32_t nextSampleStartMs = 0;
 uint32_t alarmStartMs = 0;
 uint32_t alarmPatternStartMs = 0;
-uint32_t fastRearmStartMs = 0;
 uint32_t lastLevelPrintMs = 0;
 uint8_t settingsErrorCode = 0;
 uint16_t measurementSequence = 0;
@@ -78,6 +73,21 @@ const char* levelName(AlarmLevel level) {
   return "quiet";
 }
 
+void printActiveSettings() {
+  Serial.printf(
+      "Settings active: green=%.1f orange=%.1f red=%.1f dBFS "
+      "K=%lu ms N=%lu ms window=%lu ms X=%u%% required=%u/%u\n",
+      runtimeSettings.greenThresholdDbfsX10 / 10.0F,
+      runtimeSettings.orangeThresholdDbfsX10 / 10.0F,
+      runtimeSettings.redThresholdDbfsX10 / 10.0F,
+      static_cast<unsigned long>(runtimeSettings.sampleDurationMs),
+      static_cast<unsigned long>(runtimeSettings.samplePeriodMs),
+      static_cast<unsigned long>(runtimeSettings.decisionWindowMs),
+      static_cast<unsigned>(runtimeSettings.triggerSamplePercent),
+      static_cast<unsigned>(runtimeSettings.requiredTriggerSampleCount()),
+      static_cast<unsigned>(runtimeSettings.historySampleCount()));
+}
+
 void failMicrophone() {
   Serial.println("ERROR: I2S microphone start failed");
   audioInput.stop();
@@ -102,108 +112,35 @@ void beginSample(uint32_t now) {
   noiseDetector.beginSample();
   currentDbfs = -120.0F;
   sampleStartMs = millis();
-  sampleForAlarmClear = alarmActive;
-  sampleForFastRearm = !sampleForAlarmClear && fastRearmActive;
   currentSampleDurationMs =
-      sampleForAlarmClear || sampleForFastRearm
-          ? config::kAlarmClearSampleDurationMs
-          : runtimeSettings.sampleDurationMs;
+      alarmActive ? config::kAlarmActiveSampleDurationMs
+                  : runtimeSettings.sampleDurationMs;
   sampleActive = true;
-  if (sampleForAlarmClear) {
-    Serial.println("Alarm clear check started");
-  } else if (sampleForFastRearm) {
-    Serial.println("Fast rearm check started");
-  } else {
-    Serial.println("Observation started");
-  }
+  Serial.println(alarmActive ? "Alarm observation started"
+                             : "Observation started");
 }
 
 void endSample(uint32_t now) {
   audioInput.stop();
   sampleActive = false;
 
-  if (sampleForAlarmClear) {
-    const AlarmLevel sampleLevel = noiseDetector.sampleLevel();
-    if (sampleLevel == AlarmLevel::kQuiet) {
-      if (quietSampleCount < UINT8_MAX) {
-        ++quietSampleCount;
-      }
-    } else {
-      quietSampleCount = 0;
-      currentAlarmLevel = sampleLevel;
-    }
-
-    if (quietSampleCount >= config::kQuietSamplesToClear) {
-      alarmActive = false;
-      currentAlarmLevel = AlarmLevel::kQuiet;
-      alarmStartMs = 0;
-      alarmPatternStartMs = 0;
-      quietSampleCount = 0;
-      fastRearmActive = true;
-      fastRearmStartMs = now;
-      nextSampleStartMs = now;
-    } else {
-      alarmPatternStartMs = now;
-      nextSampleStartMs = now + config::kAlarmOutputWindowMs +
-                          config::kBuzzerSettleMs;
-    }
-
-    Serial.printf(
-        "Alarm clear check ended: max=%.1f dBFS sample=%s quiet=%u/%u "
-        "alarm=%s\n",
-        noiseDetector.sampleMaximumDbfs(), levelName(sampleLevel),
-        static_cast<unsigned>(quietSampleCount),
-        static_cast<unsigned>(config::kQuietSamplesToClear),
-        alarmActive ? "on" : "off");
-    return;
-  }
-
-  if (sampleForFastRearm) {
-    const AlarmLevel sampleLevel = noiseDetector.sampleLevel();
-    if (sampleLevel != AlarmLevel::kQuiet) {
-      fastRearmActive = false;
-      fastRearmStartMs = 0;
-      alarmActive = true;
-      currentAlarmLevel = sampleLevel;
-      alarmStartMs = now;
-      alarmPatternStartMs = now;
-      quietSampleCount = 0;
-      nextSampleStartMs = now + config::kAlarmOutputWindowMs +
-                          config::kBuzzerSettleMs;
-    } else if (now - fastRearmStartMs >= config::kFastRearmWindowMs) {
-      fastRearmActive = false;
-      fastRearmStartMs = 0;
-      if (config::kResetHistoryAfterAlarmClear) {
-        noiseDetector.resetHistory();
-      }
-      nextSampleStartMs = now + runtimeSettings.samplePeriodMs;
-    } else {
-      nextSampleStartMs = now + config::kFastRearmSampleGapMs;
-    }
-
-    Serial.printf(
-        "Fast rearm check ended: max=%.1f dBFS sample=%s rearm=%s "
-        "alarm=%s\n",
-        noiseDetector.sampleMaximumDbfs(), levelName(sampleLevel),
-        fastRearmActive ? "on" : "off", alarmActive ? "on" : "off");
-    return;
-  }
-
+  const bool alarmWasActive = alarmActive;
   noiseDetector.commitSample();
   const AlarmLevel historyLevel = noiseDetector.historyAlarmLevel();
   if (historyLevel != AlarmLevel::kQuiet && !isMuted(now)) {
     alarmActive = true;
     currentAlarmLevel = historyLevel;
-    alarmStartMs = now;
+    if (!alarmWasActive) {
+      alarmStartMs = now;
+    }
     alarmPatternStartMs = now;
-    quietSampleCount = 0;
     nextSampleStartMs = now + config::kAlarmOutputWindowMs +
                         config::kBuzzerSettleMs;
   } else {
     alarmActive = false;
     currentAlarmLevel = isMuted(now) ? historyLevel : AlarmLevel::kQuiet;
-    // Do not show a warning for one observation. Only the complete decision
-    // history can start an alarm.
+    alarmStartMs = 0;
+    alarmPatternStartMs = 0;
     nextSampleStartMs = sampleStartMs + runtimeSettings.samplePeriodMs;
     if (timeIsDue(now, nextSampleStartMs)) {
       nextSampleStartMs = now;
@@ -211,8 +148,9 @@ void endSample(uint32_t now) {
   }
 
   Serial.printf(
-      "Observation ended: max=%.1f dBFS history=%u/%u green=%.1f%% "
+      "%s ended: max=%.1f dBFS history=%u/%u green=%.1f%% "
       "orange=%.1f%% red=%.1f%% alarm=%s level=%s\n",
+      alarmWasActive ? "Alarm observation" : "Observation",
       noiseDetector.sampleMaximumDbfs(),
       static_cast<unsigned>(noiseDetector.historyCount()),
       static_cast<unsigned>(runtimeSettings.historySampleCount()),
@@ -227,12 +165,13 @@ void resumeAlarmFromHistory(uint32_t now) {
   currentAlarmLevel = historyLevel;
   if (historyLevel == AlarmLevel::kQuiet) {
     alarmActive = false;
+    alarmStartMs = 0;
+    alarmPatternStartMs = 0;
     return;
   }
   alarmActive = true;
   alarmStartMs = now;
   alarmPatternStartMs = now;
-  quietSampleCount = 0;
   nextSampleStartMs = now + config::kAlarmOutputWindowMs +
                       config::kBuzzerSettleMs;
 }
@@ -252,12 +191,7 @@ void updateMute(uint32_t now) {
     currentAlarmLevel = AlarmLevel::kQuiet;
     alarmStartMs = 0;
     alarmPatternStartMs = 0;
-    fastRearmActive = false;
-    fastRearmStartMs = 0;
-    quietSampleCount = 0;
     if (sampleActive) {
-      sampleForAlarmClear = false;
-      sampleForFastRearm = false;
       currentSampleDurationMs = runtimeSettings.sampleDurationMs;
     } else if (alarmWasActive) {
       nextSampleStartMs = now;
@@ -306,9 +240,6 @@ void clearRuntimeState(uint32_t now) {
   currentAlarmLevel = AlarmLevel::kQuiet;
   alarmStartMs = 0;
   alarmPatternStartMs = 0;
-  fastRearmActive = false;
-  fastRearmStartMs = 0;
-  quietSampleCount = 0;
   noiseDetector.resetHistory();
   alarm_output::off();
   nextSampleStartMs = now;
@@ -348,6 +279,7 @@ void applyPendingSettings(uint32_t now) {
                 static_cast<unsigned long>(appliedRevision),
                 static_cast<unsigned long>(
                     config_packet::fingerprint(appliedPacket)));
+  printActiveSettings();
 }
 
 void applyPendingName() {
@@ -412,20 +344,10 @@ void setup() {
       config::kHistorySampleCount == 0 ||
       config::kMinimumHistorySamples == 0 ||
       config::kMinimumHistorySamples > config::kHistorySampleCount ||
-      config::kAlarmClearSampleDurationMs == 0 ||
-      config::kFastRearmWindowMs < config::kAlarmClearSampleDurationMs ||
-      config::kQuietSamplesToClear == 0 ||
-      (config::kQuietSamplesToClear + 1UL) *
-                      (config::kAlarmClearSampleDurationMs +
-                       config::kMicrophoneWarmupMs) +
-                  config::kQuietSamplesToClear *
-                      (config::kAlarmOutputWindowMs +
-                       config::kBuzzerSettleMs) >
-          5000UL ||
+      config::kAlarmActiveSampleDurationMs == 0 ||
       config::kGreenThresholdDbfsX10 >=
           config::kOrangeThresholdDbfsX10 ||
       config::kOrangeThresholdDbfsX10 >= config::kRedThresholdDbfsX10 ||
-      config::kEscalateToOrangeMs > config::kEscalateToRedMs ||
       config::buzzerPatternDurationMs(config::kOrangeStyle) >
           config::kAlarmOutputWindowMs ||
       config::buzzerPatternDurationMs(config::kRedStyle) >
@@ -442,6 +364,7 @@ void setup() {
   alarm_output::begin();
   ble_service::begin(appliedPacket, appliedDeviceName);
   nextSampleStartMs = millis();
+  printActiveSettings();
   Serial.println("ESPNoise started");
 }
 

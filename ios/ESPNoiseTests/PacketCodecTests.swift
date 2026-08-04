@@ -209,6 +209,21 @@ final class PacketCodecTests: XCTestCase {
         )
     }
 
+    func testTriggerPercentIncludesExactPercentage() throws {
+        var settings = NoiseSettings()
+        XCTAssertEqual(settings.requiredTriggerSampleCount, 3)
+
+        settings.samplePeriodMilliseconds = 1_000
+        settings.decisionWindowMilliseconds = 2_000
+        settings.triggerPercent = 50
+        XCTAssertEqual(settings.requiredTriggerSampleCount, 1)
+        XCTAssertThrowsError(try settings.validated())
+
+        settings.triggerPercent = 51
+        XCTAssertEqual(settings.requiredTriggerSampleCount, 2)
+        XCTAssertNoThrow(try settings.validated())
+    }
+
     func testMeasurementHistoryRejectsDuplicatesAndAcceptsSequenceWrap() {
         var history = NoiseMeasurementHistory()
         let now = Date(timeIntervalSince1970: 1_000)

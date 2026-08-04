@@ -7,12 +7,12 @@ pins and the main startup-configuration pins.
 
 | Function | Module pin | ESP32 pin | Power |
 | --- | --- | --- | --- |
-| Microphone clock | INMP441 SCK | GPIO26 | 3.3 V logic |
-| Microphone word select | INMP441 WS | GPIO25 | 3.3 V logic |
-| Microphone data | INMP441 SD | GPIO32 | 3.3 V logic |
-| Microphone channel | INMP441 L/R | GND | Left channel |
+| Microphone clock | ICS-43434 SCK | GPIO26 | 3.3 V logic |
+| Microphone word select | ICS-43434 WS | GPIO25 | 3.3 V logic |
+| Microphone data | ICS-43434 SD | GPIO32 | 3.3 V logic |
+| Microphone channel | ICS-43434 L/R | GND | Left channel |
 | Sign data | 74AHCT125 input | GPIO18 | 3.3 V to 5 V level change |
-| Buzzer control | 2N3904 base through 5.1 kohm | GPIO23 | 3.3 V PWM |
+| Buzzer control | MMBT3904 base through 1 kohm | GPIO23 | 3.3 V PWM |
 | Peripheral power enable | TPS61023 EN | GPIO13 | Battery build only |
 | 30-minute mute | Button to GND | GPIO27 | Internal pull-up |
 | Buzzer enable | SPST switch in buzzer positive wire | No GPIO | Hard power cut |
@@ -20,8 +20,9 @@ pins and the main startup-configuration pins.
 ## Carrier PCB
 
 The production carrier PCB is in `hardware/pcb`. It keeps the ESP32 removable
-and presents controller signals on the 10-pin J2 connector. J1, J2, J3, J4,
-and J5 are on the lower PCB face, and their cables point down.
+and presents controller signals on the 10-pin J2 connector. J1, J2, and J3
+are on the lower PCB face, and their cables point down. The microphone and
+buzzer are on the PCB.
 
 For the full-size ESP32, connect J2 as follows:
 
@@ -55,14 +56,14 @@ flowchart TB
   ESP5 --> ESP["ESP32"]
   SPLIT --> PTC["0.5 A hold fuse"]
   PTC --> V5["5 V peripheral rail"]
-  ESP3["ESP32 3V3 pin"] --> MIC["INMP441"]
+  ESP3["ESP32 3V3 pin"] --> MIC["ICS-43434"]
   V5 --> LEVEL["74AHCT125"]
   V5 --> LED["10 SK6812 RGBW pixels"]
   V5 --> SW["Latching hard buzzer switch"]
-  SW --> BUZZER["Tested passive piezo buzzer"]
+  SW --> BUZZER["5 V passive magnetic buzzer"]
   ESP -->|"GPIO18"| LEVEL
   LEVEL -->|"330 ohm"| LED
-  ESP -->|"GPIO23 PWM through 5.1 kohm"| DRIVER["2N3904 driver"]
+  ESP -->|"GPIO23 PWM through 1 kohm"| DRIVER["MMBT3904 driver"]
   BUZZER --> DRIVER
   DRIVER --> GND["Common GND"]
   ESP -->|"GPIO26, GPIO25, GPIO32"| MIC
@@ -102,14 +103,14 @@ flowchart TB
   EN -->|"100 kohm pull-down"| GND["Common GND"]
   BOOST --> PTC["0.5 A hold fuse"]
   PTC --> V5["Switched 5 V peripheral rail"]
-  WEMOS -->|"3V3"| MIC["INMP441"]
+  WEMOS -->|"3V3"| MIC["ICS-43434"]
   V5 --> LEVEL["74AHCT125"]
   V5 --> LED["10 SK6812 RGBW pixels"]
   V5 --> SW["Latching hard buzzer switch"]
-  SW --> BUZZER["Tested passive piezo buzzer"]
+  SW --> BUZZER["5 V passive magnetic buzzer"]
   WEMOS -->|"GPIO18"| LEVEL
   LEVEL -->|"330 ohm"| LED
-  WEMOS -->|"GPIO23 PWM through 5.1 kohm"| DRIVER["2N3904 driver"]
+  WEMOS -->|"GPIO23 PWM through 1 kohm"| DRIVER["MMBT3904 driver"]
   BUZZER --> DRIVER
   DRIVER --> GND
   WEMOS -->|"GPIO26, GPIO25, GPIO32"| MIC
@@ -131,31 +132,34 @@ TPS61023 EN  -> 100 kohm -> GND
 The pull-down keeps the boost off while the ESP32 starts or resets. Do not use
 the WEMOS 3.3 V output or an uncertain 5 V pin to supply the LED strip.
 
-## INMP441
+## Digital microphone
 
-Connect the module as follows:
+The production carrier has an ICS-43434 microphone. Its signals are:
 
 ```text
-INMP441 VDD  -> ESP32 3V3
-INMP441 GND  -> ESP32 GND
-INMP441 SCK  -> ESP32 GPIO26
-INMP441 WS   -> ESP32 GPIO25
-INMP441 SD   -> ESP32 GPIO32
-INMP441 L/R  -> GND
+ICS-43434 VDD  -> ESP32 3V3
+ICS-43434 GND  -> ESP32 GND
+ICS-43434 SCK  -> ESP32 GPIO26
+ICS-43434 WS   -> ESP32 GPIO25
+ICS-43434 SD   -> ESP32 GPIO32
+ICS-43434 L/R  -> GND
 ```
 
-Keep these wires below 100 mm. Put the microphone away from the buzzer and the
-power circuit. Point the acoustic hole at the case microphone hole. Do not
-cover it with glue.
+The microphone is on the lower PCB face. Its acoustic port points through a
+0.5 mm PCB hole to the case top. Align the case microphone hole with this PCB
+hole. Do not cover it with glue, foam, or a label.
+
+An INMP441 module remains suitable for a hand-wired prototype. It uses the
+same SCK, WS, SD, 3.3 V, GND, and L/R signal functions.
 
 The firmware reads both I2S channel slots and uses the slot with the higher
 signal. Keep `L/R` connected to GND for a defined channel and stable operation.
 
 ## SK6812 level circuit
 
-The SK6812 has a 5 V data input. Use an SN74AHCT125N. Do not use a BSS138 I2C
-level shifter. The AHCT input accepts the 3.3 V ESP32 signal when the part has
-a 5 V supply.
+The SK6812 has a 5 V data input. The production carrier uses an
+SN74AHCT125PWR. Do not use a BSS138 I2C level shifter. The AHCT input accepts
+the 3.3 V ESP32 signal when the part has a 5 V supply.
 
 ```text
 SN74AHCT125 pin 14 VCC -> 5 V peripheral rail
@@ -180,26 +184,22 @@ pixel order in `firmware/src/main.cpp` to match the strip data sheet.
 
 ## Buzzer circuit
 
-The passive buzzer gave a clear tone from 3.3 V. The tested 5 V circuit is
-much louder. Use this circuit:
+The production carrier uses a 5 V passive electromagnetic buzzer. Use this
+circuit:
 
 ```text
 5 V peripheral rail -> latching hard switch -> buzzer +
-Buzzer other pin -> 2N3904 collector
-2N3904 emitter -> GND
-ESP32 GPIO23 -> 5.1 kohm -> 2N3904 base
+Buzzer other pin -> MMBT3904 collector
+MMBT3904 emitter -> GND
+ESP32 GPIO23 -> 1 kohm -> MMBT3904 base
+Flyback diode anode -> MMBT3904 collector
+Flyback diode cathode -> switched 5 V
 ```
 
-GPIO23 sends a 2.4 kHz PWM signal. The 5.1 kohm resistor limits the transistor
+GPIO23 sends a 2.4 kHz PWM signal. The 1 kohm resistor limits the transistor
 base current. The switch opens the 5 V buzzer supply, so software cannot
-override it. A flyback diode is not necessary for the tested piezo buzzer.
-
-For a TO-92 2N3904 with its flat face towards you and its legs down, the pins
-are emitter, base, and collector from left to right. Confirm the pin order for
-the part before you solder it. Measure the buzzer current before final
-assembly.
-
-This result applies only to the tested buzzer and 2N3904 circuit.
+override it. D1 absorbs the inductive turn-off pulse from the buzzer coil.
+Measure the buzzer current during the first power test.
 
 ## Controls
 
@@ -220,7 +220,7 @@ The switch does not use a separate ESP32 input.
 2. Measure the boost output. It must be from 4.8 V to 5.3 V.
 3. Test one SK6812 pixel at the 25% brightness limit.
 4. Connect all 10 pixels.
-5. Add the tested passive piezo buzzer, 2N3904, and switch last.
+5. Test the magnetic buzzer, MMBT3904, flyback diode, and switch last.
 6. Measure current in quiet, sample, and alarm states.
 
 Use one common ground for all parts. Test for a short circuit before you

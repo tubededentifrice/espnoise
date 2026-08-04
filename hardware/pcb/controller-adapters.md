@@ -40,11 +40,10 @@ same time. Disconnect J1 before you connect the service USB cable.
 | --- | --- | --- |
 | J1, power input | JST `PHR-2` | 1 `+5V_IN`, 2 `GND` |
 | J3, LED strip | JST `PHR-5` | 1 `+5V` first end, 2 `GND` first end, 3 `DIN`, 4 `+5V` far end, 5 `GND` far end |
-| J4, microphone | JST `PHR-6` | 1 `3V3`, 2 `GND`, 3 `SCK`, 4 `WS`, 5 `SD`, 6 `L/R` to GND |
-| J5, buzzer | JST `PHR-2` | 1 switched `+5V`, 2 transistor collector |
 
-J1, J2, J3, J4, and J5 are mounted on the lower PCB face. Their cable entry
-direction is away from that face. Thus, the installed cables point down.
+J1, J2, and J3 are mounted on the lower PCB face. Their cable entry direction
+is away from that face. Thus, the installed cables point down. The microphone
+and buzzer are on the PCB and do not use cable connectors.
 
 The J3 cable divides power and ground between the two strip ends. Connect pin
 3 only to the first pixel `DIN`. Do not connect it to the far strip end.

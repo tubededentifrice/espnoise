@@ -7,6 +7,12 @@
   pull requests, and comments.
 - After you finish a task, commit and push the changes that you made for that
   task.
+- Work on and commit to `main` unless the user explicitly asks for a different
+  branch. If task changes exist on another branch, reconcile them with `main`
+  and finish the task on `main`.
+- Ask the user when a high-level, user-facing requirement is unclear. Make
+  implementation and other low-level technical decisions independently unless
+  they affect safety or user-facing behavior.
 - Keep battery safety statements clear. Do not recommend loose lithium cells
   for this project.
 - Do not change the assigned GPIO pins without an update to `docs/wiring.md`

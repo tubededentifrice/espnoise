@@ -65,8 +65,8 @@ constexpr size_t kAudioBlockSamples = 256;
 constexpr uint32_t kMicrophoneWarmupMs = 300;
 
 // Listen for K seconds in each N-second period. Save the maximum frame level
-// from each K-second observation. Start the alarm when more than X of the
-// saved observations in the decision window are above a level threshold.
+// from each K-second observation. Start the alarm when at least X percent of
+// the saved observations in the decision window reach a level threshold.
 constexpr uint32_t kSampleDurationMs = ESPNOISE_SAMPLE_DURATION_MS;  // K
 constexpr uint32_t kSamplePeriodMs = ESPNOISE_SAMPLE_PERIOD_MS;      // N
 constexpr uint32_t kDecisionWindowMs = ESPNOISE_DECISION_WINDOW_MS;
@@ -84,13 +84,11 @@ constexpr size_t kMinimumHistorySamples = kHistorySampleCount;
 static_assert(kHistorySampleCount > 0,
               "The decision history must contain at least one observation");
 
-// Use consecutive one-second quiet checks to stop the active alarm. Clear the
-// rolling history after the later fast-rearm window stays quiet.
-constexpr uint32_t kAlarmClearSampleDurationMs = 1000;
+// Active alarms make frequent observations. Each observation replaces the
+// oldest value in the same rolling history that controls the output level.
+constexpr uint32_t kAlarmActiveSampleDurationMs = 1000;
 constexpr uint32_t kAlarmOutputWindowMs = 250;
 constexpr uint32_t kBuzzerSettleMs = 100;
-constexpr uint8_t kQuietSamplesToClear = 2;
-constexpr bool kResetHistoryAfterAlarmClear = true;
 
 // Runtime setting limits. The history allocation is fixed so that a phone
 // cannot cause a dynamic allocation in the detector.
@@ -101,16 +99,6 @@ constexpr uint8_t kMinimumTriggerSamplePercent = 1;
 constexpr uint8_t kMaximumTriggerSamplePercent = 99;
 constexpr uint32_t kMinimumMuteDurationSeconds = 60;
 constexpr uint32_t kMaximumMuteDurationSeconds = 24UL * 60UL * 60UL;
-
-// After an alarm clears, keep making short checks for this time. Noise can
-// restart the alarm after one check without a new full decision history.
-constexpr uint32_t kFastRearmWindowMs = 10UL * 1000UL;
-constexpr uint32_t kFastRearmSampleGapMs = 250;
-
-// A persistent alarm becomes more urgent even when its measured level stays
-// green. Set a value to zero to apply that escalation immediately.
-constexpr uint32_t kEscalateToOrangeMs = 15UL * 1000UL;
-constexpr uint32_t kEscalateToRedMs = 30UL * 1000UL;
 
 // User controls.
 constexpr uint32_t kDefaultMuteDurationSeconds = 30UL * 60UL;

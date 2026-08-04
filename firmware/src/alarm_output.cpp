@@ -137,19 +137,6 @@ const config::AlarmStyle& styleForLevel(AlarmLevel level) {
   return config::kGreenStyle;
 }
 
-AlarmLevel effectiveLevel(AlarmLevel measuredLevel, uint32_t alarmAgeMs) {
-  AlarmLevel timeLevel = AlarmLevel::kGreen;
-  if (alarmAgeMs >= config::kEscalateToRedMs) {
-    timeLevel = AlarmLevel::kRed;
-  } else if (alarmAgeMs >= config::kEscalateToOrangeMs) {
-    timeLevel = AlarmLevel::kOrange;
-  }
-
-  return static_cast<uint8_t>(measuredLevel) >= static_cast<uint8_t>(timeLevel)
-             ? measuredLevel
-             : timeLevel;
-}
-
 bool buzzerPulseActive(const config::AlarmStyle& style,
                        uint32_t patternAgeMs) {
   if (style.buzzerPulseCount == 0 || style.buzzerPulseMs == 0) {
@@ -235,7 +222,7 @@ void off() {
 }
 
 void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
-            AlarmLevel measuredLevel, uint32_t alarmAgeMs,
+            AlarmLevel alarmLevel, uint32_t alarmAgeMs,
             uint32_t patternAgeMs) {
   (void)now;
   if (muted || !alarmActive) {
@@ -244,8 +231,7 @@ void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
   }
 
   enablePeripheralPower();
-  const AlarmLevel level = effectiveLevel(measuredLevel, alarmAgeMs);
-  const config::AlarmStyle& style = styleForLevel(level);
+  const config::AlarmStyle& style = styleForLevel(alarmLevel);
   const uint32_t lightPhase =
       alarmAgeMs % (2 * style.blinkHalfPeriodMs);
   const bool lightOn = lightPhase < style.blinkHalfPeriodMs;

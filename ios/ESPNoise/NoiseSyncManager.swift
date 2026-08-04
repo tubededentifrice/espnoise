@@ -226,16 +226,6 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         }
     }
 
-    func saveDevice(
-        id: UUID,
-        name: String,
-        overrides: DeviceOverrides
-    ) throws {
-        try settingsStore.updateDevice(id: id, name: name, overrides: overrides)
-        publish()
-        if let runtime = runtimes[id] { sendDesired(to: runtime) }
-    }
-
     func saveDeviceOverrides(
         id: UUID,
         overrides: DeviceOverrides

@@ -11,15 +11,16 @@ level ratio = observations at or above the level threshold / saved observations
 ```
 
 The detector requires a complete history before it can start an alarm. It
-checks red first, then orange, then green. A level starts when more than X of
-the saved maxima are at or above that level threshold. With six observations
-and X set to 50%, at least four observations must cross a threshold.
+checks red first, then orange, then green. A level starts when at least X
+percent of the saved maxima are at or above that level threshold. With six
+observations and X set to 50%, at least three observations must cross a
+threshold.
 
-When the alarm is active, a separate quiet rule lets it stop quickly. Two
-consecutive one-second checks must have maxima below the green threshold. The
-firmware then stops the alarm and starts a 10-second fast-rearm window. During
-this window, one new noisy check restarts the alarm. Ten seconds of quiet
-clears the old history and returns the detector to the normal schedule.
+When the alarm is active, the detector makes frequent one-second observations.
+It saves each maximum in the same six-value rolling history. After each
+observation, it checks the Green, Orange, and Red counts again. The highest
+threshold with at least three values sets the output. No single observation
+can change the output to a higher level.
 
 One normal observation cannot start a light or buzzer warning. Only the
 rolling decision can start a warning. Thus, one cough, dropped object, or other
@@ -34,20 +35,15 @@ sporadic sound does not make the sign flash.
 | Decision window | Saved observation history | 60 seconds |
 | History size | Decision window divided by N | 6 observations |
 | Minimum history | Observations required before an alarm | 6 observations |
-| X | Saved maxima required to start | More than 50%, or 4 of 6 |
+| X | Saved maxima required to start | At least 50%, or 3 of 6 |
 | Green threshold | Noise, but not very loud | -55 dBFS |
 | Orange threshold | Loud noise | -48 dBFS |
 | Red threshold | Very loud noise | -42 dBFS |
 | Saved statistic | Value from each observation | Maximum dBFS |
 | Microphone settling time | Ignored time before each observation | 300 ms |
-| Quiet clear rule | Consecutive maxima below green | 2 observations |
-| Alarm clear observation | Active-alarm listening time | 1 second |
+| Active-alarm observation | Listening time during an alarm | 1 second |
 | Output window | Time for the buzzer pattern | 250 ms |
 | Buzzer settling gap | Silence before microphone start | 100 ms |
-| Fast-rearm window | Fast checks after an alarm stops | 10 seconds |
-| Fast-rearm gap | Time between fast checks | 250 ms |
-| Orange time escalation | Persistent alarm becomes at least orange | 15 seconds |
-| Red time escalation | Persistent alarm becomes red | 30 seconds |
 | Frame | One I2S read block | About 8 ms |
 
 The device takes its first observation immediately after startup. It then
@@ -58,18 +54,10 @@ repeats this active-alarm cycle:
 1. Give the level-specific output for 250 ms.
 2. Listen for one second with the buzzer off.
 3. Keep the lights flashing during the check.
-4. Clear the quiet counter if the one-second maximum reaches green.
-5. Stop after two consecutive quiet checks.
-6. Start a 10-second fast-rearm window.
-7. Restart the alarm after one noisy fast-rearm check.
-8. After 10 seconds of quiet, clear the six-value trigger history and return
-   to the normal schedule.
-
-The conservative configured worst time to stop the output is 4.6 seconds after
-continuous noise stops. This includes the rest of a possibly contaminated
-check, the 300 ms microphone settling periods, two quiet checks, and two
-possible 250 ms output windows with 100 ms buzzer settling gaps. The device
-then stays ready for a fast restart for 10 seconds.
+4. Save the maximum and remove the oldest value from the six-value history.
+5. Set the output to the highest threshold that has at least three values.
+6. Stop the alarm when fewer than three values reach Green.
+7. Return to the normal N-second schedule after the alarm stops.
 
 The firmware never commands the buzzer on while an audio check is active. It
 adds the 100 ms settling gap after each buzzer window, starts the microphone,
@@ -79,9 +67,9 @@ noise result.
 
 ## Alarm levels and patterns
 
-The highest rolling threshold with at least four of six observations sets the
-initial alarm level. During an active alarm, each one-second maximum updates
-the measured level when it reaches green, orange, or red.
+The highest rolling threshold with at least three of six observations always
+sets the alarm level. During an active alarm, each one-second maximum replaces
+the oldest value before the firmware calculates the three counts again.
 
 | Level | Light | Buzzer pattern |
 | --- | --- | --- |
@@ -89,10 +77,9 @@ the measured level when it reaches green, orange, or red.
 | Orange | Orange, medium blink | Two notes at 1,500 Hz |
 | Red | Red, fast blink | Three faster notes at 2,400 Hz |
 
-The alarm also becomes more urgent with time. After 15 seconds, its minimum
-level is orange. After 30 seconds, its level is red. A loud sound can select
-orange or red immediately. The buzzer uses the configured 50% electrical tone
-amplitude. The physical switch can disable all buzzer sounds.
+The alarm output uses the rolling level. A Green alarm stays Green while the
+Orange and Red counts stay below the trigger count. The buzzer uses the 50%
+electrical tone amplitude. The physical switch can disable all buzzer sounds.
 
 ## Configuration values
 
@@ -112,29 +99,23 @@ constexpr uint32_t kDecisionWindowMs = 60UL * 1000UL;
 constexpr float kTriggerSampleRatio = 0.50F;            // X
 constexpr size_t kHistorySampleCount = 6;
 constexpr size_t kMinimumHistorySamples = 6;
-constexpr uint32_t kAlarmClearSampleDurationMs = 1000;
+constexpr uint32_t kAlarmActiveSampleDurationMs = 1000;
 constexpr uint32_t kAlarmOutputWindowMs = 250;
 constexpr uint32_t kBuzzerSettleMs = 100;
-constexpr uint8_t kQuietSamplesToClear = 2;
-constexpr bool kResetHistoryAfterAlarmClear = true;
-constexpr uint32_t kFastRearmWindowMs = 10UL * 1000UL;
-constexpr uint32_t kFastRearmSampleGapMs = 250;
-constexpr uint32_t kEscalateToOrangeMs = 15UL * 1000UL;
-constexpr uint32_t kEscalateToRedMs = 30UL * 1000UL;
 constexpr uint8_t kBuzzerVolumePercent = 50;
 ```
 
 K must be greater than zero and must not be greater than N. The decision window
 must be a multiple of N. The compiled X ratio is from zero through one. The
 runtime X value is an integer percent from 1 through 99. The thresholds must
-increase from green to orange to red. The firmware checks these limits, the
-buzzer pattern duration, and the five-second clear-time limit at startup.
+increase from green to orange to red. The firmware checks these limits and the
+buzzer pattern duration at startup.
 
 ## Why this rule helps
 
 A short event can make one saved maximum high. It cannot start the alarm by
-itself because four of six saved maxima must be high. Sustained loud speech or
-other repeated noise is more likely to affect four observations and start the
+itself because three of six saved maxima must be high. Sustained loud speech or
+other repeated noise is more likely to affect three observations and start the
 warning.
 
 The default schedule observes only one second in every ten seconds. It can miss
@@ -155,7 +136,7 @@ the maximum with a 90th-percentile observation value.
 4. Read the level during a quiet sample.
 5. Record six observations in a normal quiet room.
 6. Make one short loud sound and confirm that it does not start the alarm.
-7. Make sustained coworking noise through at least four observations.
+7. Make sustained coworking noise through at least three observations.
 8. Compare the saved green, orange, and red percentages.
 9. Adjust the thresholds, observation period, and X.
 10. Connect the LED circuit and repeat the test.
@@ -200,7 +181,7 @@ After review of the test, the selected thresholds are -55 dBFS for green,
 -48 dBFS for orange, and -42 dBFS for red.
 
 The green and orange ranges overlap. The rolling decision limits the effect of
-one short peak because at least four of six observations must cross a
+one short peak because at least three of six observations must cross a
 threshold. Check the levels again during a normal coworking test.
 
 ## Mute and buzzer controls

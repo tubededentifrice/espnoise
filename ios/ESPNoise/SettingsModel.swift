@@ -141,7 +141,7 @@ enum ThresholdSliderScale {
     }
 }
 
-struct NoiseSettings: Codable, Equatable, Sendable {
+struct NoiseSettings: Codable, Equatable, Hashable, Sendable {
     var brightnessPercent: UInt8 = 100
     var buzzerPercent: UInt8 = 50
     var greenThresholdTenths: Int16 = -550
@@ -154,7 +154,7 @@ struct NoiseSettings: Codable, Equatable, Sendable {
     var muteDurationSeconds: UInt32 = 1_800
 }
 
-struct DeviceOverrides: Codable, Equatable, Sendable {
+struct DeviceOverrides: Codable, Equatable, Hashable, Sendable {
     var brightnessPercent: UInt8?
     var buzzerPercent: UInt8?
     var greenThresholdTenths: Int16?
@@ -277,6 +277,12 @@ enum NoiseSettingsValidationError: LocalizedError, Equatable {
 }
 
 extension NoiseSettings {
+    var requiredTriggerSampleCount: UInt32 {
+        guard samplePeriodMilliseconds > 0 else { return 0 }
+        let historyCount = decisionWindowMilliseconds / samplePeriodMilliseconds
+        return (historyCount * UInt32(triggerPercent) + 99) / 100
+    }
+
     func validated() throws -> NoiseSettings {
         guard brightnessPercent <= 100, buzzerPercent <= 100,
               triggerPercent >= 1, triggerPercent <= 99 else {
@@ -303,8 +309,7 @@ extension NoiseSettings {
         guard historyCount > 0, historyCount <= 120 else {
             throw NoiseSettingsValidationError.historySize
         }
-        let requiredSamples = historyCount * UInt32(triggerPercent) / 100 + 1
-        guard requiredSamples >= 2 else {
+        guard requiredTriggerSampleCount >= 2 else {
             throw NoiseSettingsValidationError.sporadicTrigger
         }
         guard (60...86_400).contains(muteDurationSeconds) else {

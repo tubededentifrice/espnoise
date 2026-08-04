@@ -428,7 +428,7 @@ private struct SettingsControls: View {
                 )
                 SettingSlider(
                     title: "Trigger level",
-                    valueText: "More than \(settings.triggerPercent)%",
+                    valueText: "At least \(settings.triggerPercent)%",
                     value: uint8(\.triggerPercent),
                     range: Double(minimumTriggerPercent)...99,
                     step: 1
