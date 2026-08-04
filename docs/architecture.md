@@ -46,8 +46,7 @@ stateDiagram-v2
   History --> Wait: No threshold has at least X percent
   Wait --> Observation: N-second period starts
   AlarmOutput --> Recheck: 250 ms output ends
-  Recheck --> AlarmOutput: Maximum reaches green, or fewer than two quiet checks
-  Recheck --> Wait: Two consecutive quiet checks; reset history
+  Recheck --> History: Save maximum and remove oldest value
   Wait --> Muted: Mute button is pressed
   AlarmOutput --> Muted: Mute button is pressed
   Recheck --> Muted: Mute button is pressed
@@ -66,9 +65,9 @@ saved one-second maxima must cross a threshold to start its level.
 | Orange | -48 dBFS | Medium orange blink | Two warning notes |
 | Red | -42 dBFS | Fast red blink | Three warning notes |
 
-During an active alarm, each one-second maximum can update the measured level.
-The output color stays at that measured level. Two consecutive quiet checks
-clear the alarm within the configured five-second limit.
+During an active alarm, each one-second maximum enters the rolling history.
+The highest threshold with at least three values sets the output color. The
+alarm stops when fewer than three values reach Green.
 
 The brightness limit applies after the color is set. The tested USB-powered
 `esp32dev` profile uses 100%. The untested battery profile stays at 25%.

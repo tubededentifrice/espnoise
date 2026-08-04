@@ -222,7 +222,7 @@ void off() {
 }
 
 void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
-            AlarmLevel measuredLevel, uint32_t alarmAgeMs,
+            AlarmLevel alarmLevel, uint32_t alarmAgeMs,
             uint32_t patternAgeMs) {
   (void)now;
   if (muted || !alarmActive) {
@@ -231,7 +231,7 @@ void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
   }
 
   enablePeripheralPower();
-  const config::AlarmStyle& style = styleForLevel(measuredLevel);
+  const config::AlarmStyle& style = styleForLevel(alarmLevel);
   const uint32_t lightPhase =
       alarmAgeMs % (2 * style.blinkHalfPeriodMs);
   const bool lightOn = lightPhase < style.blinkHalfPeriodMs;

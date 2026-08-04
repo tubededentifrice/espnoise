@@ -83,7 +83,8 @@ Each device has a separate page for its live measurement graph, rolling alarm
 counts, overrides, effective values, manual synchronization, and removal. The
 graph uses the same positive 0-through-120 scale as the threshold controls.
 It keeps up to five minutes of observation maxima in app memory. It does not
-save this history or raw audio.
+save this history or raw audio. The alarm uses the highest color whose rolling
+count reaches the required value.
 
 The app has no configured device-count limit. The practical count of active
 Bluetooth connections depends on iOS, the radio environment, and the distance

@@ -16,11 +16,11 @@ percent of the saved maxima are at or above that level threshold. With six
 observations and X set to 50%, at least three observations must cross a
 threshold.
 
-When the alarm is active, a separate quiet rule lets it stop quickly. Two
-consecutive one-second checks must have maxima below the green threshold. The
-firmware then stops the alarm and starts a 10-second fast-rearm window. During
-this window, one new noisy check restarts the alarm. Ten seconds of quiet
-clears the old history and returns the detector to the normal schedule.
+When the alarm is active, the detector makes frequent one-second observations.
+It saves each maximum in the same six-value rolling history. After each
+observation, it checks the Green, Orange, and Red counts again. The highest
+threshold with at least three values sets the output. No single observation
+can change the output to a higher level.
 
 One normal observation cannot start a light or buzzer warning. Only the
 rolling decision can start a warning. Thus, one cough, dropped object, or other
@@ -41,12 +41,9 @@ sporadic sound does not make the sign flash.
 | Red threshold | Very loud noise | -42 dBFS |
 | Saved statistic | Value from each observation | Maximum dBFS |
 | Microphone settling time | Ignored time before each observation | 300 ms |
-| Quiet clear rule | Consecutive maxima below green | 2 observations |
-| Alarm clear observation | Active-alarm listening time | 1 second |
+| Active-alarm observation | Listening time during an alarm | 1 second |
 | Output window | Time for the buzzer pattern | 250 ms |
 | Buzzer settling gap | Silence before microphone start | 100 ms |
-| Fast-rearm window | Fast checks after an alarm stops | 10 seconds |
-| Fast-rearm gap | Time between fast checks | 250 ms |
 | Frame | One I2S read block | About 8 ms |
 
 The device takes its first observation immediately after startup. It then
@@ -57,18 +54,10 @@ repeats this active-alarm cycle:
 1. Give the level-specific output for 250 ms.
 2. Listen for one second with the buzzer off.
 3. Keep the lights flashing during the check.
-4. Clear the quiet counter if the one-second maximum reaches green.
-5. Stop after two consecutive quiet checks.
-6. Start a 10-second fast-rearm window.
-7. Restart the alarm after one noisy fast-rearm check.
-8. After 10 seconds of quiet, clear the six-value trigger history and return
-   to the normal schedule.
-
-The conservative configured worst time to stop the output is 4.6 seconds after
-continuous noise stops. This includes the rest of a possibly contaminated
-check, the 300 ms microphone settling periods, two quiet checks, and two
-possible 250 ms output windows with 100 ms buzzer settling gaps. The device
-then stays ready for a fast restart for 10 seconds.
+4. Save the maximum and remove the oldest value from the six-value history.
+5. Set the output to the highest threshold that has at least three values.
+6. Stop the alarm when fewer than three values reach Green.
+7. Return to the normal N-second schedule after the alarm stops.
 
 The firmware never commands the buzzer on while an audio check is active. It
 adds the 100 ms settling gap after each buzzer window, starts the microphone,
@@ -78,9 +67,9 @@ noise result.
 
 ## Alarm levels and patterns
 
-The highest rolling threshold with at least three of six observations sets the
-initial alarm level. During an active alarm, each one-second maximum updates
-the measured level when it reaches green, orange, or red.
+The highest rolling threshold with at least three of six observations always
+sets the alarm level. During an active alarm, each one-second maximum replaces
+the oldest value before the firmware calculates the three counts again.
 
 | Level | Light | Buzzer pattern |
 | --- | --- | --- |
@@ -88,10 +77,9 @@ the measured level when it reaches green, orange, or red.
 | Orange | Orange, medium blink | Two notes at 1,500 Hz |
 | Red | Red, fast blink | Three faster notes at 2,400 Hz |
 
-The alarm output uses the measured level. A Green alarm stays Green while the
-Orange and Red counts stay below the trigger count. The buzzer uses the
-configured 50% electrical tone amplitude. The physical switch can disable all
-buzzer sounds.
+The alarm output uses the rolling level. A Green alarm stays Green while the
+Orange and Red counts stay below the trigger count. The buzzer uses the 50%
+electrical tone amplitude. The physical switch can disable all buzzer sounds.
 
 ## Configuration values
 
@@ -111,21 +99,17 @@ constexpr uint32_t kDecisionWindowMs = 60UL * 1000UL;
 constexpr float kTriggerSampleRatio = 0.50F;            // X
 constexpr size_t kHistorySampleCount = 6;
 constexpr size_t kMinimumHistorySamples = 6;
-constexpr uint32_t kAlarmClearSampleDurationMs = 1000;
+constexpr uint32_t kAlarmActiveSampleDurationMs = 1000;
 constexpr uint32_t kAlarmOutputWindowMs = 250;
 constexpr uint32_t kBuzzerSettleMs = 100;
-constexpr uint8_t kQuietSamplesToClear = 2;
-constexpr bool kResetHistoryAfterAlarmClear = true;
-constexpr uint32_t kFastRearmWindowMs = 10UL * 1000UL;
-constexpr uint32_t kFastRearmSampleGapMs = 250;
 constexpr uint8_t kBuzzerVolumePercent = 50;
 ```
 
 K must be greater than zero and must not be greater than N. The decision window
 must be a multiple of N. The compiled X ratio is from zero through one. The
 runtime X value is an integer percent from 1 through 99. The thresholds must
-increase from green to orange to red. The firmware checks these limits, the
-buzzer pattern duration, and the five-second clear-time limit at startup.
+increase from green to orange to red. The firmware checks these limits and the
+buzzer pattern duration at startup.
 
 ## Why this rule helps
 

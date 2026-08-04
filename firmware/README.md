@@ -150,11 +150,9 @@ The main compiled values are:
 - `kDecisionWindowMs`: rolling history time
 - `kTriggerSampleRatio`: saved maxima ratio X
 - `kHistorySampleCount` and `kMinimumHistorySamples`: history requirements
-- `kAlarmClearSampleDurationMs`, `kAlarmOutputWindowMs`, and
-  `kQuietSamplesToClear`: active-alarm clear behavior
+- `kAlarmActiveSampleDurationMs` and `kAlarmOutputWindowMs`: active-alarm
+  observation and output timing
 - `kBuzzerSettleMs`: silent time between a buzzer pattern and microphone start
-- `kFastRearmWindowMs` and `kFastRearmSampleGapMs`: quick restart checks after
-  an alarm stops
 - `kGreenStyle`, `kOrangeStyle`, and `kRedStyle`: colors, blink rates, and
   buzzer patterns
 - `kLedCount`: number of pixels in the data chain
@@ -180,8 +178,9 @@ level=-53.2 dBFS max=-41.7 dBFS frames=63 mute=off
 ```
 
 It prints the saved-history count and green, orange, and red observation
-percentages after each normal observation. One high observation does not show
-a warning. The complete decision history must start an alarm. The firmware
+percentages after each observation. One high observation does not show a
+warning or change the alarm to a higher level. The complete decision history
+controls the alarm. The firmware
 does not use application light sleep while BLE is active. This keeps
 advertising and connected control available. The NimBLE controller can use its
 own modem sleep. The battery profile also turns off the 5 V boost when the

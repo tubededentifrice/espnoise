@@ -929,7 +929,7 @@ private struct LiveNoisePanel: View {
                     Spacer()
                     countItem("Red", status.redSampleCount, color: .red)
                 }
-                Text("History: \(status.historyCount) of \(historyCapacity) observations. After the history is full, an alarm starts when \(requiredCount) observations reach the same threshold.")
+                Text("History: \(status.historyCount) of \(historyCapacity) observations. The alarm uses the highest color with at least \(requiredCount) observations at its threshold.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if device.latestStatus != nil {

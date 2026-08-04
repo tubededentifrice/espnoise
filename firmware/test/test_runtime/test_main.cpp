@@ -229,6 +229,62 @@ void testDetectorUsesInclusiveTriggerPercent() {
   TEST_ASSERT_EQUAL_UINT(1, detector.historyCount());
 }
 
+void testRollingCountsControlEveryLevelChange() {
+  RuntimeSettings settings;
+  settings.sampleDurationMs = 1000;
+  settings.samplePeriodMs = 1000;
+  settings.decisionWindowMs = 6000;
+  settings.triggerSamplePercent = 50;
+  NoiseDetector detector;
+  detector.setSettings(settings);
+
+  addSample(detector, -54.0F);
+  addSample(detector, -54.0F);
+  addSample(detector, -54.0F);
+  addSample(detector, -60.0F);
+  addSample(detector, -60.0F);
+  addSample(detector, -60.0F);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kGreen),
+                        static_cast<int>(detector.historyAlarmLevel()));
+
+  addSample(detector, -40.0F);
+  TEST_ASSERT_EQUAL_UINT(3, detector.greenSampleCount());
+  TEST_ASSERT_EQUAL_UINT(1, detector.orangeSampleCount());
+  TEST_ASSERT_EQUAL_UINT(1, detector.redSampleCount());
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kGreen),
+                        static_cast<int>(detector.historyAlarmLevel()));
+
+  addSample(detector, -40.0F);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kGreen),
+                        static_cast<int>(detector.historyAlarmLevel()));
+  addSample(detector, -40.0F);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kRed),
+                        static_cast<int>(detector.historyAlarmLevel()));
+}
+
+void testMixedThresholdObservationsSelectGreen() {
+  RuntimeSettings settings;
+  settings.sampleDurationMs = 1000;
+  settings.samplePeriodMs = 1000;
+  settings.decisionWindowMs = 6000;
+  settings.triggerSamplePercent = 50;
+  NoiseDetector detector;
+  detector.setSettings(settings);
+
+  addSample(detector, -54.0F);
+  addSample(detector, -47.0F);
+  addSample(detector, -40.0F);
+  addSample(detector, -60.0F);
+  addSample(detector, -60.0F);
+  addSample(detector, -60.0F);
+
+  TEST_ASSERT_EQUAL_UINT(3, detector.greenSampleCount());
+  TEST_ASSERT_EQUAL_UINT(2, detector.orangeSampleCount());
+  TEST_ASSERT_EQUAL_UINT(1, detector.redSampleCount());
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(AlarmLevel::kGreen),
+                        static_cast<int>(detector.historyAlarmLevel()));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -241,5 +297,7 @@ int main(int argc, char** argv) {
   RUN_TEST(testDeviceNamePacketValidation);
   RUN_TEST(testLimitsRejectInvalidRelatedValues);
   RUN_TEST(testDetectorUsesInclusiveTriggerPercent);
+  RUN_TEST(testRollingCountsControlEveryLevelChange);
+  RUN_TEST(testMixedThresholdObservationsSelectGreen);
   return UNITY_END();
 }
