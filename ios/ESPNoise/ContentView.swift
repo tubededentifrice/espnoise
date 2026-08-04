@@ -24,8 +24,6 @@ struct ContentView: View {
                     Button("Add Device", systemImage: "plus.circle") {
                         syncManager.addDevice()
                     }
-                    LabeledContent("Setup", value: syncManager.setupText)
-                        .font(.caption)
                 }
 
                 Section("Devices") {
@@ -136,8 +134,6 @@ struct GlobalSettingsView: View {
                     errorText = nil
                     resetText = "Default values save automatically. Device overrides stay unchanged."
                 }
-            } footer: {
-                Text("Valid changes save automatically. The app synchronizes each device that uses the changed value when it is in range.")
             }
         }
         .navigationTitle("Global Settings")
@@ -241,8 +237,6 @@ struct DeviceSettingsView: View {
                     }
                 }
                 Button("Remove Device", role: .destructive) { showRemove = true }
-            } footer: {
-                Text("Valid changes save automatically and synchronize when the device is in range.")
             }
         }
         .navigationTitle(name.isEmpty ? "Device" : name)
@@ -880,12 +874,7 @@ private struct LiveNoisePanel: View {
                 .accessibilityLabel("Recent positive noise measurements and alarm thresholds")
 
                 thresholdLegend
-                if !rulesAreCurrent {
-                    Text("The threshold lines are a preview. Wait for automatic synchronization before you use the device counts.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                historySummary
+                historyCounts
             } else {
                 ContentUnavailableView {
                     Label("Waiting for a measurement", systemImage: "waveform")
@@ -919,27 +908,16 @@ private struct LiveNoisePanel: View {
         }
     }
 
-    private var historySummary: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let status = device.latestStatus, rulesAreCurrent {
-                HStack {
-                    countItem("Green", status.greenSampleCount, color: .green)
-                    Spacer()
-                    countItem("Orange", status.orangeSampleCount, color: .orange)
-                    Spacer()
-                    countItem("Red", status.redSampleCount, color: .red)
-                }
-                Text("History: \(status.historyCount) of \(historyCapacity) observations. The alarm uses the highest color with at least \(requiredCount) observations at its threshold.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if device.latestStatus != nil {
-                Text("Device counts are hidden until the saved settings synchronize.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    @ViewBuilder
+    private var historyCounts: some View {
+        if let status = device.latestStatus, rulesAreCurrent {
+            HStack {
+                countItem("Green", status.greenSampleCount, color: .green)
+                Spacer()
+                countItem("Orange", status.orangeSampleCount, color: .orange)
+                Spacer()
+                countItem("Red", status.redSampleCount, color: .red)
             }
-            Text("The positive level is relative to the digital microphone. It is not calibrated dB SPL. No audio is sent to the phone.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -977,10 +955,6 @@ private struct LiveNoisePanel: View {
         guard settings.samplePeriodMilliseconds > 0 else { return 0 }
         return Int(settings.decisionWindowMilliseconds /
                    settings.samplePeriodMilliseconds)
-    }
-
-    private var requiredCount: Int {
-        Int(settings.requiredTriggerSampleCount)
     }
 
     private func levelReached(_ level: Double) -> String {

@@ -45,9 +45,9 @@ calibrated dB SPL. The app keeps these thresholds in color order while the
 user moves a slider.
 
 The top of each device page graphs live observation maxima against the three
-thresholds. It also shows how many saved observations reached each threshold
-and how many are required to start an alarm. This short graph history stays in
-app memory only. The phone does not receive raw microphone audio.
+thresholds. It also shows how many saved observations reached each threshold.
+This short graph history stays in app memory only. The phone does not receive
+raw microphone audio.
 
 ## Sync rules
 
