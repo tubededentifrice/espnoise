@@ -58,8 +58,7 @@ stateDiagram-v2
 ## Alarm result
 
 Separate dBFS thresholds control the alarm level. At least three of the six
-saved one-second maxima must cross a threshold to start its level. A sustained
-alarm also becomes more urgent with time.
+saved one-second maxima must cross a threshold to start its level.
 
 | Level | Default threshold | Light | Buzzer |
 | --- | ---: | --- | --- |
@@ -67,10 +66,9 @@ alarm also becomes more urgent with time.
 | Orange | -48 dBFS | Medium orange blink | Two warning notes |
 | Red | -42 dBFS | Fast red blink | Three warning notes |
 
-After 15 seconds, the minimum alarm level is orange. After 30 seconds, it is
-red. During an active alarm, each one-second maximum can update the level.
-Two consecutive quiet checks clear the alarm within the configured
-five-second limit.
+During an active alarm, each one-second maximum can update the measured level.
+The output color stays at that measured level. Two consecutive quiet checks
+clear the alarm within the configured five-second limit.
 
 The brightness limit applies after the color is set. The tested USB-powered
 `esp32dev` profile uses 100%. The untested battery profile stays at 25%.

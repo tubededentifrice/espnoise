@@ -419,7 +419,6 @@ void setup() {
       config::kGreenThresholdDbfsX10 >=
           config::kOrangeThresholdDbfsX10 ||
       config::kOrangeThresholdDbfsX10 >= config::kRedThresholdDbfsX10 ||
-      config::kEscalateToOrangeMs > config::kEscalateToRedMs ||
       config::buzzerPatternDurationMs(config::kOrangeStyle) >
           config::kAlarmOutputWindowMs ||
       config::buzzerPatternDurationMs(config::kRedStyle) >

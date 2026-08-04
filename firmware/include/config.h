@@ -107,11 +107,6 @@ constexpr uint32_t kMaximumMuteDurationSeconds = 24UL * 60UL * 60UL;
 constexpr uint32_t kFastRearmWindowMs = 10UL * 1000UL;
 constexpr uint32_t kFastRearmSampleGapMs = 250;
 
-// A persistent alarm becomes more urgent even when its measured level stays
-// green. Set a value to zero to apply that escalation immediately.
-constexpr uint32_t kEscalateToOrangeMs = 15UL * 1000UL;
-constexpr uint32_t kEscalateToRedMs = 30UL * 1000UL;
-
 // User controls.
 constexpr uint32_t kDefaultMuteDurationSeconds = 30UL * 60UL;
 constexpr uint32_t kButtonDebounceMs = 35;

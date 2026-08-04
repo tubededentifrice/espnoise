@@ -155,7 +155,6 @@ The main compiled values are:
 - `kBuzzerSettleMs`: silent time between a buzzer pattern and microphone start
 - `kFastRearmWindowMs` and `kFastRearmSampleGapMs`: quick restart checks after
   an alarm stops
-- `kEscalateToOrangeMs` and `kEscalateToRedMs`: time escalation
 - `kGreenStyle`, `kOrangeStyle`, and `kRedStyle`: colors, blink rates, and
   buzzer patterns
 - `kLedCount`: number of pixels in the data chain

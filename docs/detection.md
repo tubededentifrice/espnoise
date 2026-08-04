@@ -47,8 +47,6 @@ sporadic sound does not make the sign flash.
 | Buzzer settling gap | Silence before microphone start | 100 ms |
 | Fast-rearm window | Fast checks after an alarm stops | 10 seconds |
 | Fast-rearm gap | Time between fast checks | 250 ms |
-| Orange time escalation | Persistent alarm becomes at least orange | 15 seconds |
-| Red time escalation | Persistent alarm becomes red | 30 seconds |
 | Frame | One I2S read block | About 8 ms |
 
 The device takes its first observation immediately after startup. It then
@@ -90,10 +88,10 @@ the measured level when it reaches green, orange, or red.
 | Orange | Orange, medium blink | Two notes at 1,500 Hz |
 | Red | Red, fast blink | Three faster notes at 2,400 Hz |
 
-The alarm also becomes more urgent with time. After 15 seconds, its minimum
-level is orange. After 30 seconds, its level is red. A loud sound can select
-orange or red immediately. The buzzer uses the configured 50% electrical tone
-amplitude. The physical switch can disable all buzzer sounds.
+The alarm output uses the measured level. A Green alarm stays Green while the
+Orange and Red counts stay below the trigger count. The buzzer uses the
+configured 50% electrical tone amplitude. The physical switch can disable all
+buzzer sounds.
 
 ## Configuration values
 
@@ -120,8 +118,6 @@ constexpr uint8_t kQuietSamplesToClear = 2;
 constexpr bool kResetHistoryAfterAlarmClear = true;
 constexpr uint32_t kFastRearmWindowMs = 10UL * 1000UL;
 constexpr uint32_t kFastRearmSampleGapMs = 250;
-constexpr uint32_t kEscalateToOrangeMs = 15UL * 1000UL;
-constexpr uint32_t kEscalateToRedMs = 30UL * 1000UL;
 constexpr uint8_t kBuzzerVolumePercent = 50;
 ```
 
