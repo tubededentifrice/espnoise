@@ -310,6 +310,41 @@ final class PacketCodecTests: XCTestCase {
 
     func testAnalyticsPacketHasExactLayoutAndRequest() throws {
         let bytes: [UInt8] = [
+            2, 0,
+            0x78, 0x56, 0x34, 0x12,
+            0x00, 0xF1, 0x53, 0x65,
+            0x84, 0x03,
+            0x8A, 0x02,
+            0x84, 0x03,
+            60, 24, 6, 0,
+        ]
+        let packet = try AnalyticsPacketCodec.decode(Data(bytes))
+        XCTAssertEqual(packet.protocolVersion, 2)
+        XCTAssertEqual(packet.sequence, 0x1234_5678)
+        XCTAssertEqual(packet.startUtcSeconds, 1_700_000_000)
+        XCTAssertNil(packet.ageBuckets)
+        XCTAssertEqual(packet.durationSeconds, 900)
+        XCTAssertEqual(packet.meanLevel, 65)
+        XCTAssertEqual(packet.peakLevel, 90)
+        XCTAssertEqual(packet.greenSeconds, 300)
+        XCTAssertEqual(packet.orangeSeconds, 120)
+        XCTAssertEqual(packet.redSeconds, 30)
+        XCTAssertFalse(packet.isPartial)
+
+        XCTAssertEqual(
+            [UInt8](AnalyticsPacketCodec.request(
+                after: 0x1234_5678,
+                currentDate: Date(timeIntervalSince1970: 1_700_000_000)
+            )),
+            [
+                2, 1, 0x78, 0x56, 0x34, 0x12,
+                0x00, 0xF1, 0x53, 0x65, 0, 0,
+            ]
+        )
+    }
+
+    func testAnalyticsPacketReadsLegacyFirmwareAndRequest() throws {
+        let bytes: [UInt8] = [
             1, 0,
             0x78, 0x56, 0x34, 0x12,
             2, 0,
@@ -321,29 +356,28 @@ final class PacketCodecTests: XCTestCase {
             30, 0,
         ]
         let packet = try AnalyticsPacketCodec.decode(Data(bytes))
-        XCTAssertEqual(packet.sequence, 0x1234_5678)
+        XCTAssertEqual(packet.protocolVersion, 1)
         XCTAssertEqual(packet.ageBuckets, 2)
-        XCTAssertEqual(packet.durationSeconds, 900)
-        XCTAssertEqual(packet.meanLevel, 65)
-        XCTAssertEqual(packet.peakLevel, 90)
+        XCTAssertEqual(packet.startUtcSeconds, 0)
         XCTAssertEqual(packet.greenSeconds, 300)
         XCTAssertEqual(packet.orangeSeconds, 120)
         XCTAssertEqual(packet.redSeconds, 30)
-        XCTAssertFalse(packet.isPartial)
-
         XCTAssertEqual(
-            [UInt8](AnalyticsPacketCodec.request(after: 0x1234_5678)),
+            [UInt8](AnalyticsPacketCodec.legacyRequest(after: 0x1234_5678)),
             [1, 1, 0x78, 0x56, 0x34, 0x12, 0, 0]
         )
     }
 
     func testAnalyticsPacketRejectsImpossibleStateTime() {
         var bytes = [UInt8](repeating: 0, count: 20)
-        bytes[0] = 1
+        bytes[0] = 2
         bytes[2] = 1
-        bytes[6] = 1
-        bytes[8] = 10
-        bytes[14] = 11
+        bytes[6] = 0x00
+        bytes[7] = 0xF1
+        bytes[8] = 0x53
+        bytes[9] = 0x65
+        bytes[10] = 10
+        bytes[16] = 3
         XCTAssertThrowsError(try AnalyticsPacketCodec.decode(Data(bytes)))
     }
 

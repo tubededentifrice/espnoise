@@ -13,9 +13,6 @@ struct ContentView: View {
                     } label: {
                         Label("Noise Analytics", systemImage: "chart.xyaxis.line")
                     }
-                    Text("Review private 15-minute summaries for one device, a group, or the full office.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 Section("Global Settings") {

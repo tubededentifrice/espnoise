@@ -78,13 +78,29 @@ struct AnalyticsView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Noise Analytics")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showsDeviceSelector) {
+        .sheet(
+            isPresented: $showsDeviceSelector,
+            onDismiss: { syncSelectedDevices() }
+        ) {
             AnalyticsDeviceSelector(
                 devices: syncManager.devices,
                 selectedDeviceIDs: $selectedDeviceIDs
             )
         }
-        .onAppear { initializeSelectionIfNeeded() }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Sync analytics", systemImage: "arrow.clockwise") {
+                    syncSelectedDevices()
+                }
+            }
+        }
+        .refreshable {
+            syncSelectedDevices()
+        }
+        .onAppear {
+            initializeSelectionIfNeeded()
+            syncSelectedDevices()
+        }
         .onChange(of: syncManager.devices.map(\.id)) { oldIDs, ids in
             let selectedAllPreviousDevices =
                 selectedDeviceIDs == Set(oldIDs) && !oldIDs.isEmpty
@@ -263,7 +279,7 @@ struct AnalyticsView: View {
             Label("Private, aggregated data", systemImage: "lock.shield")
                 .font(.subheadline.weight(.semibold))
             Text(
-                "A device keeps at most 72 hours of 15-minute summaries. The phone keeps at most 30 days. The values are relative levels, not certified dBA. No raw microphone audio is saved or sent."
+                "A device keeps at most 72 hours of 15-minute summaries. The phone keeps at most 30 days. No raw microphone audio is saved or sent."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -302,6 +318,10 @@ struct AnalyticsView: View {
         guard !selectionWasInitialized else { return }
         selectedDeviceIDs = Set(syncManager.devices.map(\.id))
         selectionWasInitialized = true
+    }
+
+    private func syncSelectedDevices() {
+        syncManager.syncAnalytics(deviceIDs: selectedDeviceIDs)
     }
 
     private func levelColor(_ level: Double) -> Color {

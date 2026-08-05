@@ -346,11 +346,20 @@ void updateAnalytics(uint32_t now) {
 
 void updateAnalyticsSync(uint32_t now) {
   uint32_t requestedAfterSequence = 0;
-  if (ble_service::takeAnalyticsRequest(requestedAfterSequence)) {
+  uint32_t currentUtcSeconds = 0;
+  if (ble_service::takeAnalyticsRequest(requestedAfterSequence,
+                                        currentUtcSeconds)) {
+    if (!analyticsHistory.syncUtcTime(currentUtcSeconds)) {
+      Serial.println("ERROR: Analytics UTC time is invalid");
+      return;
+    }
     analyticsAfterSequence = requestedAfterSequence;
     analyticsSyncCursor = 0;
     analyticsCurrentIsPending = true;
     analyticsSyncIsActive = true;
+    Serial.printf("Analytics sync requested: after=%lu utc=%lu\n",
+                  static_cast<unsigned long>(requestedAfterSequence),
+                  static_cast<unsigned long>(currentUtcSeconds));
   }
   if (!analyticsSyncIsActive || now - lastAnalyticsNotifyMs < 60) {
     return;

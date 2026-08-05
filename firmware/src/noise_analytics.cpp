@@ -6,7 +6,7 @@
 namespace noise_analytics {
 namespace {
 
-constexpr uint8_t kStorageMagic[] = {'E', 'N', 'A', '1'};
+constexpr uint8_t kStorageMagic[] = {'E', 'N', 'A', '2'};
 constexpr uint8_t kBucketsPerPersistence = 4;
 
 void put16(uint16_t value, size_t offset, uint8_t* bytes) {
@@ -39,6 +39,8 @@ bool bucketIsValid(const Bucket& bucket) {
       static_cast<uint32_t>(bucket.greenSeconds) + bucket.orangeSeconds +
       bucket.redSeconds;
   return bucket.sequence != 0 &&
+         (bucket.startUtcSeconds == 0 ||
+          bucket.startUtcSeconds >= kMinimumUtcTime) &&
          bucket.durationSeconds <= kBucketDurationSeconds &&
          bucket.meanPositiveLevelX10 <= 1200 &&
          bucket.peakPositiveLevelX10 <= 1200 &&
@@ -48,39 +50,43 @@ bool bucketIsValid(const Bucket& bucket) {
 
 void encodeBucket(const Bucket& bucket, uint8_t* bytes) {
   put32(bucket.sequence, 0, bytes);
-  put16(bucket.durationSeconds, 4, bytes);
-  put16(bucket.meanPositiveLevelX10, 6, bytes);
-  put16(bucket.peakPositiveLevelX10, 8, bytes);
-  put16(bucket.greenSeconds, 10, bytes);
-  put16(bucket.orangeSeconds, 12, bytes);
-  put16(bucket.redSeconds, 14, bytes);
+  put32(bucket.startUtcSeconds, 4, bytes);
+  put16(bucket.durationSeconds, 8, bytes);
+  put16(bucket.meanPositiveLevelX10, 10, bytes);
+  put16(bucket.peakPositiveLevelX10, 12, bytes);
+  put16(bucket.greenSeconds, 14, bytes);
+  put16(bucket.orangeSeconds, 16, bytes);
+  put16(bucket.redSeconds, 18, bytes);
 }
 
 Bucket decodeBucket(const uint8_t* bytes) {
   Bucket bucket;
   bucket.sequence = get32(bytes, 0);
-  bucket.durationSeconds = get16(bytes, 4);
-  bucket.meanPositiveLevelX10 = get16(bytes, 6);
-  bucket.peakPositiveLevelX10 = get16(bytes, 8);
-  bucket.greenSeconds = get16(bytes, 10);
-  bucket.orangeSeconds = get16(bytes, 12);
-  bucket.redSeconds = get16(bytes, 14);
+  bucket.startUtcSeconds = get32(bytes, 4);
+  bucket.durationSeconds = get16(bytes, 8);
+  bucket.meanPositiveLevelX10 = get16(bytes, 10);
+  bucket.peakPositiveLevelX10 = get16(bytes, 12);
+  bucket.greenSeconds = get16(bytes, 14);
+  bucket.orangeSeconds = get16(bytes, 16);
+  bucket.redSeconds = get16(bytes, 18);
   return bucket;
 }
 
-Packet encodePacket(const Bucket& bucket, uint8_t flags,
-                    uint16_t ageBuckets) {
+Packet encodePacket(const Bucket& bucket, uint8_t flags) {
   Packet packet{};
   packet[0] = kProtocolVersion;
   packet[1] = flags;
   put32(bucket.sequence, 2, packet.data());
-  put16(ageBuckets, 6, packet.data());
-  put16(bucket.durationSeconds, 8, packet.data());
-  put16(bucket.meanPositiveLevelX10, 10, packet.data());
-  put16(bucket.peakPositiveLevelX10, 12, packet.data());
-  put16(bucket.greenSeconds, 14, packet.data());
-  put16(bucket.orangeSeconds, 16, packet.data());
-  put16(bucket.redSeconds, 18, packet.data());
+  put32(bucket.startUtcSeconds, 6, packet.data());
+  put16(bucket.durationSeconds, 10, packet.data());
+  put16(bucket.meanPositiveLevelX10, 12, packet.data());
+  put16(bucket.peakPositiveLevelX10, 14, packet.data());
+  packet[16] = static_cast<uint8_t>(
+      bucket.greenSeconds / kStateTimeUnitSeconds);
+  packet[17] = static_cast<uint8_t>(
+      bucket.orangeSeconds / kStateTimeUnitSeconds);
+  packet[18] = static_cast<uint8_t>(
+      bucket.redSeconds / kStateTimeUnitSeconds);
   return packet;
 }
 
@@ -123,14 +129,32 @@ bool History::recordAt(size_t index, Bucket& bucket) const {
 uint32_t History::currentSequence() const { return nextSequence_; }
 
 Packet History::currentPacket() const {
-  return encodePacket(makeCurrentBucket(), kPartialFlag, 0);
+  return encodePacket(makeCurrentBucket(), kPartialFlag);
 }
 
 Packet History::packetFor(const Bucket& bucket) const {
-  const uint32_t difference = nextSequence_ - bucket.sequence;
-  const uint16_t age = static_cast<uint16_t>(
-      std::min<uint32_t>(difference, UINT16_MAX));
-  return encodePacket(bucket, 0, age);
+  return encodePacket(bucket, 0);
+}
+
+bool History::syncUtcTime(uint32_t currentUtcSeconds) {
+  if (currentUtcSeconds < kMinimumUtcTime ||
+      currentDurationSeconds_ > currentUtcSeconds) {
+    return false;
+  }
+  currentStartUtcSeconds_ = currentUtcSeconds - currentDurationSeconds_;
+
+  uint32_t nextStart = currentStartUtcSeconds_;
+  for (size_t offset = 0; offset < recordCount_; ++offset) {
+    const size_t index = recordCount_ - 1 - offset;
+    Bucket& bucket =
+        records_[(firstRecord_ + index) % records_.size()];
+    if (bucket.startUtcSeconds != 0 || bucket.durationSeconds > nextStart) {
+      break;
+    }
+    nextStart -= bucket.durationSeconds;
+    bucket.startUtcSeconds = nextStart;
+  }
+  return true;
 }
 
 bool History::persistenceIsDue() const {
@@ -221,14 +245,16 @@ bool History::decodeStorage(const uint8_t* data, size_t length) {
 }
 
 bool History::decodeRequest(const uint8_t* data, size_t length,
-                            uint32_t& afterSequence) {
+                            uint32_t& afterSequence,
+                            uint32_t& currentUtcSeconds) {
   if (data == nullptr || length != kRequestLength ||
-      data[0] != kProtocolVersion || data[1] != 1 || data[6] != 0 ||
-      data[7] != 0) {
+      data[0] != kProtocolVersion || data[1] != 1 ||
+      data[10] != 0 || data[11] != 0) {
     return false;
   }
   afterSequence = get32(data, 2);
-  return true;
+  currentUtcSeconds = get32(data, 6);
+  return currentUtcSeconds >= kMinimumUtcTime;
 }
 
 bool History::sequenceIsAfter(uint32_t sequence, uint32_t reference) {
@@ -237,7 +263,8 @@ bool History::sequenceIsAfter(uint32_t sequence, uint32_t reference) {
 }
 
 void History::finishCurrentBucket() {
-  append(makeCurrentBucket());
+  const Bucket completed = makeCurrentBucket();
+  append(completed);
   ++nextSequence_;
   if (nextSequence_ == 0) {
     nextSequence_ = 1;
@@ -249,6 +276,9 @@ void History::finishCurrentBucket() {
   greenSeconds_ = 0;
   orangeSeconds_ = 0;
   redSeconds_ = 0;
+  if (currentStartUtcSeconds_ != 0) {
+    currentStartUtcSeconds_ += completed.durationSeconds;
+  }
   if (completedSincePersistence_ < UINT8_MAX) {
     ++completedSincePersistence_;
   }
@@ -268,6 +298,7 @@ void History::append(const Bucket& bucket) {
 Bucket History::makeCurrentBucket() const {
   Bucket bucket;
   bucket.sequence = nextSequence_;
+  bucket.startUtcSeconds = currentStartUtcSeconds_;
   bucket.durationSeconds = currentDurationSeconds_;
   bucket.meanPositiveLevelX10 =
       validMeasurementSeconds_ == 0

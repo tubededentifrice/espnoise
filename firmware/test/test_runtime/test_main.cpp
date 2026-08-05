@@ -378,6 +378,8 @@ uint32_t packet32(const noise_analytics::Packet& packet, size_t offset) {
 
 void testAnalyticsMakesPrivateFifteenMinuteSummary() {
   noise_analytics::History history;
+  constexpr uint32_t startUtc = 1700000000UL;
+  TEST_ASSERT_TRUE(history.syncUtcTime(startUtc));
   for (uint16_t second = 0;
        second < noise_analytics::kBucketDurationSeconds; ++second) {
     const AlarmLevel level = second < 300
@@ -391,6 +393,7 @@ void testAnalyticsMakesPrivateFifteenMinuteSummary() {
   noise_analytics::Bucket bucket;
   TEST_ASSERT_TRUE(history.recordAt(0, bucket));
   TEST_ASSERT_EQUAL_UINT32(1, bucket.sequence);
+  TEST_ASSERT_EQUAL_UINT32(startUtc, bucket.startUtcSeconds);
   TEST_ASSERT_EQUAL_UINT16(900, bucket.durationSeconds);
   TEST_ASSERT_EQUAL_UINT16(900, bucket.peakPositiveLevelX10);
   TEST_ASSERT_EQUAL_UINT16(300, bucket.greenSeconds);
@@ -398,17 +401,18 @@ void testAnalyticsMakesPrivateFifteenMinuteSummary() {
   TEST_ASSERT_EQUAL_UINT16(0, bucket.redSeconds);
 
   const auto packet = history.packetFor(bucket);
-  TEST_ASSERT_EQUAL_UINT8(1, packet[0]);
+  TEST_ASSERT_EQUAL_UINT8(2, packet[0]);
   TEST_ASSERT_EQUAL_UINT8(0, packet[1]);
   TEST_ASSERT_EQUAL_UINT32(1, packet32(packet, 2));
-  TEST_ASSERT_EQUAL_UINT16(1, packet16(packet, 6));
-  TEST_ASSERT_EQUAL_UINT16(900, packet16(packet, 8));
-  TEST_ASSERT_EQUAL_UINT16(300, packet16(packet, 14));
-  TEST_ASSERT_EQUAL_UINT16(120, packet16(packet, 16));
+  TEST_ASSERT_EQUAL_UINT32(startUtc, packet32(packet, 6));
+  TEST_ASSERT_EQUAL_UINT16(900, packet16(packet, 10));
+  TEST_ASSERT_EQUAL_UINT8(60, packet[16]);
+  TEST_ASSERT_EQUAL_UINT8(24, packet[17]);
 }
 
 void testAnalyticsStorageRoundTripsAndRejectsDamage() {
   noise_analytics::History source;
+  TEST_ASSERT_TRUE(source.syncUtcTime(1700000000UL));
   for (uint16_t second = 0;
        second < noise_analytics::kBucketDurationSeconds; ++second) {
     source.addSecond(AlarmLevel::kRed, -400, true);
@@ -425,6 +429,7 @@ void testAnalyticsStorageRoundTripsAndRejectsDamage() {
   TEST_ASSERT_FALSE(restored.restoreCurrentSequence(1));
   noise_analytics::Bucket bucket;
   TEST_ASSERT_TRUE(restored.recordAt(0, bucket));
+  TEST_ASSERT_EQUAL_UINT32(1700000000UL, bucket.startUtcSeconds);
   TEST_ASSERT_EQUAL_UINT16(900, bucket.redSeconds);
 
   storage[0] = 0;
@@ -432,14 +437,35 @@ void testAnalyticsStorageRoundTripsAndRejectsDamage() {
 }
 
 void testAnalyticsRequestAndSequenceRules() {
-  constexpr uint8_t request[] = {1, 1, 0x78, 0x56, 0x34, 0x12, 0, 0};
+  constexpr uint8_t request[] = {
+      2, 1, 0x78, 0x56, 0x34, 0x12,
+      0x00, 0xF1, 0x53, 0x65, 0, 0};
   uint32_t after = 0;
+  uint32_t utc = 0;
   TEST_ASSERT_TRUE(noise_analytics::History::decodeRequest(
-      request, sizeof(request), after));
+      request, sizeof(request), after, utc));
   TEST_ASSERT_EQUAL_HEX32(0x12345678UL, after);
+  TEST_ASSERT_EQUAL_UINT32(1700000000UL, utc);
   TEST_ASSERT_TRUE(noise_analytics::History::sequenceIsAfter(10, 9));
   TEST_ASSERT_FALSE(noise_analytics::History::sequenceIsAfter(9, 10));
   TEST_ASSERT_TRUE(noise_analytics::History::sequenceIsAfter(1, UINT32_MAX));
+}
+
+void testAnalyticsUtcSyncBackfillsOnlyNewRecords() {
+  noise_analytics::History history;
+  for (uint16_t second = 0;
+       second < noise_analytics::kBucketDurationSeconds + 60; ++second) {
+    history.addSecond(AlarmLevel::kQuiet, -600, true);
+  }
+  constexpr uint32_t nowUtc = 1700000960UL;
+  TEST_ASSERT_TRUE(history.syncUtcTime(nowUtc));
+
+  noise_analytics::Bucket completed;
+  TEST_ASSERT_TRUE(history.recordAt(0, completed));
+  TEST_ASSERT_EQUAL_UINT32(1700000000UL, completed.startUtcSeconds);
+  const auto current = history.currentPacket();
+  TEST_ASSERT_EQUAL_UINT32(1700000900UL, packet32(current, 6));
+  TEST_ASSERT_EQUAL_UINT16(60, packet16(current, 10));
 }
 
 }  // namespace
@@ -464,5 +490,6 @@ int main(int argc, char** argv) {
   RUN_TEST(testAnalyticsMakesPrivateFifteenMinuteSummary);
   RUN_TEST(testAnalyticsStorageRoundTripsAndRejectsDamage);
   RUN_TEST(testAnalyticsRequestAndSequenceRules);
+  RUN_TEST(testAnalyticsUtcSyncBackfillsOnlyNewRecords);
   return UNITY_END();
 }

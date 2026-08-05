@@ -34,6 +34,7 @@ bool hasPendingName = false;
 bool hasNameReadRequest = false;
 bool hasAnalyticsRequest = false;
 uint32_t analyticsAfterSequence = 0;
+uint32_t analyticsCurrentUtcSeconds = 0;
 volatile bool connected = false;
 volatile bool slowAdvertising = false;
 uint32_t advertisingStartMs = 0;
@@ -148,14 +149,16 @@ class ConfigCallbacks : public NimBLECharacteristicCallbacks {
 
     if (value.size() == noise_analytics::kRequestLength) {
       uint32_t afterSequence = 0;
+      uint32_t currentUtcSeconds = 0;
       const bool requestIsValid = noise_analytics::History::decodeRequest(
           reinterpret_cast<const uint8_t*>(value.data()), value.size(),
-          afterSequence);
+          afterSequence, currentUtcSeconds);
       config_packet::Bytes readback{};
       portENTER_CRITICAL(&pendingMutex);
       readback = currentPacket;
       if (requestIsValid) {
         analyticsAfterSequence = afterSequence;
+        analyticsCurrentUtcSeconds = currentUtcSeconds;
         hasAnalyticsRequest = true;
       }
       portEXIT_CRITICAL(&pendingMutex);
@@ -245,13 +248,15 @@ class AnalyticsCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* characteristic) override {
     const std::string value = characteristic->getValue();
     uint32_t afterSequence = 0;
+    uint32_t currentUtcSeconds = 0;
     if (!noise_analytics::History::decodeRequest(
             reinterpret_cast<const uint8_t*>(value.data()), value.size(),
-            afterSequence)) {
+            afterSequence, currentUtcSeconds)) {
       return;
     }
     portENTER_CRITICAL(&pendingMutex);
     analyticsAfterSequence = afterSequence;
+    analyticsCurrentUtcSeconds = currentUtcSeconds;
     hasAnalyticsRequest = true;
     portEXIT_CRITICAL(&pendingMutex);
   }
@@ -385,11 +390,13 @@ bool takeNameReadRequest() {
   return requested;
 }
 
-bool takeAnalyticsRequest(uint32_t& afterSequence) {
+bool takeAnalyticsRequest(uint32_t& afterSequence,
+                          uint32_t& currentUtcSeconds) {
   bool requested = false;
   portENTER_CRITICAL(&pendingMutex);
   if (hasAnalyticsRequest) {
     afterSequence = analyticsAfterSequence;
+    currentUtcSeconds = analyticsCurrentUtcSeconds;
     hasAnalyticsRequest = false;
     requested = true;
   }

@@ -2,9 +2,13 @@ import Foundation
 
 struct NoiseAnalyticsPacket: Equatable, Sendable {
     static let bucketDurationSeconds: UInt16 = 15 * 60
+    static let minimumUtcSeconds: UInt32 = 1_577_836_800
+    static let stateTimeUnitSeconds: UInt16 = 5
 
+    let protocolVersion: UInt8
     let sequence: UInt32
-    let ageBuckets: UInt16
+    let startUtcSeconds: UInt32
+    let ageBuckets: UInt16?
     let durationSeconds: UInt16
     let meanLevel: Double
     let peakLevel: Double
@@ -16,10 +20,23 @@ struct NoiseAnalyticsPacket: Equatable, Sendable {
 
 enum AnalyticsPacketCodec {
     static let packetLength = 20
-    static let requestLength = 8
+    static let requestLength = 12
 
-    static func request(after sequence: UInt32) -> Data {
+    static func request(after sequence: UInt32, currentDate: Date = Date()) -> Data {
         var bytes = [UInt8](repeating: 0, count: requestLength)
+        bytes[0] = 2
+        bytes[1] = 1
+        put(sequence, at: 2, in: &bytes)
+        let seconds = max(
+            TimeInterval(NoiseAnalyticsPacket.minimumUtcSeconds),
+            min(currentDate.timeIntervalSince1970, TimeInterval(UInt32.max))
+        )
+        put(UInt32(seconds), at: 6, in: &bytes)
+        return Data(bytes)
+    }
+
+    static func legacyRequest(after sequence: UInt32) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 8)
         bytes[0] = 1
         bytes[1] = 1
         put(sequence, at: 2, in: &bytes)
@@ -31,9 +48,50 @@ enum AnalyticsPacketCodec {
         guard bytes.count == packetLength else {
             throw PacketCodecError.invalidLength
         }
-        guard bytes[0] == 1 else {
-            throw PacketCodecError.unsupportedVersion
+        if bytes[0] == 1 {
+            return try decodeLegacy(bytes)
         }
+        guard bytes[0] == 2 else { throw PacketCodecError.unsupportedVersion }
+        let flags = bytes[1]
+        guard flags & ~UInt8(0x01) == 0, bytes[19] == 0 else {
+            throw PacketCodecError.invalidSettings
+        }
+        let sequence = uint32(bytes, at: 2)
+        let startUtcSeconds = uint32(bytes, at: 6)
+        let duration = uint16(bytes, at: 10)
+        let mean = uint16(bytes, at: 12)
+        let peak = uint16(bytes, at: 14)
+        let green = UInt16(bytes[16])
+            * NoiseAnalyticsPacket.stateTimeUnitSeconds
+        let orange = UInt16(bytes[17])
+            * NoiseAnalyticsPacket.stateTimeUnitSeconds
+        let red = UInt16(bytes[18])
+            * NoiseAnalyticsPacket.stateTimeUnitSeconds
+        let isPartial = flags & 0x01 != 0
+        guard sequence != 0,
+              startUtcSeconds >= NoiseAnalyticsPacket.minimumUtcSeconds,
+              duration <= NoiseAnalyticsPacket.bucketDurationSeconds,
+              mean <= peak, peak <= 1_200,
+              UInt32(green) + UInt32(orange) + UInt32(red)
+                <= UInt32(duration) else {
+            throw PacketCodecError.invalidSettings
+        }
+        return NoiseAnalyticsPacket(
+            protocolVersion: 2,
+            sequence: sequence,
+            startUtcSeconds: startUtcSeconds,
+            ageBuckets: nil,
+            durationSeconds: duration,
+            meanLevel: Double(mean) / 10,
+            peakLevel: Double(peak) / 10,
+            greenSeconds: green,
+            orangeSeconds: orange,
+            redSeconds: red,
+            isPartial: isPartial
+        )
+    }
+
+    private static func decodeLegacy(_ bytes: [UInt8]) throws -> NoiseAnalyticsPacket {
         let flags = bytes[1]
         guard flags & ~UInt8(0x01) == 0 else {
             throw PacketCodecError.invalidSettings
@@ -56,7 +114,9 @@ enum AnalyticsPacketCodec {
             throw PacketCodecError.invalidSettings
         }
         return NoiseAnalyticsPacket(
+            protocolVersion: 1,
             sequence: sequence,
+            startUtcSeconds: 0,
             ageBuckets: age,
             durationSeconds: duration,
             meanLevel: Double(mean) / 10,

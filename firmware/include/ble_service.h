@@ -43,7 +43,8 @@ bool takePending(config_packet::Bytes& packet, RuntimeSettings& settings,
                  uint32_t& phoneRevision);
 bool takePendingName(device_name::Value& name);
 bool takeNameReadRequest();
-bool takeAnalyticsRequest(uint32_t& afterSequence);
+bool takeAnalyticsRequest(uint32_t& afterSequence,
+                          uint32_t& currentUtcSeconds);
 void acknowledge(const config_packet::Bytes& appliedPacket,
                  const Status& status);
 void acknowledgeName(const device_name::Value& appliedName);

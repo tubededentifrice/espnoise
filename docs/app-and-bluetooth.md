@@ -105,9 +105,18 @@ cause an old sequence to be used again.
 
 The app requests only records that are newer than its last completed record.
 It also requests the current partial period. The phone keeps at most 30 days
-for each device. It gives the records local dates when they arrive because the
-device has no real-time clock. A power loss or a long time out of range can
-cause a gap. The app does not estimate missing data.
+for each device. Each request sends the current UTC time to the device. The
+device uses this value to time the current record and any records made since
+the current boot. Each saved record keeps its UTC start time. The ESP32 has no
+hardware real-time clock, so it cannot time records across a power loss until
+the phone connects again. A power loss or a long time out of range can cause a
+gap. The app does not estimate missing data.
+
+The app sends a new request when the analytics page opens and when the user
+selects refresh. This permits recovery if the first request for a Bluetooth
+connection does not complete. The app can read the old version 1 analytics
+packets until the device has version 2 firmware. Old packets do not contain a
+UTC time, so the app assigns their dates when they arrive.
 
 The analytics page can select one device, a group, or all devices. It shows
 average and peak levels, warning-state time, trends, device comparisons, a
@@ -217,14 +226,15 @@ state change can send an immediate notification. An unchanged status has a
 ten-second heartbeat. The app can also read the old 16-byte status version,
 but that version has no measurement graph data.
 
-The noise analytics request is an 8-byte, little-endian packet.
+The noise analytics request is a 12-byte, little-endian packet.
 
 | Byte | Value |
 | ---: | --- |
-| 0 | Protocol version, `1` |
+| 0 | Protocol version, `2` |
 | 1 | Request type, `1` |
 | 2-5 | Last completed sequence that the phone has, or `0` |
-| 6-7 | Reserved, `0` |
+| 6-9 | Current UTC time in Unix seconds |
+| 10-11 | Reserved, `0` |
 
 The device first notifies the current partial summary. It then sends each newer
 completed summary. Each notification is 20 bytes.
@@ -235,16 +245,17 @@ that characteristic. This fallback does not change the packet layout.
 
 | Byte | Value |
 | ---: | --- |
-| 0 | Protocol version, `1` |
+| 0 | Protocol version, `2` |
 | 1 | Bit 0 is set for the current partial summary |
 | 2-5 | Summary sequence |
-| 6-7 | Age in 15-minute periods; `0` is current |
-| 8-9 | Summary duration in seconds |
-| 10-11 | Average positive relative level in tenths |
-| 12-13 | Peak positive relative level in tenths |
-| 14-15 | Green seconds |
-| 16-17 | Orange seconds |
-| 18-19 | Red seconds |
+| 6-9 | Summary start time in UTC Unix seconds |
+| 10-11 | Summary duration in seconds |
+| 12-13 | Average positive relative level in tenths |
+| 14-15 | Peak positive relative level in tenths |
+| 16 | Green time in five-second units |
+| 17 | Orange time in five-second units |
+| 18 | Red time in five-second units |
+| 19 | Reserved, `0` |
 
 Error code `1` means that the device could not save the settings. The app keeps
 the change pending and does not report a successful synchronization.

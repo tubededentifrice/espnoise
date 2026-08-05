@@ -54,7 +54,10 @@ The Noise Analytics page reads 15-minute summaries from each device. A device
 keeps at most 72 hours. The phone keeps at most 30 days for each device. The
 page can show one device, a selected group, or all devices. It shows average
 and peak relative levels, state time, time trends, device comparisons, and a
-weekday and hour heatmap. The summaries do not contain audio.
+weekday and hour heatmap. The phone sends UTC time when it requests the
+summaries. The page requests data when it opens and has a refresh control. The
+app can also read the old analytics packet until the device has version 2
+firmware. The summaries do not contain audio.
 
 ## Sync rules
 

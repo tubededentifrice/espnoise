@@ -143,12 +143,14 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         var lastError: String?
         var nameError: String?
         var analyticsError: String?
-        var analyticsSyncAnchor: Date?
-        var analyticsPartialSeconds: UInt16 = 0
+        var analyticsProtocolVersion: UInt8?
+        var analyticsLegacyAnchor: Date?
+        var analyticsLegacyPartialSeconds: UInt16 = 0
         var analyticsRequestedAfter: UInt32 = 0
         var analyticsResetRetryWasSent = false
         var analyticsRequestWasSent = false
         var analyticsSaveWorkItem: DispatchWorkItem?
+        var analyticsFallbackWorkItem: DispatchWorkItem?
 
         init(identifier: UUID) { self.identifier = identifier }
     }
@@ -280,6 +282,23 @@ final class NoiseSyncManager: NSObject, ObservableObject {
             requestAnalytics(from: runtime)
         } else {
             runtime.connectionText = "Connecting"
+            connectAuthorizedDevices()
+        }
+        publish()
+    }
+
+    func syncAnalytics(deviceIDs: Set<UUID>) {
+        var mustConnect = false
+        for id in deviceIDs {
+            guard let runtime = runtimes[id] else { continue }
+            runtime.analyticsRequestWasSent = false
+            if runtime.isConnected {
+                requestAnalytics(from: runtime)
+            } else {
+                mustConnect = true
+            }
+        }
+        if mustConnect {
             connectAuthorizedDevices()
         }
         publish()
@@ -537,6 +556,7 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.statusExpiryWorkItem?.cancel()
         analyticsStore.save(deviceID: runtime.identifier)
         runtime.analyticsSaveWorkItem?.cancel()
+        runtime.analyticsFallbackWorkItem?.cancel()
         runtime.reconnectWorkItem?.cancel()
         if let peripheral = runtime.peripheral,
            centralManager?.state == .poweredOn {
@@ -547,8 +567,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.statusCharacteristic = nil
         runtime.nameCharacteristic = nil
         runtime.analyticsCharacteristic = nil
-        runtime.analyticsSyncAnchor = nil
-        runtime.analyticsPartialSeconds = 0
+        runtime.analyticsProtocolVersion = nil
+        runtime.analyticsLegacyAnchor = nil
+        runtime.analyticsLegacyPartialSeconds = 0
         runtime.sentRevision = nil
         runtime.sentFingerprint = nil
         runtime.settingsWriteQueue.reset()
@@ -589,15 +610,15 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         }
         let after = requestedSequence
             ?? analyticsStore.lastCompletedSequence(deviceID: runtime.identifier)
-        let packet = AnalyticsPacketCodec.request(after: after)
+        let packet = runtime.analyticsProtocolVersion == 1
+            ? AnalyticsPacketCodec.legacyRequest(after: after)
+            : AnalyticsPacketCodec.request(after: after)
         guard peripheral.maximumWriteValueLength(for: .withResponse)
                 >= packet.count else {
             runtime.analyticsError =
                 "The Bluetooth connection cannot transfer analytics history."
             return
         }
-        runtime.analyticsSyncAnchor = Date()
-        runtime.analyticsPartialSeconds = 0
         runtime.analyticsRequestedAfter = after
         if !isResetRetry {
             runtime.analyticsResetRetryWasSent = false
@@ -605,11 +626,38 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         runtime.analyticsError = nil
         runtime.analyticsRequestWasSent = true
         peripheral.writeValue(packet, for: characteristic, type: .withResponse)
+        if runtime.analyticsProtocolVersion == nil {
+            scheduleLegacyAnalyticsFallback(runtime)
+        }
+    }
+
+    private func scheduleLegacyAnalyticsFallback(_ runtime: Runtime) {
+        runtime.analyticsFallbackWorkItem?.cancel()
+        let id = runtime.identifier
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let current = self.runtimes[id],
+                  current.analyticsProtocolVersion == nil,
+                  current.analyticsRequestWasSent,
+                  current.isConnected,
+                  let peripheral = current.peripheral,
+                  let characteristic = current.analyticsCharacteristic
+                    ?? current.configCharacteristic else { return }
+            let packet = AnalyticsPacketCodec.legacyRequest(
+                after: current.analyticsRequestedAfter
+            )
+            guard peripheral.maximumWriteValueLength(for: .withResponse)
+                    >= packet.count else { return }
+            peripheral.writeValue(packet, for: characteristic, type: .withResponse)
+        }
+        runtime.analyticsFallbackWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
     private func handleAnalytics(_ data: Data, for runtime: Runtime) {
         do {
             let packet = try AnalyticsPacketCodec.decode(data)
+            runtime.analyticsFallbackWorkItem?.cancel()
+            runtime.analyticsProtocolVersion = packet.protocolVersion
             let deviceHistoryWasReset = packet.isPartial
                 && runtime.analyticsRequestedAfter != 0
                 && !AnalyticsPacketCodec.sequenceIsAfter(
@@ -621,31 +669,45 @@ final class NoiseSyncManager: NSObject, ObservableObject {
                 analyticsStore.remove(deviceID: runtime.identifier)
                 analyticsByDevice[runtime.identifier] = []
             }
-            let anchor: Date
-            if packet.isPartial {
-                anchor = Date()
-                runtime.analyticsSyncAnchor = anchor
-                runtime.analyticsPartialSeconds = packet.durationSeconds
-            } else if let existingAnchor = runtime.analyticsSyncAnchor {
-                anchor = existingAnchor
-            } else {
-                runtime.analyticsError = "The device sent analytics history out of order."
-                return
-            }
-
+            let startDate: Date
             let endDate: Date
-            if packet.isPartial {
-                endDate = anchor
+            if packet.protocolVersion == 2 {
+                startDate = Date(
+                    timeIntervalSince1970: TimeInterval(packet.startUtcSeconds)
+                )
+                endDate = startDate.addingTimeInterval(
+                    TimeInterval(packet.durationSeconds)
+                )
             } else {
-                let completedBucketsBefore = max(0, Int(packet.ageBuckets) - 1)
-                let ageSeconds = TimeInterval(runtime.analyticsPartialSeconds)
-                    + TimeInterval(completedBucketsBefore)
+                let anchor: Date
+                if packet.isPartial {
+                    anchor = Date()
+                    runtime.analyticsLegacyAnchor = anchor
+                    runtime.analyticsLegacyPartialSeconds = packet.durationSeconds
+                } else if let existing = runtime.analyticsLegacyAnchor {
+                    anchor = existing
+                } else {
+                    runtime.analyticsError =
+                        "The device sent analytics history out of order."
+                    return
+                }
+                if packet.isPartial {
+                    endDate = anchor
+                } else {
+                    let completedBefore = max(
+                        0,
+                        Int(packet.ageBuckets ?? 1) - 1
+                    )
+                    let ageSeconds = TimeInterval(
+                        runtime.analyticsLegacyPartialSeconds
+                    ) + TimeInterval(completedBefore)
                         * TimeInterval(NoiseAnalyticsPacket.bucketDurationSeconds)
-                endDate = anchor.addingTimeInterval(-ageSeconds)
+                    endDate = anchor.addingTimeInterval(-ageSeconds)
+                }
+                startDate = endDate.addingTimeInterval(
+                    -TimeInterval(packet.durationSeconds)
+                )
             }
-            let startDate = endDate.addingTimeInterval(
-                -TimeInterval(packet.durationSeconds)
-            )
             let bucket = NoiseAnalyticsBucket(
                 sequence: packet.sequence,
                 startDate: startDate,
@@ -1191,8 +1253,10 @@ extension NoiseSyncManager: @preconcurrency CBCentralManagerDelegate {
         runtime.statusCharacteristic = nil
         runtime.nameCharacteristic = nil
         runtime.analyticsCharacteristic = nil
-        runtime.analyticsSyncAnchor = nil
-        runtime.analyticsPartialSeconds = 0
+        runtime.analyticsFallbackWorkItem?.cancel()
+        runtime.analyticsProtocolVersion = nil
+        runtime.analyticsLegacyAnchor = nil
+        runtime.analyticsLegacyPartialSeconds = 0
         runtime.analyticsRequestWasSent = false
         runtime.nameQueryWritePending = false
         runtime.hasReceivedName = false
