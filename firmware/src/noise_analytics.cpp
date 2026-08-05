@@ -188,28 +188,30 @@ bool History::decodeStorage(const uint8_t* data, size_t length) {
       length != kStorageHeaderLength + count * kStoredRecordLength) {
     return false;
   }
-  std::array<Bucket, kRetentionBucketCount> candidate{};
   size_t offset = kStorageHeaderLength;
+  uint32_t previousSequence = 0;
   for (size_t index = 0; index < count; ++index) {
-    candidate[index] = decodeBucket(data + offset);
-    if (!bucketIsValid(candidate[index])) {
+    const Bucket bucket = decodeBucket(data + offset);
+    if (!bucketIsValid(bucket)) {
       return false;
     }
-    if (index > 0 &&
-        !sequenceIsAfter(candidate[index].sequence,
-                         candidate[index - 1].sequence)) {
+    if (index > 0 && !sequenceIsAfter(bucket.sequence, previousSequence)) {
       return false;
     }
+    previousSequence = bucket.sequence;
     offset += kStoredRecordLength;
   }
   const uint32_t candidateNextSequence = get32(data, 4);
   if (candidateNextSequence == 0 ||
       (count > 0 &&
-       !sequenceIsAfter(candidateNextSequence,
-                        candidate[count - 1].sequence))) {
+       !sequenceIsAfter(candidateNextSequence, previousSequence))) {
     return false;
   }
-  records_ = candidate;
+  offset = kStorageHeaderLength;
+  for (size_t index = 0; index < count; ++index) {
+    records_[index] = decodeBucket(data + offset);
+    offset += kStoredRecordLength;
+  }
   firstRecord_ = 0;
   recordCount_ = count;
   nextSequence_ = candidateNextSequence;
