@@ -7,7 +7,7 @@
 - The `esp32dev` board definition for the full-size USB-C board
 - The `lolin32_lite` board definition for the WEMOS battery board
 
-The repository accepts a dependency only after it is seven weeks old. The
+The repository accepts a dependency only after it is two weeks old. The
 `uv.lock` file pins PlatformIO Core and all Python packages with SHA-256
 hashes. The PlatformIO configuration pins the platform, framework, build
 tools, and libraries to exact versions. Git tags and version ranges are not
@@ -27,7 +27,7 @@ policy check before PlatformIO can install a package.
 
 The same check runs in GitHub Actions. Protect `main` and require the
 `Dependency age / check` result so that a change cannot bypass the check. An
-urgent security fix that is less than seven weeks old needs an explicit policy
+urgent security fix that is less than two weeks old needs an explicit policy
 change and review. Do not silently remove the cooldown.
 
 From the repository root, install the locked Python tools:
