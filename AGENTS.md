@@ -36,5 +36,8 @@
 - Treat the installed strip as SK6812 RGB plus warm-white with 32-bit data.
 - Run a firmware build after each firmware change when PlatformIO is
   available.
+- Run PlatformIO only through
+  `uv run --locked python tools/pio.py`. The wrapper enforces the dependency
+  policy before PlatformIO can install a package.
 - Keep hardware assumptions in the documents. Do not put an unknown part size
   into a final case model.
