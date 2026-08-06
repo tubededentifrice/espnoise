@@ -594,7 +594,9 @@ final class NoiseSyncManager: NSObject, ObservableObject {
         after requestedSequence: UInt32? = nil,
         isResetRetry: Bool = false
     ) {
-        guard runtime.isConnected,
+        guard settingsStore.effectiveSettings(for: runtime.identifier)?
+                .analyticsEnabled == true,
+              runtime.isConnected,
               let peripheral = runtime.peripheral,
               let characteristic = runtime.analyticsCharacteristic
                 ?? runtime.configCharacteristic else { return }
@@ -654,6 +656,8 @@ final class NoiseSyncManager: NSObject, ObservableObject {
     }
 
     private func handleAnalytics(_ data: Data, for runtime: Runtime) {
+        guard settingsStore.effectiveSettings(for: runtime.identifier)?
+                .analyticsEnabled == true else { return }
         do {
             let packet = try AnalyticsPacketCodec.decode(data)
             runtime.analyticsFallbackWorkItem?.cancel()

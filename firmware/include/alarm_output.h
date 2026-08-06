@@ -14,6 +14,7 @@ void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
             uint32_t patternAgeMs);
 void silenceBuzzer();
 void off();
+void startBluetoothTransition(uint32_t now, bool enabled);
 void showMicrophoneError(bool on);
 void showSampleWarning(AlarmLevel level);
 void showCalibrationTarget(AlarmLevel level);

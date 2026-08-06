@@ -12,6 +12,7 @@ and private 15-minute noise summaries.
 The app keeps one global profile. Each device uses this profile by default.
 A device can override these values:
 
+- Noise analytics collection
 - LED brightness
 - Buzzer volume
 - Green, orange, and red positive relative-level thresholds
@@ -90,6 +91,12 @@ to each device.
 
 ## Noise analytics
 
+The global profile has a noise analytics collection switch. Each device can
+override this switch. When the effective switch is off, the device does not
+make, save, or send noise summaries. It erases the summaries that it saved
+before the switch changed to off. The app does not request summaries from that
+device. Summaries that the phone received before the change stay on the phone.
+
 Each device makes one highly aggregated summary for each 15-minute period.
 Each summary has these values:
 
@@ -143,6 +150,12 @@ it saves or applies it. The device is the final safety control.
   mute period that is already active.
 - Mute stops the light and buzzer alarm outputs. It does not stop sound
   observations or Bluetooth history updates.
+- Hold the mute button for two seconds to disable or enable Bluetooth. A long
+  press does not change the mute state. The device saves the Bluetooth state
+  and uses it after each restart.
+- When Bluetooth becomes enabled, the lights change from off to Bluetooth blue
+  during two seconds. When Bluetooth becomes disabled, the lights change from
+  Bluetooth blue to off during two seconds.
 - A second mute-button press within 750 ms ends mute. A later single press
   restarts the complete mute period.
 
@@ -168,8 +181,8 @@ The configuration value is a 32-byte, little-endian packet.
 
 | Byte | Value |
 | ---: | --- |
-| 0 | Protocol version, `1` |
-| 1 | Flags, `0` |
+| 0 | Protocol version, `2` |
+| 1 | Flags; bit 0 enables noise analytics collection |
 | 2 | LED brightness percent |
 | 3 | Buzzer volume percent |
 | 4-5 | Green threshold in signed tenths of one dBFS |
@@ -185,6 +198,13 @@ The configuration value is a 32-byte, little-endian packet.
 
 The settings fingerprint is FNV-1a 32 over bytes 0 through 27. The revision is
 not part of the fingerprint.
+
+When bit 0 is clear, the firmware stops analytics collection and erases its
+saved analytics history. When bit 0 is set, collection starts with an empty
+current summary if the prior effective value was off.
+
+The firmware also accepts a version 1 configuration packet. Version 1 has no
+analytics switch, and analytics collection stays on.
 
 The device-name value is a 20-byte packet. Reads and writes require an
 encrypted connection. The app normally uses the separate device-name
@@ -308,3 +328,8 @@ release:
     that the app receives the missing completed summaries.
 13. Select one device, a group, and all devices on the analytics page. Confirm
     that each chart uses the selected devices only.
+14. Disable analytics globally. Confirm that each device stops collection and
+    that a device override can enable collection for one device.
+15. Hold the mute button for two seconds. Confirm the blue light change, no
+    radio advertising, and the saved state after a restart. Repeat the hold to
+    enable Bluetooth.

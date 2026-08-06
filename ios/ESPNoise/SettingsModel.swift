@@ -142,6 +142,7 @@ enum ThresholdSliderScale {
 }
 
 struct NoiseSettings: Codable, Equatable, Hashable, Sendable {
+    var analyticsEnabled: Bool = true
     var brightnessPercent: UInt8 = 100
     var buzzerPercent: UInt8 = 50
     var greenThresholdTenths: Int16 = -550
@@ -152,9 +153,95 @@ struct NoiseSettings: Codable, Equatable, Hashable, Sendable {
     var decisionWindowMilliseconds: UInt32 = 60_000
     var triggerPercent: UInt8 = 50
     var muteDurationSeconds: UInt32 = 1_800
+
+    init(
+        analyticsEnabled: Bool = true,
+        brightnessPercent: UInt8 = 100,
+        buzzerPercent: UInt8 = 50,
+        greenThresholdTenths: Int16 = -550,
+        orangeThresholdTenths: Int16 = -480,
+        redThresholdTenths: Int16 = -420,
+        sampleDurationMilliseconds: UInt32 = 1_000,
+        samplePeriodMilliseconds: UInt32 = 10_000,
+        decisionWindowMilliseconds: UInt32 = 60_000,
+        triggerPercent: UInt8 = 50,
+        muteDurationSeconds: UInt32 = 1_800
+    ) {
+        self.analyticsEnabled = analyticsEnabled
+        self.brightnessPercent = brightnessPercent
+        self.buzzerPercent = buzzerPercent
+        self.greenThresholdTenths = greenThresholdTenths
+        self.orangeThresholdTenths = orangeThresholdTenths
+        self.redThresholdTenths = redThresholdTenths
+        self.sampleDurationMilliseconds = sampleDurationMilliseconds
+        self.samplePeriodMilliseconds = samplePeriodMilliseconds
+        self.decisionWindowMilliseconds = decisionWindowMilliseconds
+        self.triggerPercent = triggerPercent
+        self.muteDurationSeconds = muteDurationSeconds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case analyticsEnabled
+        case brightnessPercent
+        case buzzerPercent
+        case greenThresholdTenths
+        case orangeThresholdTenths
+        case redThresholdTenths
+        case sampleDurationMilliseconds
+        case samplePeriodMilliseconds
+        case decisionWindowMilliseconds
+        case triggerPercent
+        case muteDurationSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        analyticsEnabled = try values.decodeIfPresent(
+            Bool.self,
+            forKey: .analyticsEnabled
+        ) ?? true
+        brightnessPercent = try values.decode(
+            UInt8.self,
+            forKey: .brightnessPercent
+        )
+        buzzerPercent = try values.decode(UInt8.self, forKey: .buzzerPercent)
+        greenThresholdTenths = try values.decode(
+            Int16.self,
+            forKey: .greenThresholdTenths
+        )
+        orangeThresholdTenths = try values.decode(
+            Int16.self,
+            forKey: .orangeThresholdTenths
+        )
+        redThresholdTenths = try values.decode(
+            Int16.self,
+            forKey: .redThresholdTenths
+        )
+        sampleDurationMilliseconds = try values.decode(
+            UInt32.self,
+            forKey: .sampleDurationMilliseconds
+        )
+        samplePeriodMilliseconds = try values.decode(
+            UInt32.self,
+            forKey: .samplePeriodMilliseconds
+        )
+        decisionWindowMilliseconds = try values.decode(
+            UInt32.self,
+            forKey: .decisionWindowMilliseconds
+        )
+        triggerPercent = try values.decode(
+            UInt8.self,
+            forKey: .triggerPercent
+        )
+        muteDurationSeconds = try values.decode(
+            UInt32.self,
+            forKey: .muteDurationSeconds
+        )
+    }
 }
 
 struct DeviceOverrides: Codable, Equatable, Hashable, Sendable {
+    var analyticsEnabled: Bool?
     var brightnessPercent: UInt8?
     var buzzerPercent: UInt8?
     var greenThresholdTenths: Int16?
@@ -163,7 +250,8 @@ struct DeviceOverrides: Codable, Equatable, Hashable, Sendable {
     var muteDurationSeconds: UInt32?
 
     var isEmpty: Bool {
-        brightnessPercent == nil && buzzerPercent == nil
+        analyticsEnabled == nil && brightnessPercent == nil
+            && buzzerPercent == nil
             && greenThresholdTenths == nil
             && orangeThresholdTenths == nil
             && redThresholdTenths == nil && muteDurationSeconds == nil
@@ -171,6 +259,7 @@ struct DeviceOverrides: Codable, Equatable, Hashable, Sendable {
 
     func applying(to settings: NoiseSettings) -> NoiseSettings {
         var result = settings
+        result.analyticsEnabled = analyticsEnabled ?? settings.analyticsEnabled
         result.brightnessPercent = brightnessPercent ?? settings.brightnessPercent
         result.buzzerPercent = buzzerPercent ?? settings.buzzerPercent
         result.greenThresholdTenths =

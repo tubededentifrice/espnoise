@@ -363,6 +363,18 @@ private struct SettingsControls: View {
     let includesSampling: Bool
 
     var body: some View {
+        if includesSampling {
+            Section {
+                Toggle(
+                    "Collect noise analytics",
+                    isOn: $settings.analyticsEnabled
+                )
+            } header: {
+                Text("Analytics")
+            } footer: {
+                Text("When this value is off, devices do not collect or save noise analytics.")
+            }
+        }
         Section("Thresholds") {
             ThresholdOverview(
                 greenTenths: settings.greenThresholdTenths,
@@ -636,6 +648,31 @@ private struct OverrideControls: View {
         }
         if includesOtherOverrides {
             Section("Device Overrides") {
+                toggle("Override analytics collection", isOn: Binding(
+                    get: { overrides.analyticsEnabled != nil },
+                    set: {
+                        overrides.analyticsEnabled = $0
+                            ? global.analyticsEnabled : nil
+                    }
+                ))
+                if overrides.analyticsEnabled != nil {
+                    Toggle(
+                        "Collect noise analytics",
+                        isOn: Binding(
+                            get: {
+                                overrides.analyticsEnabled
+                                    ?? global.analyticsEnabled
+                            },
+                            set: { overrides.analyticsEnabled = $0 }
+                        )
+                    )
+                } else {
+                    Text(
+                        "Inherited value: \(global.analyticsEnabled ? "On" : "Off")"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 percentOverride(
                     "LED brightness",
                     value: $overrides.brightnessPercent,

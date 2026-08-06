@@ -6,6 +6,7 @@
 #include "config.h"
 
 struct RuntimeSettings {
+  bool analyticsEnabled = true;
   uint8_t ledBrightnessPercent = config::kDefaultLedBrightnessPercent;
   uint8_t buzzerVolumePercent = config::kBuzzerVolumePercent;
   int16_t greenThresholdDbfsX10 = config::kGreenThresholdDbfsX10;

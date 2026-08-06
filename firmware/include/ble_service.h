@@ -38,6 +38,7 @@ StatusPacket encodeStatus(const Status& status);
 
 void begin(const config_packet::Bytes& appliedPacket,
            const device_name::Value& appliedName);
+void end();
 void update(uint32_t nowMs);
 bool takePending(config_packet::Bytes& packet, RuntimeSettings& settings,
                  uint32_t& phoneRevision);

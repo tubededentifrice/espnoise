@@ -36,6 +36,9 @@ bool peripheralPowerOn = false;
 uint32_t displayedColor = UINT32_MAX;
 uint32_t currentBuzzerFrequencyHz = 0;
 RuntimeSettings runtimeSettings;
+bool bluetoothTransitionActive = false;
+bool bluetoothTransitionEnables = false;
+uint32_t bluetoothTransitionStartMs = 0;
 
 uint8_t buzzerDutyForVolume() {
   const uint8_t volume = runtimeSettings.buzzerVolumePercent;
@@ -224,7 +227,27 @@ void off() {
 void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
             AlarmLevel alarmLevel, uint32_t alarmAgeMs,
             uint32_t patternAgeMs) {
-  (void)now;
+  if (bluetoothTransitionActive) {
+    const uint32_t ageMs = now - bluetoothTransitionStartMs;
+    if (ageMs < config::kBluetoothLightTransitionMs) {
+      const uint32_t rising =
+          ageMs * 255UL / config::kBluetoothLightTransitionMs;
+      const uint8_t level = static_cast<uint8_t>(
+          bluetoothTransitionEnables ? rising : 255UL - rising);
+      const uint8_t green =
+          static_cast<uint8_t>(static_cast<uint16_t>(level) * 130U / 255U);
+      const uint8_t blue =
+          static_cast<uint8_t>(static_cast<uint16_t>(level) * 252U / 255U);
+      enablePeripheralPower();
+      setBuzzer(false);
+      const uint32_t wantedColor = pixels.Color(0, green, blue, 0);
+      if (wantedColor != displayedColor) {
+        setAllPixels(wantedColor);
+      }
+      return;
+    }
+    bluetoothTransitionActive = false;
+  }
   if (muted || !alarmActive) {
     off();
     return;
@@ -253,6 +276,12 @@ void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
 }
 
 void silenceBuzzer() { setBuzzer(false); }
+
+void startBluetoothTransition(uint32_t now, bool enabled) {
+  bluetoothTransitionStartMs = now;
+  bluetoothTransitionEnables = enabled;
+  bluetoothTransitionActive = true;
+}
 
 void showMicrophoneError(bool on) {
   enablePeripheralPower();

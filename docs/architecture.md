@@ -110,11 +110,15 @@ one global profile and optional device overrides. The phone is the settings
 source. Each ESP32 validates and saves one complete effective profile.
 
 The app can change brightness, buzzer volume, three thresholds, mute duration,
-K, N, decision-window time, and X. K, N, decision-window time, and X are global
-only. See [iPhone app and Bluetooth settings](app-and-bluetooth.md).
+analytics collection, K, N, decision-window time, and X. Analytics collection,
+brightness, buzzer volume, thresholds, and mute duration can have a device
+override. K, N, decision-window time, and X are global only. See
+[iPhone app and Bluetooth settings](app-and-bluetooth.md).
 
-Bluetooth stays on for device discovery and reconnect. Wi-Fi stays off. This
-radio use can reduce battery time and needs a battery test.
+Bluetooth stays on for device discovery and reconnect unless the user holds
+the mute button for two seconds. This hold disables the complete Bluetooth
+controller. The device saves this state. The same hold enables Bluetooth.
+Wi-Fi stays off. Radio use can reduce battery time and needs a battery test.
 
 ## Source data
 

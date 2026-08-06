@@ -8,7 +8,8 @@
 
 namespace config_packet {
 
-constexpr uint8_t kVersion = 1;
+constexpr uint8_t kLegacyVersion = 1;
+constexpr uint8_t kVersion = 2;
 constexpr size_t kSize = 32;
 constexpr size_t kFingerprintSize = 28;
 using Bytes = std::array<uint8_t, kSize>;

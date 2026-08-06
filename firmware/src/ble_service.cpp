@@ -41,6 +41,7 @@ uint32_t advertisingStartMs = 0;
 std::array<uint8_t, 20> lastStatusPacket{};
 bool haveStatus = false;
 bool firstPairingPending = false;
+bool stopping = false;
 uint32_t lastStatusSentMs = 0;
 constexpr uint32_t kStatusHeartbeatMs = 10UL * 1000UL;
 constexpr uint32_t kLiveStatusIntervalMs = 250;
@@ -122,6 +123,9 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     portENTER_CRITICAL(&pendingMutex);
     hasAnalyticsRequest = false;
     portEXIT_CRITICAL(&pendingMutex);
+    if (stopping) {
+      return;
+    }
     setAdvertisingIntervals(slowAdvertising);
     advertising->start();
   }
@@ -271,6 +275,9 @@ AnalyticsCallbacks analyticsCallbacks;
 
 void begin(const config_packet::Bytes& appliedPacket,
            const device_name::Value& appliedName) {
+  stopping = false;
+  connected = false;
+  slowAdvertising = false;
   currentPacket = appliedPacket;
   currentName = appliedName;
   const std::string name = advertisedName(currentName);
@@ -282,7 +289,8 @@ void begin(const config_packet::Bytes& appliedPacket,
   firstPairingPending = NimBLEDevice::getNumBonds() == 0;
 
   server = NimBLEDevice::createServer();
-  server->setCallbacks(&serverCallbacks);
+  server->setCallbacks(&serverCallbacks, false);
+  server->advertiseOnDisconnect(false);
   NimBLEService* service = server->createService(kServiceUuid);
   configCharacteristic = service->createCharacteristic(
       kConfigUuid, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE |
@@ -338,6 +346,29 @@ void begin(const config_packet::Bytes& appliedPacket,
       started ? "yes" : "no", name.c_str(), kServiceUuid,
       static_cast<unsigned>(NimBLEDevice::getNumBonds()),
       pairingOpen() ? "yes" : "no");
+}
+
+void end() {
+  stopping = true;
+  connected = false;
+  if (advertising != nullptr && advertising->isAdvertising()) {
+    advertising->stop();
+  }
+  NimBLEDevice::deinit(true);
+  server = nullptr;
+  advertising = nullptr;
+  configCharacteristic = nullptr;
+  statusCharacteristic = nullptr;
+  nameCharacteristic = nullptr;
+  analyticsCharacteristic = nullptr;
+  haveStatus = false;
+  portENTER_CRITICAL(&pendingMutex);
+  hasPending = false;
+  hasPendingName = false;
+  hasNameReadRequest = false;
+  hasAnalyticsRequest = false;
+  portEXIT_CRITICAL(&pendingMutex);
+  Serial.println("[BLE] Radio disabled");
 }
 
 void update(uint32_t nowMs) {

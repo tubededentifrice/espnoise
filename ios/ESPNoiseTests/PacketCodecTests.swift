@@ -18,13 +18,22 @@ final class PacketCodecTests: XCTestCase {
         let data = try ConfigPacketCodec.encode(settings: settings, revision: 0x1234_5678)
         let bytes = [UInt8](data)
         XCTAssertEqual(bytes.count, 32)
-        XCTAssertEqual(bytes[0], 1)
-        XCTAssertEqual(bytes[1], 0)
+        XCTAssertEqual(bytes[0], 2)
+        XCTAssertEqual(bytes[1], 1)
         XCTAssertEqual(bytes[2], 25)
         XCTAssertEqual(bytes[3], 80)
         XCTAssertEqual(Array(bytes[4..<6]), [0x0C, 0xFE])
         XCTAssertEqual(Array(bytes[22..<24]), [75, 0])
         XCTAssertEqual(Array(bytes[28..<32]), [0x78, 0x56, 0x34, 0x12])
+    }
+
+    func testConfigPacketDisablesAnalyticsCollection() throws {
+        var settings = NoiseSettings()
+        settings.analyticsEnabled = false
+        let bytes = [UInt8](
+            try ConfigPacketCodec.encode(settings: settings, revision: 1)
+        )
+        XCTAssertEqual(bytes[1], 0)
     }
 
     func testFNVUsesOnlyBytesZeroThroughTwentySeven() throws {
@@ -505,6 +514,28 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertNil(store.device(id: first)?.overrides.brightnessPercent)
     }
 
+    func testAnalyticsCollectionUsesGlobalValueAndDeviceOverride() throws {
+        var global = store.record.globalSettings
+        global.analyticsEnabled = false
+        try store.updateGlobal(global)
+        XCTAssertFalse(
+            try XCTUnwrap(store.effectiveSettings(for: first))
+                .analyticsEnabled
+        )
+
+        var overrides = DeviceOverrides()
+        overrides.analyticsEnabled = true
+        try store.updateDevice(id: first, name: "First", overrides: overrides)
+        XCTAssertTrue(
+            try XCTUnwrap(store.effectiveSettings(for: first))
+                .analyticsEnabled
+        )
+        XCTAssertFalse(
+            try XCTUnwrap(store.effectiveSettings(for: second))
+                .analyticsEnabled
+        )
+    }
+
     func testGlobalChangeDoesNotMarkOverriddenDevicePending() throws {
         var overrides = DeviceOverrides()
         overrides.brightnessPercent = 10
@@ -790,6 +821,7 @@ final class SettingsStoreTests: XCTestCase {
 
     func testProductDefaultsMatchFirmwareDefaults() {
         let defaults = NoiseSettings()
+        XCTAssertTrue(defaults.analyticsEnabled)
         XCTAssertEqual(defaults.brightnessPercent, 100)
         XCTAssertEqual(defaults.buzzerPercent, 50)
         XCTAssertEqual(defaults.greenThresholdTenths, -550)

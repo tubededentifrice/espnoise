@@ -8,6 +8,7 @@ namespace {
 constexpr char kNamespace[] = "espnoise";
 constexpr char kPacketKey[] = "config";
 constexpr char kNameKey[] = "name_v1";
+constexpr char kBluetoothEnabledKey[] = "ble_enabled";
 constexpr char kAnalyticsKey[] = "analytics_v1";
 constexpr char kAnalyticsSequenceKey[] = "analytics_seq";
 Preferences preferences;
@@ -75,6 +76,18 @@ bool saveName(const device_name::Value& name) {
          packet.size();
 }
 
+bool loadBluetoothEnabled(bool& enabled) {
+  if (!ready || !preferences.isKey(kBluetoothEnabledKey)) {
+    return false;
+  }
+  enabled = preferences.getBool(kBluetoothEnabledKey, true);
+  return true;
+}
+
+bool saveBluetoothEnabled(bool enabled) {
+  return ready && preferences.putBool(kBluetoothEnabledKey, enabled) == 1;
+}
+
 bool loadAnalytics(noise_analytics::History& history) {
   if (!ready) {
     return false;
@@ -108,6 +121,17 @@ bool saveAnalyticsSequence(uint32_t sequence) {
   return ready && sequence != 0 &&
          preferences.putUInt(kAnalyticsSequenceKey, sequence) ==
              sizeof(sequence);
+}
+
+bool clearAnalytics() {
+  if (!ready) {
+    return false;
+  }
+  const bool historyRemoved = !preferences.isKey(kAnalyticsKey) ||
+                              preferences.remove(kAnalyticsKey);
+  const bool sequenceRemoved = !preferences.isKey(kAnalyticsSequenceKey) ||
+                               preferences.remove(kAnalyticsSequenceKey);
+  return historyRemoved && sequenceRemoved;
 }
 
 }  // namespace settings_storage

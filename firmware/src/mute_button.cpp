@@ -7,7 +7,7 @@ void MuteButton::begin() {
   pinMode(board_profile::kMuteButtonPin, INPUT_PULLUP);
 }
 
-bool MuteButton::pressed(uint32_t now) {
+MuteButtonEvent MuteButton::update(uint32_t now) {
   const bool rawPressed =
       digitalRead(board_profile::kMuteButtonPin) == LOW;
   if (rawPressed != lastRawPressed_) {
@@ -17,9 +17,20 @@ bool MuteButton::pressed(uint32_t now) {
 
   if (now - lastChangeMs_ < config::kButtonDebounceMs ||
       rawPressed == stablePressed_) {
-    return false;
+    if (stablePressed_ && !longPressSent_ &&
+        now - pressedSinceMs_ >= config::kBluetoothButtonHoldMs) {
+      longPressSent_ = true;
+      return MuteButtonEvent::kLongPress;
+    }
+    return MuteButtonEvent::kNone;
   }
 
   stablePressed_ = rawPressed;
-  return stablePressed_;
+  if (stablePressed_) {
+    pressedSinceMs_ = now;
+    longPressSent_ = false;
+    return MuteButtonEvent::kNone;
+  }
+  return longPressSent_ ? MuteButtonEvent::kNone
+                        : MuteButtonEvent::kShortPress;
 }

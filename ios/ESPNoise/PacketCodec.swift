@@ -96,7 +96,8 @@ enum ConfigPacketCodec {
     static func encode(settings: NoiseSettings, revision: UInt32) throws -> Data {
         do { _ = try settings.validated() } catch { throw PacketCodecError.invalidSettings }
         var bytes = [UInt8](repeating: 0, count: packetLength)
-        bytes[0] = 1
+        bytes[0] = 2
+        bytes[1] = settings.analyticsEnabled ? 0x01 : 0
         bytes[2] = settings.brightnessPercent
         bytes[3] = settings.buzzerPercent
         put(UInt16(bitPattern: settings.greenThresholdTenths), at: 4, in: &bytes)

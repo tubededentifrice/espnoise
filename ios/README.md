@@ -34,6 +34,11 @@ reserved. Sampling values K, N, decision window, and X
 are global only. The phone sends its complete effective settings after each
 reconnect. Offline settings stay pending.
 
+Noise analytics collection is on by default. The Global Settings page can turn
+it off for all devices. Each device can override the global value. A device
+with collection off does not collect or save new summaries. It erases its
+saved summaries when the setting changes to off.
+
 The Global Settings page saves each valid change on the phone immediately. It
 then tries to send the newest complete settings to each connected device. The
 Reset Global Values action saves the compiled defaults immediately. Device
@@ -58,6 +63,10 @@ weekday and hour heatmap. The phone sends UTC time when it requests the
 summaries. The page requests data when it opens and has a refresh control. The
 app can also read the old analytics packet until the device has version 2
 firmware. The summaries do not contain audio.
+
+Hold the device mute button for two seconds to disable or enable the complete
+Bluetooth controller. The device saves this state after a restart. The app
+cannot synchronize while Bluetooth is off.
 
 ## Sync rules
 

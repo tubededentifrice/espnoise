@@ -48,6 +48,7 @@ uint32_t analyticsAfterSequence = 0;
 size_t analyticsSyncCursor = 0;
 bool analyticsCurrentIsPending = false;
 bool analyticsSyncIsActive = false;
+bool bluetoothEnabled = true;
 
 device_name::Value defaultDeviceName() {
   device_name::Value name;
@@ -185,7 +186,24 @@ void resumeAlarmFromHistory(uint32_t now) {
 }
 
 void updateMute(uint32_t now) {
-  if (muteButton.pressed(now)) {
+  const MuteButtonEvent event = muteButton.update(now);
+  if (event == MuteButtonEvent::kLongPress) {
+    const bool candidate = !bluetoothEnabled;
+    if (!settings_storage::saveBluetoothEnabled(candidate)) {
+      Serial.println("ERROR: Bluetooth state save failed; change rejected");
+    } else if (candidate) {
+      bluetoothEnabled = true;
+      ble_service::begin(appliedPacket, appliedDeviceName);
+      alarm_output::startBluetoothTransition(millis(), true);
+      Serial.println("Bluetooth enabled by button hold");
+    } else {
+      bluetoothEnabled = false;
+      analyticsSyncIsActive = false;
+      ble_service::end();
+      alarm_output::startBluetoothTransition(millis(), false);
+      Serial.println("Bluetooth disabled by button hold");
+    }
+  } else if (event == MuteButtonEvent::kShortPress) {
     const bool alarmWasActive = alarmActive;
     const MutePressResult result =
         muteState.press(now, runtimeSettings.muteDurationSeconds);
@@ -267,6 +285,14 @@ void applyPendingSettings(uint32_t now) {
   }
 
   const bool packetChanged = candidate != appliedPacket;
+  const bool analyticsWillBeDisabled =
+      runtimeSettings.analyticsEnabled && !candidateSettings.analyticsEnabled;
+  if (analyticsWillBeDisabled && !settings_storage::clearAnalytics()) {
+    Serial.println("ERROR: Analytics erase failed; update rejected");
+    settingsErrorCode = 1;
+    ble_service::acknowledge(appliedPacket, makeBleStatus(now));
+    return;
+  }
   if (packetChanged && !settings_storage::save(candidate)) {
     Serial.println("ERROR: Settings save failed; update rejected");
     settingsErrorCode = 1;
@@ -281,6 +307,12 @@ void applyPendingSettings(uint32_t now) {
   appliedRevision = candidateRevision;
   noiseDetector.setSettings(runtimeSettings);
   alarm_output::setSettings(runtimeSettings);
+  if (analyticsWillBeDisabled) {
+    analyticsHistory = noise_analytics::History{};
+    analyticsSyncIsActive = false;
+    lastAnalyticsSecondMs = now;
+    Serial.println("Analytics collection disabled and saved history erased");
+  }
   clearRuntimeState(now);
   ble_service::acknowledge(appliedPacket, makeBleStatus(now));
   Serial.printf("Settings applied: revision=%lu fingerprint=%08lX\n",
@@ -316,6 +348,10 @@ void answerNameReadRequest() {
 }
 
 void updateAnalytics(uint32_t now) {
+  if (!runtimeSettings.analyticsEnabled) {
+    lastAnalyticsSecondMs = now;
+    return;
+  }
   while (now - lastAnalyticsSecondMs >= 1000) {
     lastAnalyticsSecondMs += 1000;
     const float maximumDbfs = std::max(
@@ -345,6 +381,14 @@ void updateAnalytics(uint32_t now) {
 }
 
 void updateAnalyticsSync(uint32_t now) {
+  if (!runtimeSettings.analyticsEnabled) {
+    uint32_t unusedAfterSequence = 0;
+    uint32_t unusedUtcSeconds = 0;
+    ble_service::takeAnalyticsRequest(unusedAfterSequence,
+                                      unusedUtcSeconds);
+    analyticsSyncIsActive = false;
+    return;
+  }
   uint32_t requestedAfterSequence = 0;
   uint32_t currentUtcSeconds = 0;
   if (ble_service::takeAnalyticsRequest(requestedAfterSequence,
@@ -401,7 +445,8 @@ void setup() {
 
   appliedPacket = config_packet::encode(runtimeSettings, 0);
   appliedDeviceName = defaultDeviceName();
-  if (!settings_storage::begin()) {
+  const bool storageReady = settings_storage::begin();
+  if (!storageReady) {
     Serial.println("ERROR: Settings storage start failed; defaults active");
   } else {
     if (!settings_storage::load(appliedPacket)) {
@@ -411,9 +456,7 @@ void setup() {
     if (!settings_storage::loadName(appliedDeviceName)) {
       appliedDeviceName = defaultDeviceName();
     }
-    if (!settings_storage::loadAnalytics(analyticsHistory)) {
-      Serial.println("Saved analytics history is absent or invalid");
-    }
+    settings_storage::loadBluetoothEnabled(bluetoothEnabled);
   }
   if (config_packet::decode(appliedPacket.data(), appliedPacket.size(),
                             runtimeSettings, appliedRevision) !=
@@ -421,6 +464,15 @@ void setup() {
     runtimeSettings = RuntimeSettings{};
     appliedRevision = 0;
     appliedPacket = config_packet::encode(runtimeSettings, appliedRevision);
+  }
+  if (storageReady) {
+    if (runtimeSettings.analyticsEnabled) {
+      if (!settings_storage::loadAnalytics(analyticsHistory)) {
+        Serial.println("Saved analytics history is absent or invalid");
+      }
+    } else if (!settings_storage::clearAnalytics()) {
+      Serial.println("ERROR: Disabled analytics history erase failed");
+    }
   }
 
   if (config::kSampleDurationMs == 0 ||
@@ -448,7 +500,11 @@ void setup() {
   noiseDetector.setSettings(runtimeSettings);
   alarm_output::setSettings(runtimeSettings);
   alarm_output::begin();
-  ble_service::begin(appliedPacket, appliedDeviceName);
+  if (bluetoothEnabled) {
+    ble_service::begin(appliedPacket, appliedDeviceName);
+  } else {
+    Serial.println("Bluetooth stays disabled from saved state");
+  }
   nextSampleStartMs = millis();
   lastAnalyticsSecondMs = nextSampleStartMs;
   printActiveSettings();
@@ -457,11 +513,15 @@ void setup() {
 
 void loop() {
   uint32_t now = millis();
-  ble_service::update(now);
+  if (bluetoothEnabled) {
+    ble_service::update(now);
+  }
   updateMute(now);
-  answerNameReadRequest();
-  applyPendingName();
-  applyPendingSettings(now);
+  if (bluetoothEnabled) {
+    answerNameReadRequest();
+    applyPendingName();
+    applyPendingSettings(now);
+  }
 
   if (!sampleActive && timeIsDue(now, nextSampleStartMs)) {
     beginSample(now);
@@ -490,9 +550,13 @@ void loop() {
                   isMuted(now) ? "on" : "off");
   }
 
-  ble_service::setStatus(makeBleStatus(now));
+  if (bluetoothEnabled) {
+    ble_service::setStatus(makeBleStatus(now));
+  }
   updateAnalytics(now);
-  updateAnalyticsSync(now);
+  if (bluetoothEnabled) {
+    updateAnalyticsSync(now);
+  }
 
   // Let the BLE and Arduino tasks run. NimBLE manages its radio sleep.
   delay(1);

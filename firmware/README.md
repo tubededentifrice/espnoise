@@ -104,7 +104,7 @@ the value after the case is assembled.
 | Audio input | `include/audio_input.h`, `src/audio_input.cpp` | INMP441 and dBFS frames |
 | Detector | `include/noise_detector.h`, `src/noise_detector.cpp` | Observation maximum, rolling history, and X decision |
 | Alarm output | `include/alarm_output.h`, `src/alarm_output.cpp` | SK6812, buzzer, and optional power switch |
-| Mute control | `include/mute_button.h`, `src/mute_button.cpp`, `include/mute_state.h`, `src/mute_state.cpp` | Button filtering, mute timer, and double-press control |
+| Mute control | `include/mute_button.h`, `src/mute_button.cpp`, `include/mute_state.h`, `src/mute_state.cpp` | Button filtering, mute timer, double-press control, and Bluetooth hold detection |
 | BLE service | `include/ble_service.h`, `src/ble_service.cpp` | Encrypted settings writes, readback, and status |
 | Settings packet | `include/config_packet.h`, `src/config_packet.cpp` | 32-byte packet, limits, and fingerprint |
 | Device name | `include/device_name.h`, `src/device_name.cpp` | 20-byte UTF-8 name packet and validation |
@@ -137,10 +137,15 @@ change a connected board.
 ## Runtime settings
 
 `include/config.h` contains the compiled defaults and limits. A bonded BLE
-client can change the LED brightness, buzzer volume, three thresholds, K, N,
-the decision window, X, and mute time. The firmware validates the complete
-32-byte packet before it applies a change. It applies the related values after
-an observation ends. It then clears the detector history and alarm state.
+client can change analytics collection, LED brightness, buzzer volume, three
+thresholds, K, N, the decision window, X, and mute time. The firmware validates
+the complete 32-byte packet before it applies a change. It applies the related
+values after an observation ends. It then clears the detector history and
+alarm state.
+
+When analytics collection changes to off, the device erases its saved
+analytics history and stops collection. It does not send analytics while this
+setting is off.
 
 The firmware saves a valid packet in NVS only when the complete packet changes.
 Thus, a reconnect with the same revision does not make another flash write. A
@@ -151,7 +156,10 @@ firmware saves it in a separate NVS record and keeps the `ESPNoise-` prefix.
 Fast advertising lasts two minutes. A device with no saved bond keeps first
 pairing available. After the first bond succeeds, new-phone pairing lasts two
 minutes after startup. Slow connectable advertising continues after this time
-for a bonded phone. Wi-Fi stays off.
+for a bonded phone. Hold the mute button for two seconds to disable the complete
+Bluetooth controller or to enable it again. The saved state stays active after
+a restart. A Bluetooth-blue two-second light change confirms each change. Wi-Fi stays
+off.
 
 The encrypted 20-byte status notification sends the current observation
 maximum and the saved Green, Orange, and Red threshold counts. Live status is

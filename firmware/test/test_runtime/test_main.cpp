@@ -16,15 +16,15 @@ void testPacketLayoutAndDecode() {
   const auto packet = config_packet::encode(settings, 0x78563412UL);
 
   constexpr uint8_t expected[] = {
-      0x01, 0x00, 0x19, 0x4B, 0xDA, 0xFD, 0x20, 0xFE,
+      0x02, 0x01, 0x19, 0x4B, 0xDA, 0xFD, 0x20, 0xFE,
       0x5C, 0xFE, 0xE8, 0x03, 0x00, 0x00, 0x10, 0x27,
       0x00, 0x00, 0x60, 0xEA, 0x00, 0x00, 0x32, 0x00,
       0x08, 0x07, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78,
   };
   TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, packet.data(), packet.size());
 
-  TEST_ASSERT_EQUAL_UINT8(1, packet[0]);
-  TEST_ASSERT_EQUAL_UINT8(0, packet[1]);
+  TEST_ASSERT_EQUAL_UINT8(2, packet[0]);
+  TEST_ASSERT_EQUAL_UINT8(1, packet[1]);
   TEST_ASSERT_EQUAL_UINT8(25, packet[2]);
   TEST_ASSERT_EQUAL_UINT8(75, packet[3]);
   TEST_ASSERT_EQUAL_UINT8(0x12, packet[28]);
@@ -43,6 +43,26 @@ void testPacketLayoutAndDecode() {
                           decoded.greenThresholdDbfsX10);
   TEST_ASSERT_EQUAL_UINT32(settings.decisionWindowMs,
                            decoded.decisionWindowMs);
+  TEST_ASSERT_TRUE(decoded.analyticsEnabled);
+
+  settings.analyticsEnabled = false;
+  const auto analyticsDisabled = config_packet::encode(settings, 0);
+  TEST_ASSERT_EQUAL_UINT8(0, analyticsDisabled[1]);
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(config_packet::ValidationResult::kValid),
+      static_cast<int>(config_packet::decode(
+          analyticsDisabled.data(), analyticsDisabled.size(), decoded,
+          revision)));
+  TEST_ASSERT_FALSE(decoded.analyticsEnabled);
+
+  auto legacy = packet;
+  legacy[0] = config_packet::kLegacyVersion;
+  legacy[1] = 0;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(config_packet::ValidationResult::kValid),
+      static_cast<int>(config_packet::decode(
+          legacy.data(), legacy.size(), decoded, revision)));
+  TEST_ASSERT_TRUE(decoded.analyticsEnabled);
 }
 
 void testFingerprintDoesNotIncludeRevision() {

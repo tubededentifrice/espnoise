@@ -103,6 +103,8 @@ constexpr uint32_t kMaximumMuteDurationSeconds = 24UL * 60UL * 60UL;
 // User controls.
 constexpr uint32_t kDefaultMuteDurationSeconds = 30UL * 60UL;
 constexpr uint32_t kButtonDebounceMs = 35;
+constexpr uint32_t kBluetoothButtonHoldMs = 2UL * 1000UL;
+constexpr uint32_t kBluetoothLightTransitionMs = 2UL * 1000UL;
 constexpr uint32_t kMuteDoublePressWindowMs = 750;
 
 // Alarm outputs.

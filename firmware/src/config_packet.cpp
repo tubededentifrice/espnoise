@@ -7,6 +7,9 @@
 namespace config_packet {
 namespace {
 
+constexpr uint8_t kAnalyticsEnabledFlag = 0x01;
+constexpr uint8_t kKnownFlags = kAnalyticsEnabledFlag;
+
 uint16_t readU16(const uint8_t* data) {
   return static_cast<uint16_t>(data[0]) |
          static_cast<uint16_t>(data[1]) << 8;
@@ -36,6 +39,7 @@ void writeU32(uint8_t* data, uint32_t value) {
 Bytes encode(const RuntimeSettings& settings, uint32_t phoneRevision) {
   Bytes packet{};
   packet[0] = kVersion;
+  packet[1] = settings.analyticsEnabled ? kAnalyticsEnabledFlag : 0;
   packet[2] = settings.ledBrightnessPercent;
   packet[3] = settings.buzzerVolumePercent;
   writeU16(&packet[4], static_cast<uint16_t>(settings.greenThresholdDbfsX10));
@@ -55,14 +59,18 @@ ValidationResult decode(const uint8_t* data, size_t size,
   if (size != kSize) {
     return ValidationResult::kWrongSize;
   }
-  if (data[0] != kVersion) {
+  if (data[0] != kLegacyVersion && data[0] != kVersion) {
     return ValidationResult::kWrongVersion;
   }
-  if (data[1] != 0 || data[23] != 0) {
+  const bool legacyPacket = data[0] == kLegacyVersion;
+  if ((legacyPacket ? data[1] != 0 : (data[1] & ~kKnownFlags) != 0) ||
+      data[23] != 0) {
     return ValidationResult::kBadFlags;
   }
 
   RuntimeSettings candidate;
+  candidate.analyticsEnabled =
+      legacyPacket || (data[1] & kAnalyticsEnabledFlag) != 0;
   candidate.ledBrightnessPercent = data[2];
   candidate.buzzerVolumePercent = data[3];
   candidate.greenThresholdDbfsX10 = static_cast<int16_t>(readU16(&data[4]));
