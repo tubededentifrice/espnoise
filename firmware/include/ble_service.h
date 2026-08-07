@@ -36,9 +36,9 @@ using StatusPacket = std::array<uint8_t, 20>;
 
 StatusPacket encodeStatus(const Status& status);
 
-void begin(const config_packet::Bytes& appliedPacket,
+bool begin(const config_packet::Bytes& appliedPacket,
            const device_name::Value& appliedName);
-void end();
+bool end();
 void update(uint32_t nowMs);
 bool takePending(config_packet::Bytes& packet, RuntimeSettings& settings,
                  uint32_t& phoneRevision);

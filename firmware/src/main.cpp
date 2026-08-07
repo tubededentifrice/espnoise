@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_bt.h>
+#include <esp_system.h>
 
 #include <algorithm>
 #include <cmath>
@@ -193,15 +194,24 @@ void updateMute(uint32_t now) {
       Serial.println("ERROR: Bluetooth state save failed; change rejected");
     } else if (candidate) {
       bluetoothEnabled = true;
-      ble_service::begin(appliedPacket, appliedDeviceName);
-      alarm_output::startBluetoothTransition(millis(), true);
-      Serial.println("Bluetooth enabled by button hold");
+      if (ble_service::begin(appliedPacket, appliedDeviceName)) {
+        alarm_output::startBluetoothTransition(millis(), true);
+        Serial.println("Bluetooth enabled by button hold");
+      } else {
+        bluetoothEnabled = false;
+        settings_storage::saveBluetoothEnabled(false);
+        Serial.println("ERROR: Bluetooth enable rejected");
+      }
     } else {
-      bluetoothEnabled = false;
       analyticsSyncIsActive = false;
-      ble_service::end();
-      alarm_output::startBluetoothTransition(millis(), false);
-      Serial.println("Bluetooth disabled by button hold");
+      if (ble_service::end()) {
+        bluetoothEnabled = false;
+        alarm_output::startBluetoothTransition(millis(), false);
+        Serial.println("Bluetooth disabled by button hold");
+      } else {
+        settings_storage::saveBluetoothEnabled(true);
+        Serial.println("ERROR: Bluetooth disable rejected");
+      }
     }
   } else if (event == MuteButtonEvent::kShortPress) {
     const bool alarmWasActive = alarmActive;
@@ -439,6 +449,7 @@ void updateAnalyticsSync(uint32_t now) {
 void setup() {
   Serial.begin(115200);
   delay(300);
+  Serial.printf("Reset reason=%d\n", static_cast<int>(esp_reset_reason()));
 
   WiFi.mode(WIFI_OFF);
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
@@ -501,7 +512,9 @@ void setup() {
   alarm_output::setSettings(runtimeSettings);
   alarm_output::begin();
   if (bluetoothEnabled) {
-    ble_service::begin(appliedPacket, appliedDeviceName);
+    if (!ble_service::begin(appliedPacket, appliedDeviceName)) {
+      bluetoothEnabled = false;
+    }
   } else {
     Serial.println("Bluetooth stays disabled from saved state");
   }

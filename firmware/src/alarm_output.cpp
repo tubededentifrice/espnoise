@@ -209,6 +209,12 @@ void setSettings(const RuntimeSettings& settings) {
 void off() {
   setBuzzer(false);
 
+  // A microphone observation can start during Bluetooth feedback. Keep the
+  // light under the control of the transition until it draws its final frame.
+  if (bluetoothTransitionActive) {
+    return;
+  }
+
   if (!peripheralPowerOn) {
     return;
   }
@@ -229,24 +235,25 @@ void update(uint32_t now, bool alarmActive, bool sampleActive, bool muted,
             uint32_t patternAgeMs) {
   if (bluetoothTransitionActive) {
     const uint32_t ageMs = now - bluetoothTransitionStartMs;
-    if (ageMs < config::kBluetoothLightTransitionMs) {
-      const uint32_t rising =
-          ageMs * 255UL / config::kBluetoothLightTransitionMs;
-      const uint8_t level = static_cast<uint8_t>(
-          bluetoothTransitionEnables ? rising : 255UL - rising);
-      const uint8_t green =
-          static_cast<uint8_t>(static_cast<uint16_t>(level) * 130U / 255U);
-      const uint8_t blue =
-          static_cast<uint8_t>(static_cast<uint16_t>(level) * 252U / 255U);
-      enablePeripheralPower();
-      setBuzzer(false);
-      const uint32_t wantedColor = pixels.Color(0, green, blue, 0);
-      if (wantedColor != displayedColor) {
-        setAllPixels(wantedColor);
-      }
-      return;
+    const bool finished = ageMs >= config::kBluetoothLightTransitionMs;
+    const uint32_t boundedAgeMs =
+        finished ? config::kBluetoothLightTransitionMs : ageMs;
+    const uint32_t rising = boundedAgeMs * 255UL /
+                            config::kBluetoothLightTransitionMs;
+    const uint8_t level = static_cast<uint8_t>(
+        bluetoothTransitionEnables ? rising : 255UL - rising);
+    const uint8_t green =
+        static_cast<uint8_t>(static_cast<uint16_t>(level) * 130U / 255U);
+    const uint8_t blue =
+        static_cast<uint8_t>(static_cast<uint16_t>(level) * 252U / 255U);
+    enablePeripheralPower();
+    setBuzzer(false);
+    const uint32_t wantedColor = pixels.Color(0, green, blue, 0);
+    if (wantedColor != displayedColor) {
+      setAllPixels(wantedColor);
     }
-    bluetoothTransitionActive = false;
+    bluetoothTransitionActive = !finished;
+    return;
   }
   if (muted || !alarmActive) {
     off();

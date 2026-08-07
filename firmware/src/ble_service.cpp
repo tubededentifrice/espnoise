@@ -41,7 +41,9 @@ uint32_t advertisingStartMs = 0;
 std::array<uint8_t, 20> lastStatusPacket{};
 bool haveStatus = false;
 bool firstPairingPending = false;
-bool stopping = false;
+volatile bool stopping = false;
+volatile bool configSubscribed = false;
+volatile bool analyticsSubscribed = false;
 uint32_t lastStatusSentMs = 0;
 constexpr uint32_t kStatusHeartbeatMs = 10UL * 1000UL;
 constexpr uint32_t kLiveStatusIntervalMs = 250;
@@ -85,41 +87,45 @@ void setAdvertisingIntervals(bool slow) {
 
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* source,
-                 ble_gap_conn_desc* description) override {
-    connected = true;
-    if (description == nullptr) {
+                 NimBLEConnInfo& description) override {
+    if (stopping) {
       return;
     }
+    connected = true;
 
-    const bool knownBond = NimBLEDevice::isBonded(
-        NimBLEAddress(description->peer_id_addr));
-    if (!description->sec_state.encrypted && !knownBond && !pairingOpen()) {
+    const bool knownBond = NimBLEDevice::isBonded(description.getIdAddress());
+    if (!description.isEncrypted() && !knownBond && !pairingOpen()) {
       Serial.printf(
           "[BLE] Rejected new phone outside pairing window; bonds=%u\n",
           static_cast<unsigned>(NimBLEDevice::getNumBonds()));
       connected = false;
-      source->disconnect(description->conn_handle);
+      source->disconnect(description);
       return;
     }
-    if (!description->sec_state.encrypted) {
+    if (!description.isEncrypted()) {
       if (!knownBond &&
           NimBLEDevice::getNumBonds() >= CONFIG_BT_NIMBLE_MAX_BONDS) {
         Serial.println("[BLE] Rejected new phone because bond storage is full");
         connected = false;
-        source->disconnect(description->conn_handle);
+        source->disconnect(description);
         return;
       }
       Serial.printf(
           "[BLE] Starting security; known_bond=%s pairing_open=%s bonds=%u\n",
           knownBond ? "yes" : "no", pairingOpen() ? "yes" : "no",
           static_cast<unsigned>(NimBLEDevice::getNumBonds()));
-      NimBLEDevice::startSecurity(description->conn_handle);
+      NimBLEDevice::startSecurity(description.getConnHandle());
     }
   }
 
-  void onDisconnect(NimBLEServer* source) override {
+  void onDisconnect(NimBLEServer* source, NimBLEConnInfo& description,
+                    int reason) override {
     (void)source;
+    (void)description;
+    (void)reason;
     connected = false;
+    configSubscribed = false;
+    analyticsSubscribed = false;
     portENTER_CRITICAL(&pendingMutex);
     hasAnalyticsRequest = false;
     portEXIT_CRITICAL(&pendingMutex);
@@ -130,15 +136,14 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     advertising->start();
   }
 
-  void onAuthenticationComplete(ble_gap_conn_desc* description) override {
-    if (description == nullptr ||
-        !description->sec_state.encrypted ||
-        !description->sec_state.bonded) {
+  void onAuthenticationComplete(NimBLEConnInfo& description) override {
+    if (stopping) {
+      return;
+    }
+    if (!description.isEncrypted() || !description.isBonded()) {
       Serial.println("[BLE] Authentication failed");
       connected = false;
-      if (description != nullptr) {
-        server->disconnect(description->conn_handle);
-      }
+      server->disconnect(description);
       return;
     }
     firstPairingPending = false;
@@ -148,7 +153,12 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 };
 
 class ConfigCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic* characteristic) override {
+  void onWrite(NimBLECharacteristic* characteristic,
+               NimBLEConnInfo& connection) override {
+    (void)connection;
+    if (stopping) {
+      return;
+    }
     const std::string value = characteristic->getValue();
 
     if (value.size() == noise_analytics::kRequestLength) {
@@ -220,10 +230,22 @@ class ConfigCallbacks : public NimBLECharacteristicCallbacks {
     hasPending = true;
     portEXIT_CRITICAL(&pendingMutex);
   }
+
+  void onSubscribe(NimBLECharacteristic* characteristic,
+                   NimBLEConnInfo& connection, uint16_t value) override {
+    (void)characteristic;
+    (void)connection;
+    configSubscribed = (value & 0x01U) != 0;
+  }
 };
 
 class NameCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic* characteristic) override {
+  void onWrite(NimBLECharacteristic* characteristic,
+               NimBLEConnInfo& connection) override {
+    (void)connection;
+    if (stopping) {
+      return;
+    }
     const std::string value = characteristic->getValue();
     device_name::Value candidate;
     const auto result = device_name::decode(
@@ -249,7 +271,12 @@ class NameCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 class AnalyticsCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic* characteristic) override {
+  void onWrite(NimBLECharacteristic* characteristic,
+               NimBLEConnInfo& connection) override {
+    (void)connection;
+    if (stopping) {
+      return;
+    }
     const std::string value = characteristic->getValue();
     uint32_t afterSequence = 0;
     uint32_t currentUtcSeconds = 0;
@@ -264,6 +291,13 @@ class AnalyticsCallbacks : public NimBLECharacteristicCallbacks {
     hasAnalyticsRequest = true;
     portEXIT_CRITICAL(&pendingMutex);
   }
+
+  void onSubscribe(NimBLECharacteristic* characteristic,
+                   NimBLEConnInfo& connection, uint16_t value) override {
+    (void)characteristic;
+    (void)connection;
+    analyticsSubscribed = (value & 0x01U) != 0;
+  }
 };
 
 ServerCallbacks serverCallbacks;
@@ -273,16 +307,21 @@ AnalyticsCallbacks analyticsCallbacks;
 
 }  // namespace
 
-void begin(const config_packet::Bytes& appliedPacket,
+bool begin(const config_packet::Bytes& appliedPacket,
            const device_name::Value& appliedName) {
   stopping = false;
   connected = false;
   slowAdvertising = false;
+  configSubscribed = false;
+  analyticsSubscribed = false;
   currentPacket = appliedPacket;
   currentName = appliedName;
   const std::string name = advertisedName(currentName);
 
-  NimBLEDevice::init(name);
+  if (!NimBLEDevice::init(name)) {
+    Serial.println("ERROR: Bluetooth radio start failed");
+    return false;
+  }
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
   NimBLEDevice::setSecurityAuth(true, false, true);
   NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
@@ -323,7 +362,11 @@ void begin(const config_packet::Bytes& appliedPacket,
   haveStatus = true;
   statusCharacteristic->setValue(lastStatusPacket.data(),
                                  lastStatusPacket.size());
-  service->start();
+  if (!server->start()) {
+    Serial.println("ERROR: Bluetooth service start failed");
+    end();
+    return false;
+  }
 
   advertising = NimBLEDevice::getAdvertising();
   NimBLEAdvertisementData advertisementData;
@@ -336,7 +379,7 @@ void begin(const config_packet::Bytes& appliedPacket,
   scanResponseData.setName(name);
   advertising->setAdvertisementData(advertisementData);
   advertising->setScanResponseData(scanResponseData);
-  advertising->setScanResponse(true);
+  advertising->enableScanResponse(true);
   setAdvertisingIntervals(false);
   advertisingStartMs = millis();
   const bool started = advertising->start();
@@ -346,13 +389,29 @@ void begin(const config_packet::Bytes& appliedPacket,
       started ? "yes" : "no", name.c_str(), kServiceUuid,
       static_cast<unsigned>(NimBLEDevice::getNumBonds()),
       pairingOpen() ? "yes" : "no");
+  if (!started) {
+    end();
+  }
+  return started;
 }
 
-void end() {
+bool end() {
   stopping = true;
   connected = false;
   if (advertising != nullptr && advertising->isAdvertising()) {
     advertising->stop();
+  }
+  // Keep the C++ objects until the stack confirms that it stopped. This lets
+  // us resume advertising if the controller rejects a stop request.
+  const bool stopped = NimBLEDevice::deinit(false);
+  if (!stopped || NimBLEDevice::isInitialized()) {
+    stopping = false;
+    if (advertising != nullptr && !advertising->isAdvertising()) {
+      setAdvertisingIntervals(slowAdvertising);
+      advertising->start();
+    }
+    Serial.println("ERROR: Bluetooth radio stop did not complete");
+    return false;
   }
   NimBLEDevice::deinit(true);
   server = nullptr;
@@ -362,6 +421,8 @@ void end() {
   nameCharacteristic = nullptr;
   analyticsCharacteristic = nullptr;
   haveStatus = false;
+  configSubscribed = false;
+  analyticsSubscribed = false;
   portENTER_CRITICAL(&pendingMutex);
   hasPending = false;
   hasPendingName = false;
@@ -369,6 +430,7 @@ void end() {
   hasAnalyticsRequest = false;
   portEXIT_CRITICAL(&pendingMutex);
   Serial.println("[BLE] Radio disabled");
+  return true;
 }
 
 void update(uint32_t nowMs) {
@@ -497,10 +559,13 @@ bool notifyAnalytics(const noise_analytics::Packet& packet) {
   if (!connected || analyticsCharacteristic == nullptr) {
     return false;
   }
-  if (analyticsCharacteristic->getSubscribedCount() > 0) {
+  if (analyticsSubscribed) {
     analyticsCharacteristic->setValue(packet.data(), packet.size());
     analyticsCharacteristic->notify();
     return true;
+  }
+  if (!configSubscribed) {
+    return false;
   }
   configCharacteristic->setValue(packet.data(), packet.size());
   configCharacteristic->notify();
