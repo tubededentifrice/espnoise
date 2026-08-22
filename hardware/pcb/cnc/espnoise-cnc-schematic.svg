@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <style>
+    text { font-family: Arial, sans-serif; fill: #17202a; font-size: 15px; }
+    .title { font-size: 25px; font-weight: 700; }
+    .head { font-size: 18px; font-weight: 700; }
+    .part { fill: #f8f9f9; stroke: #34495e; stroke-width: 2; }
+    .wire { fill: none; stroke: #21618c; stroke-width: 3; }
+    .power { fill: none; stroke: #b03a2e; stroke-width: 4; }
+    .ground { fill: none; stroke: #1e8449; stroke-width: 4; }
+    .node { fill: #17202a; }
+    .small { font-size: 13px; }
+  </style>
+  <rect width="1200" height="760" fill="#fff"/>
+  <text x="40" y="38" class="title">ESPNoise Rev C CNC electrical schematic</text>
+  <text x="40" y="64">The board uses net labels. The controller pin order is unchanged.</text>
+
+  <text x="40" y="106" class="head">Power and LED data</text>
+  <rect x="40" y="125" width="120" height="70" class="part"/>
+  <text x="100" y="153" text-anchor="middle">J1</text><text x="100" y="176" text-anchor="middle">5 V input</text>
+  <path d="M160 145 H235" class="power"/><text x="173" y="136" class="small">+5V_IN</text>
+  <rect x="235" y="125" width="115" height="45" class="part"/>
+  <text x="292" y="153" text-anchor="middle">F1 0.5 A PTC</text>
+  <path d="M350 145 H440" class="power"/><text x="361" y="136" class="small">+5V_PERIPH</text>
+  <circle cx="440" cy="145" r="5" class="node"/>
+  <path d="M440 145 H520" class="power"/>
+  <rect x="520" y="112" width="185" height="100" class="part"/>
+  <text x="612" y="139" text-anchor="middle">U1 SN74AHCT125N</text>
+  <text x="612" y="163" text-anchor="middle" class="small">14 VCC; 7 GND; 1 /OE</text>
+  <text x="612" y="185" text-anchor="middle" class="small">2 input; 3 output</text>
+  <path d="M705 178 H755" class="wire"/>
+  <rect x="755" y="158" width="80" height="40" class="part"/><text x="795" y="183" text-anchor="middle">R1 330 R</text>
+  <path d="M835 178 H940" class="wire"/><text x="846" y="169" class="small">LED_DATA_5V</text>
+  <rect x="940" y="125" width="160" height="90" class="part"/>
+  <text x="1020" y="153" text-anchor="middle">J3 LED strip</text>
+  <text x="1020" y="177" text-anchor="middle" class="small">1,4 +5 V; 2,5 GND</text>
+  <text x="1020" y="199" text-anchor="middle" class="small">3 DIN</text>
+  <path d="M440 145 V235 H1020 V215" class="power"/>
+  <rect x="420" y="235" width="130" height="48" class="part"/><text x="485" y="264" text-anchor="middle">C2 1000 uF</text>
+  <path d="M470 300 H520" class="wire"/><text x="390" y="305" class="small">J2-7 LED_DATA_3V3</text>
+  <path d="M520 300 V178" class="wire"/>
+  <rect x="565" y="235" width="130" height="48" class="part"/><text x="630" y="264" text-anchor="middle">C1 100 nF</text>
+
+  <text x="40" y="350" class="head">Microphone and mute control</text>
+  <rect x="40" y="370" width="185" height="175" class="part"/>
+  <text x="132" y="400" text-anchor="middle">J2 controller</text>
+  <text x="60" y="428" class="small">3 +3V3</text><text x="60" y="450" class="small">4 MIC_SCK</text>
+  <text x="60" y="472" class="small">5 MIC_WS</text><text x="60" y="494" class="small">6 MIC_SD</text>
+  <text x="60" y="516" class="small">9 MUTE_N</text><text x="60" y="538" class="small">2,10 GND</text>
+  <path d="M225 428 H390" class="wire"/><path d="M225 450 H390" class="wire"/>
+  <path d="M225 472 H390" class="wire"/><path d="M225 494 H390" class="wire"/>
+  <rect x="390" y="385" width="210" height="130" class="part"/>
+  <text x="495" y="414" text-anchor="middle">MIC1 INMP441 module</text>
+  <text x="495" y="440" text-anchor="middle" class="small">VDD, SCK, WS, SD</text>
+  <text x="495" y="466" text-anchor="middle" class="small">GND and L/R to GND</text>
+  <text x="495" y="491" text-anchor="middle" class="small">Acoustic port faces the user</text>
+  <path d="M225 516 H690" class="wire"/>
+  <rect x="690" y="485" width="140" height="62" class="part"/><text x="760" y="511" text-anchor="middle">SW1 MUTE</text><text x="760" y="533" text-anchor="middle" class="small">momentary</text>
+  <path d="M830 516 H875 V575" class="ground"/>
+
+  <text x="40" y="605" class="head">Hard buzzer switch and driver</text>
+  <path d="M40 645 H130" class="power"/><text x="40" y="635" class="small">+5V_PERIPH</text>
+  <rect x="130" y="620" width="145" height="55" class="part"/><text x="202" y="644" text-anchor="middle">SW2 BUZZER</text><text x="202" y="665" text-anchor="middle" class="small">hard power switch</text>
+  <path d="M275 645 H365" class="power"/><text x="280" y="635" class="small">+5V_BUZZER_SW</text>
+  <rect x="365" y="620" width="125" height="55" class="part"/><text x="427" y="654" text-anchor="middle">BZ1 passive</text>
+  <path d="M490 645 H575" class="wire"/>
+  <circle cx="575" cy="645" r="5" class="node"/>
+  <path d="M575 645 V700 H760" class="wire"/>
+  <rect x="760" y="675" width="120" height="55" class="part"/><text x="820" y="709" text-anchor="middle">Q1 2N3904</text>
+  <path d="M820 730 V745 H1020" class="ground"/>
+  <path d="M575 645 V585 H510" class="wire"/>
+  <rect x="380" y="565" width="130" height="40" class="part"/><text x="445" y="590" text-anchor="middle">D1 1N5819</text>
+  <path d="M380 585 H325 V645" class="power"/>
+  <path d="M620 700 V665 H685" class="wire"/><rect x="685" y="645" width="90" height="40" class="part"/><text x="730" y="670" text-anchor="middle">R2 1 k</text>
+  <path d="M775 665 H820 V675" class="wire"/><text x="620" y="655" class="small">J2-8 BUZZER_PWM</text>
+  <path d="M820 675 V625 H925" class="wire"/><rect x="925" y="605" width="100" height="40" class="part"/><text x="975" y="630" text-anchor="middle">R3 100 k</text>
+  <path d="M1025 625 V745" class="ground"/>
+  <path d="M45 575 H1100" class="ground"/><text x="45" y="565" class="small">GND</text>
+  <path d="M100 195 V575 M485 283 V575 M630 283 V575 M600 470 V575" class="ground"/>
+</svg>

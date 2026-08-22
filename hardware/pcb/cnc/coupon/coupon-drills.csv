@@ -1,0 +1,7 @@
+diameter_mm,x_mm,y_mm,purpose
+2.0,15.000,2.000,registration
+2.0,15.000,13.000,registration
+0.8,8.000,7.500,via test
+0.8,22.000,7.500,via test
+0.9,5.000,7.500,0.9 mm fit test
+1.0,12.000,7.500,1.0 mm fit test

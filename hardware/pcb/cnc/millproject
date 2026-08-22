@@ -1,0 +1,29 @@
+# pcb2gcode settings for the Genmitsu Cubiko and the ESPNoise Rev C board.
+# These are safe first-test values. Validate them with the coupon.
+front=gerbers/espnoise-cnc-F_Cu.gtl
+back=gerbers/espnoise-cnc-B_Cu.gbl
+front-output=espnoise-cnc-user-face.nc
+back-output=espnoise-cnc-internal-face.nc
+output-dir=machine
+
+metric=true
+metricoutput=true
+zero-start=false
+mirror-axis=35.0
+nog64=true
+optimise=0.005
+sanity-checks=true
+
+# The 0.20 mm value is the measured cut width, not the V-bit shank size.
+mill-diameters=0.20
+isolation-width=0.20
+milling-overlap=50%
+zwork=-0.04
+zsafe=2.0
+zchange=10.0
+mill-feed=120
+mill-vertfeed=60
+mill-infeed=0.04
+mill-speed=10000
+spinup-time=2
+nom6=true

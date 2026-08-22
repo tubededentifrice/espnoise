@@ -1,5 +1,10 @@
 # Controller adapter cables
 
+The Rev C home-milled board uses JST-XH connectors with the same signal order.
+Use `XHP-10`, `XHP-5`, and `XHP-2` cable housings for Rev C. Use contacts that
+the JST-XH housing manufacturer approves. Do not force a JST-PH housing into a
+JST-XH header.
+
 J2 is a controller-independent signal connector. The carrier PCB does not
 contain an ESP32. Use one adapter cable between J2 and the selected development
 board.

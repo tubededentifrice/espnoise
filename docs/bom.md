@@ -66,6 +66,10 @@ this 5 V build.
 The production carrier uses bottom-entry JST PH cable interfaces. The adapter
 pin orders and cable housings are in `hardware/pcb/controller-adapters.md`.
 
+The home-milled Rev C prototype has a separate BOM in
+`hardware/pcb/cnc/espnoise-cnc-bom.csv`. It uses through-hole parts and
+2.50 mm JST-XH headers. Do not use the Rev B JST-PH cable housings on Rev C.
+
 ## Optional battery build
 
 The battery build is not necessary for the production enclosure. Do not add it

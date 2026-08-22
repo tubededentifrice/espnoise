@@ -1,5 +1,10 @@
 # ESPNoise carrier PCB
 
+For the 70 mm by 50 mm two-face home-milled board, use
+[`cnc/README.md`](cnc/README.md). That Rev C prototype uses larger through-hole
+parts, JST-XH headers, registration holes, Gerber files, and Cubiko G-code.
+The Rev B factory board below stays separate.
+
 This directory contains the carrier PCB for the USB-powered ESPNoise build.
 The ESP32 stays on a removable cable. The PCB contains the controls, digital
 microphone, buzzer, LED data buffer, buzzer driver, fuse, and keyed connectors.

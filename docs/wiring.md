@@ -43,6 +43,11 @@ The carrier is also electrically usable with an ESP32-C3 adapter cable, but
 the current firmware does not have an ESP32-C3 build. See
 `hardware/pcb/controller-adapters.md` before you make that cable.
 
+The home-milled Rev C board keeps this signal order and these GPIO pins. It
+uses 2.50 mm JST-XH headers because a 2.00 mm JST-PH header does not give a
+safe isolation channel for the selected beginner CNC process. Its board files
+and cable details are in `hardware/pcb/cnc`.
+
 ## USB-powered build
 
 Use this production circuit with the full-size USB-C ESP32. Do not install a

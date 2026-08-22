@@ -1,0 +1,58 @@
+reference,pin,net,description
+J1,1,+5V_IN,External power-only USB-C module
+J1,2,GND,External power ground
+J2,1,+5V_IN,Controller 5 V input
+J2,2,GND,Controller ground
+J2,3,+3V3,Microphone supply
+J2,4,MIC_SCK,GPIO26
+J2,5,MIC_WS,GPIO25
+J2,6,MIC_SD,GPIO32
+J2,7,LED_DATA_3V3,GPIO18
+J2,8,BUZZER_PWM,GPIO23
+J2,9,MUTE_N,GPIO27
+J2,10,GND,Controller ground
+J3,1,+5V_PERIPH,LED strip first-end power
+J3,2,GND,LED strip first-end ground
+J3,3,LED_DATA_5V,LED strip DIN
+J3,4,+5V_PERIPH,LED strip far-end power
+J3,5,GND,LED strip far-end ground
+F1,1,+5V_IN,0.5 A PTC input
+F1,2,+5V_PERIPH,Fused peripheral supply
+U1,1,GND,Channel 1 enable
+U1,2,LED_DATA_3V3,Channel 1 input
+U1,3,LED_DATA_5V_RAW,Channel 1 output
+U1,4,+5V_PERIPH,Disable channel 2 output
+U1,5,GND,Channel 2 input state
+U1,7,GND,Supply ground
+U1,9,GND,Channel 3 input state
+U1,10,+5V_PERIPH,Disable channel 3 output
+U1,12,GND,Channel 4 input state
+U1,13,+5V_PERIPH,Disable channel 4 output
+U1,14,+5V_PERIPH,Supply
+R1,1,LED_DATA_5V_RAW,LED data source
+R1,2,LED_DATA_5V,LED data after 330 ohm
+C1,1,+5V_PERIPH,AHCT bypass
+C1,2,GND,AHCT bypass
+C2,1,+5V_PERIPH,Positive bulk capacitor pin
+C2,2,GND,Negative bulk capacitor pin
+SW1,2,MUTE_N,Momentary contact
+SW1,3,GND,Momentary contact
+SW2,1,+5V_BUZZER_SW,Switched output
+SW2,2,+5V_PERIPH,Hard-switch input
+BZ1,1,+5V_BUZZER_SW,Positive buzzer pad
+BZ1,2,BUZZER_COLLECTOR,Negative buzzer pad
+D1,1,+5V_BUZZER_SW,Cathode
+D1,2,BUZZER_COLLECTOR,Anode
+R2,1,BUZZER_PWM,GPIO23 input
+R2,2,BUZZER_BASE,1 kohm base limit
+R3,1,BUZZER_BASE,Base pull-down
+R3,2,GND,Base pull-down
+Q1,1,GND,2N3904 emitter
+Q1,2,BUZZER_BASE,2N3904 base
+Q1,3,BUZZER_COLLECTOR,2N3904 collector
+MIC1,1,MIC_SCK,Module SCK
+MIC1,2,MIC_WS,Module WS
+MIC1,3,GND,Module L/R
+MIC1,4,MIC_SD,Module SD
+MIC1,5,+3V3,Module VDD
+MIC1,6,GND,Module GND
