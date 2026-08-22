@@ -46,5 +46,7 @@
   output manifest, use the coupon, and do a safe-Z dry run before the panel.
 - Export factory files with
   `uv run --locked opendle-kicad export --config opendle-tools.toml`.
+- Run `uv run --locked opendle-secrets check` before each commit. Do not commit
+  credentials, personal paths, device dumps, or private measurements.
 - Keep hardware assumptions in the documents. Do not put an unknown part size
   into a final case model.

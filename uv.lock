@@ -109,7 +109,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "opendle-electronics", extras = ["platformio"], git = "https://github.com/opendle/opendle-electronics.git?rev=b029c32fb95caad4e705f15043715046c33e1d12" }]
+requires-dist = [{ name = "opendle-electronics", extras = ["platformio"], git = "https://github.com/opendle/opendle-electronics.git?rev=c6f0cffbacd849c63dcb7720d608c20e2c2a6269" }]
 
 [[package]]
 name = "h11"
@@ -144,7 +144,7 @@ wheels = [
 [[package]]
 name = "opendle-electronics"
 version = "0.1.0"
-source = { git = "https://github.com/opendle/opendle-electronics.git?rev=b029c32fb95caad4e705f15043715046c33e1d12#b029c32fb95caad4e705f15043715046c33e1d12" }
+source = { git = "https://github.com/opendle/opendle-electronics.git?rev=c6f0cffbacd849c63dcb7720d608c20e2c2a6269#c6f0cffbacd849c63dcb7720d608c20e2c2a6269" }
 
 [package.optional-dependencies]
 platformio = [

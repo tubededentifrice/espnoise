@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-opendle-electronics = { git = "https://github.com/opendle/opendle-electronics.git", rev = "b029c32fb95caad4e705f15043715046c33e1d12" }
+opendle-electronics = { git = "https://github.com/opendle/opendle-electronics.git", rev = "c6f0cffbacd849c63dcb7720d608c20e2c2a6269" }
 
 [tool.uv]
 package = false
@@ -17,4 +17,7 @@ exclude-newer = "2 weeks"
 required-version = ">=0.12.0"
 
 [tool.opendle.dependencies]
-trusted-github = ["opendle/opendle-electronics"]
+trusted-github = [
+  "opendle/opendle-electronics",
+  "opendle/opendle-esp32",
+]
