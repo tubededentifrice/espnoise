@@ -29,16 +29,17 @@ MIN_TRACK_WIDTH = 0.50
 MIN_CLEARANCE = 0.40
 POWER_TRACK_WIDTH = 1.00
 
-# Provisional physical values from the supplied part photographs and standard
-# 2.54 mm header geometry. Replace them with caliper measurements before the
-# final CAM release.
-MIC_MODULE_DIAMETER = 18.0
+# Physical values from the user's prototype board. The microphone diameter is
+# approximate. Its acoustic-hole offset still needs a caliper measurement.
+MIC_MODULE_DIAMETER = 13.0
 MIC_PIN_PITCH_X = 2.54
 MIC_ROW_PITCH_Y = 7.62
 MIC_ACOUSTIC_OFFSET_X = 0.0
 MIC_ACOUSTIC_OFFSET_Y = 0.0
 BUZZER_BODY_DIAMETER = 12.0
-BUZZER_LEAD_PITCH = 7.6
+BUZZER_LEAD_PITCH = 6.5
+BUZZER_LEAD_DIAMETER = 0.5
+BUZZER_DRILL_DIAMETER = 0.8
 
 
 @dataclass(frozen=True)
@@ -206,7 +207,7 @@ add_component(
             th_pad(5, mic_x[1], mic_bottom_y, "MIC_WS", drill=1.0),
             th_pad(6, mic_x[2], mic_bottom_y, "MIC_SCK", drill=1.0),
         ),
-        "Label-side view, notch toward the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. Dimensions and acoustic offset are provisional until measured.",
+        "Label-side view, notch toward the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. Pin pitches are confirmed from the prototype board. The 13 mm body is approximate, and the acoustic offset is not measured.",
         "ESPNoise:MH_ET_LIVE_INMP441_2x3_P2.54_Row7.62",
         "circle",
     )
@@ -221,11 +222,11 @@ add_component(
         BUZZER_BODY_DIAMETER,
         BUZZER_BODY_DIAMETER,
         (
-            th_pad(1, 61.0 + BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "+5V_BUZZER_SW", drill=1.0),
-            th_pad(2, 61.0 - BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", drill=1.0),
+            th_pad(1, 61.0 + BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "+5V_BUZZER_SW", drill=BUZZER_DRILL_DIAMETER),
+            th_pad(2, 61.0 - BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", drill=BUZZER_DRILL_DIAMETER),
         ),
-        "Top sound port. Pad 1 is + and pad 2 is -. Body and lead pitch are provisional until measured. Keep D1 until the buzzer type is confirmed.",
-        "ESPNoise:Buzzer_THT_2Pin_P7.60mm_D12mm",
+        "Passive buzzer with top sound port. Pad 1 is + and pad 2 is -. The measured body is 12 mm, the lead pitch is 6.5 mm, and each lead is 0.5 mm. D1 protects the driver from the coil turn-off pulse.",
+        "ESPNoise:Buzzer_THT_2Pin_P6.50mm_D12mm",
         "circle",
     )
 )
@@ -962,7 +963,7 @@ def write_netlist() -> None:
 
 
 def write_component_fit_check() -> None:
-    """Write a print-scale check that uses the same provisional dimensions."""
+    """Write a print-scale check that uses the PCB footprint dimensions."""
     mic_radius = MIC_MODULE_DIAMETER / 2
     buzzer_radius = BUZZER_BODY_DIAMETER / 2
     mic_left = 55 - MIC_PIN_PITCH_X
@@ -979,7 +980,7 @@ def write_component_fit_check() -> None:
         '<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="100mm" viewBox="0 0 210 100">',
         '<style>text { font-family: Arial, sans-serif; fill: #172033; } .title { font-size: 6px; font-weight: 700; } .label { font-size: 4px; font-weight: 700; } .small { font-size: 3px; } .part { fill: #e8e8e8; fill-opacity: 0.8; stroke: #111; stroke-width: 0.5; } .center { stroke: #0e7490; stroke-width: 0.2; stroke-dasharray: 1 1; } .scale { stroke: #172033; stroke-width: 0.5; }</style>',
         '<rect width="210" height="100" fill="white"/>',
-        '<text x="8" y="10" class="title">ESPNoise provisional 1:1 component fit check</text>',
+        '<text x="8" y="10" class="title">ESPNoise 1:1 component fit check</text>',
         '<text x="8" y="16" class="small">Print at 100% scale. Do not use Fit to page. The 50 mm check line must measure exactly 50 mm.</text>',
         '<line x1="8" y1="25" x2="58" y2="25" class="scale"/><line x1="8" y1="22" x2="8" y2="28" class="scale"/><line x1="58" y1="22" x2="58" y2="28" class="scale"/>',
         '<text x="33" y="22" text-anchor="middle" class="label">50.00 mm</text>',
@@ -991,15 +992,15 @@ def write_component_fit_check() -> None:
         copper_hole(mic_left, mic_bottom) + copper_hole(55, mic_bottom) + copper_hole(mic_right, mic_bottom),
         f'<text x="{mic_left:.2f}" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">1</text><text x="55" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">2</text><text x="{mic_right:.2f}" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">3</text>',
         f'<text x="{mic_left:.2f}" y="{mic_bottom + 3.5:.2f}" text-anchor="middle" class="small">4</text><text x="55" y="{mic_bottom + 3.5:.2f}" text-anchor="middle" class="small">5</text><text x="{mic_right:.2f}" y="{mic_bottom + 3.5:.2f}" text-anchor="middle" class="small">6</text>',
-        f'<text x="55" y="80" text-anchor="middle" class="small">PROVISIONAL: body {MIC_MODULE_DIAMETER:.2f} mm</text>',
-        f'<text x="55" y="84" text-anchor="middle" class="small">row {MIC_ROW_PITCH_Y:.2f} mm; pins {MIC_PIN_PITCH_X:.2f} mm</text>',
+        f'<text x="55" y="80" text-anchor="middle" class="small">APPROXIMATE: body {MIC_MODULE_DIAMETER:.2f} mm</text>',
+        f'<text x="55" y="84" text-anchor="middle" class="small">CONFIRMED: row {MIC_ROW_PITCH_Y:.2f} mm; pins {MIC_PIN_PITCH_X:.2f} mm</text>',
         '<text x="145" y="40" text-anchor="middle" class="label">BZ1 — sound-port side</text>',
         f'<circle cx="145" cy="65" r="{buzzer_radius:.2f}" class="part"/>',
         '<line x1="137" y1="65" x2="153" y2="65" class="center"/><line x1="145" y1="57" x2="145" y2="73" class="center"/>',
         copper_hole(buzzer_left, 65) + copper_hole(buzzer_right, 65),
         f'<text x="{buzzer_left:.2f}" y="62" text-anchor="middle" class="small">2 −</text><text x="{buzzer_right:.2f}" y="62" text-anchor="middle" class="small">1 +</text>',
-        f'<text x="145" y="80" text-anchor="middle" class="small">PROVISIONAL: body {BUZZER_BODY_DIAMETER:.2f} mm</text>',
-        f'<text x="145" y="84" text-anchor="middle" class="small">lead pitch {BUZZER_LEAD_PITCH:.2f} mm</text>',
+        f'<text x="145" y="80" text-anchor="middle" class="small">MEASURED: body {BUZZER_BODY_DIAMETER:.2f} mm</text>',
+        f'<text x="145" y="84" text-anchor="middle" class="small">lead pitch {BUZZER_LEAD_PITCH:.2f} mm; lead {BUZZER_LEAD_DIAMETER:.2f} mm</text>',
         '<rect x="8" y="88" width="194" height="8" fill="#fff7ed" stroke="#c2410c" stroke-width="0.3"/>',
         '<text x="105" y="93" text-anchor="middle" class="label">STOP if a body or lead does not align. Measure the real part and regenerate the PCB.</text>',
         '</svg>',

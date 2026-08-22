@@ -4,8 +4,9 @@ This document uses the view from the marked face of each part. The marked face
 points toward the top opening of the case. The internal PCB face contains the
 wire pads and the buzzer driver parts.
 
-The microphone and buzzer body dimensions are provisional. Do not engrave the
-final panel until the measured values in this document are correct.
+The microphone pin pattern and the buzzer dimensions come from the prototype
+parts. The microphone body diameter is approximate. Do not engrave the final
+panel until you confirm the microphone acoustic-hole position.
 
 ## PWR1: external 5 V power wires
 
@@ -102,17 +103,18 @@ contact numbering can differ.
 The PCB has no LED resistor, no bulk capacitor, no LED level shifter, and no
 extra microphone passives.
 
-## Measurements required before final CAM
+## Physical values and remaining measurement
 
 | Value | Provisional PCB value | Measured value |
 | --- | ---: | ---: |
-| MIC1 round body diameter | 18.00 mm | Not measured |
-| MIC1 pin pitch inside each row | 2.54 mm | Header standard |
-| MIC1 distance between rows | 7.62 mm | Not measured |
+| MIC1 round body diameter | 13.00 mm | Approximate |
+| MIC1 pin pitch inside each row | 2.54 mm | Confirmed on prototype board |
+| MIC1 distance between rows | 7.62 mm | Confirmed: two empty 2.54 mm rows between occupied rows |
 | MIC1 acoustic-hole X offset from body center | 0.00 mm | Not measured |
 | MIC1 acoustic-hole Y offset from body center | 0.00 mm | Not measured |
-| BZ1 body diameter | 12.00 mm | Not measured |
-| BZ1 lead pitch | 7.60 mm | Not measured |
+| BZ1 body diameter | 12.00 mm | Measured |
+| BZ1 lead pitch | 6.50 mm | Measured |
+| BZ1 lead diameter | 0.50 mm | Measured; PCB drill is 0.80 mm |
 
 The microphone acoustic hole, not the module body center, must be on the
 switch and buzzer centerline.

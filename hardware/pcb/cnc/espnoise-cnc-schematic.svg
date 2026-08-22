@@ -16,7 +16,7 @@
   </style>
   <rect width="1600" height="1180" fill="#fafafa"/>
   <text x="40" y="52" class="title">ESPNoise Rev C CNC schematic and pin map</text>
-  <text x="40" y="82" class="small">All views use the marked part face. MIC1 and BZ1 dimensions are provisional until measured.</text>
+  <text x="40" y="82" class="small">All views use the marked part face. MIC1 is about 13 mm. BZ1 is 12 mm with a 6.5 mm lead pitch.</text>
 
   <text x="40" y="125" class="section">Power and external wire pads</text>
   <rect x="40" y="150" width="150" height="90" rx="8" class="connector"/>

@@ -22,10 +22,11 @@ connections are in `pinout.md` and `espnoise-cnc-netlist.csv`. The editable
 unit PCB is `espnoise-cnc.kicad_pcb`. The generator is the controlled layout
 source.
 
-This layout is provisional. Do not mill the full panel until you measure the
-microphone and buzzer and update the values in `generate_cnc_board.py`. Print
-`espnoise-component-fit-check.svg` at 100% scale and put the real parts on the
-drawing before you generate the final machine files.
+This layout uses the measured buzzer dimensions and the confirmed microphone
+pin pattern. The microphone body diameter is approximate, and its acoustic
+hole offset is not measured. Do not mill the full panel until you confirm that
+offset. Print `espnoise-component-fit-check.svg` at 100% scale and put the real
+parts on the drawing before you generate the final machine files.
 
 ## Important design limits
 
@@ -68,9 +69,9 @@ the label face visible and the notch at the top, the top row is `GND`, `VDD`,
 printed labels. Measure the body, both pin pitches, and the acoustic-hole
 offset before you mill the board or make the case holes.
 
-BZ1 is a round two-pin through-hole buzzer. Pad 1 is positive. Pad 2 is
-negative and connects to the transistor collector. Measure its body and lead
-pitch before you mill the board.
+BZ1 is a 12 mm passive two-pin through-hole buzzer. Its lead pitch is 6.5 mm,
+and each lead is 0.5 mm. Pad 1 is positive. Pad 2 is negative and connects to
+the transistor collector.
 
 ## Generate the files
 
@@ -108,7 +109,7 @@ preflight checks in `cubiko-guide.md` pass.
 | `espnoise-panel-internal.svg` | Two-unit internal-face check view |
 | `espnoise-cnc-schematic.svg` | Electrical schematic |
 | `pinout.md` | Complete pad and connector pin map |
-| `espnoise-component-fit-check.svg` | 1:1 provisional part fit check |
+| `espnoise-component-fit-check.svg` | 1:1 physical part fit check |
 | `espnoise-cnc-netlist.csv` | Exact pin-to-net table |
 | `espnoise-cnc-bom.csv` | Parts and face assignment for one unit |
 | `millproject` | Two-unit panel isolation values |

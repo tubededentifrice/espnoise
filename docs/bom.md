@@ -68,9 +68,10 @@ pin orders and cable housings are in `hardware/pcb/controller-adapters.md`.
 
 The home-milled Rev C prototype has a separate BOM in
 `hardware/pcb/cnc/espnoise-cnc-bom.csv`. It uses through-hole parts and
-individual solder-wire pads. Its microphone and buzzer footprints stay
-provisional until you measure the real parts. Do not use the Rev B JST-PH
-cable housings on Rev C.
+individual solder-wire pads. Its microphone pin pattern and buzzer dimensions
+come from the prototype parts. Confirm the microphone acoustic-hole position
+before the final CNC build. Do not use the Rev B JST-PH cable housings on
+Rev C.
 
 ## Optional battery build
 
