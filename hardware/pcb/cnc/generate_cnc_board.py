@@ -25,9 +25,9 @@ PANEL_WIDTH = 70.0
 PANEL_HEIGHT = 50.0
 PANEL_CUT_Y = 25.0
 USER_CENTERLINE_Y = BOARD_HEIGHT / 2
-MIN_TRACK_WIDTH = 0.50
+MIN_TRACK_WIDTH = 0.70
 MIN_CLEARANCE = 0.40
-POWER_TRACK_WIDTH = 1.00
+POWER_TRACK_WIDTH = 1.20
 
 # Physical values from the user's prototype board. The microphone diameter is
 # approximate. The acoustic hole is confirmed at the module center.
@@ -200,12 +200,12 @@ add_component(
         MIC_MODULE_DIAMETER,
         MIC_MODULE_DIAMETER,
         (
-            th_pad(1, mic_x[0], mic_top_y, "GND", drill=1.0),
-            th_pad(2, mic_x[1], mic_top_y, "+3V3", drill=1.0),
-            th_pad(3, mic_x[2], mic_top_y, "MIC_SD", drill=1.0),
-            th_pad(4, mic_x[0], mic_bottom_y, "GND", drill=1.0),
-            th_pad(5, mic_x[1], mic_bottom_y, "MIC_WS", drill=1.0),
-            th_pad(6, mic_x[2], mic_bottom_y, "MIC_SCK", drill=1.0),
+            th_pad(1, mic_x[0], mic_top_y, "GND", drill=1.0, diameter=2.0),
+            th_pad(2, mic_x[1], mic_top_y, "+3V3", drill=1.0, diameter=2.0),
+            th_pad(3, mic_x[2], mic_top_y, "MIC_SD", drill=1.0, diameter=2.0),
+            th_pad(4, mic_x[0], mic_bottom_y, "GND", drill=1.0, diameter=2.0),
+            th_pad(5, mic_x[1], mic_bottom_y, "MIC_WS", drill=1.0, diameter=2.0),
+            th_pad(6, mic_x[2], mic_bottom_y, "MIC_SCK", drill=1.0, diameter=2.0),
         ),
         "The printed-label and acoustic-hole face points toward the case top. In that face view, with the notch at the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. The pin pitches and centered acoustic hole are confirmed. The 13 mm body is approximate.",
         "ESPNoise:MH_ET_LIVE_INMP441_2x3_P2.54_Row7.62",
@@ -222,8 +222,8 @@ add_component(
         BUZZER_BODY_DIAMETER,
         BUZZER_BODY_DIAMETER,
         (
-            th_pad(1, 61.0 + BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "+5V_BUZZER_SW", drill=BUZZER_DRILL_DIAMETER),
-            th_pad(2, 61.0 - BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", drill=BUZZER_DRILL_DIAMETER),
+            th_pad(1, 61.0 + BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "+5V_BUZZER_SW", drill=BUZZER_DRILL_DIAMETER, diameter=2.0),
+            th_pad(2, 61.0 - BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", drill=BUZZER_DRILL_DIAMETER, diameter=2.0),
         ),
         "Passive buzzer with top sound port. Pad 1 is + and pad 2 is -. The measured body is 12 mm, the lead pitch is 6.5 mm, and each lead is 0.5 mm. D1 protects the driver from the coil turn-off pulse.",
         "ESPNoise:Buzzer_THT_2Pin_P6.50mm_D12mm",

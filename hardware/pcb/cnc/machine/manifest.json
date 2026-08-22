@@ -131,11 +131,11 @@
     },
     {
       "file": "espnoise-panel-drill-0.8mm.nc",
-      "sha256": "066a7ce95911bf5016e782ad0b0220666b6684dcb1995b8981a24596e55d5cb2",
+      "sha256": "4e3c7752920a8f479c584c0ce79f18e48f037e209924d5f80854bb34b203b1bd",
       "extents_mm": {
         "X": [
           0.0,
-          65.25
+          65.75
         ],
         "Y": [
           0.0,
@@ -221,7 +221,7 @@
     },
     {
       "file": "espnoise-panel-internal-face.nc",
-      "sha256": "7c7183cfe8361b36a5eb2ca88af5219638702ffb7137959012296a0c998c4725",
+      "sha256": "e433e42fe1028f5f41051f4941b11f32ae1d1e300573757dd9ebb8a46a4b01b5",
       "extents_mm": {
         "X": [
           1.40004,
@@ -257,14 +257,14 @@
     },
     {
       "file": "espnoise-panel-user-face.nc",
-      "sha256": "9fb7ff724a68a29518b91e6ed566f006cfdbdd53acfbf7d9e817213d23867bea",
+      "sha256": "328e4a1289ab9b4e1be4a3c97a7bd4f2fa8bc4f2ff9b631c583654e1ec801d89",
       "extents_mm": {
         "X": [
-          1.40086,
-          68.59943
+          1.40051,
+          68.59941
         ],
         "Y": [
-          1.70056,
+          1.70083,
           48.29988
         ],
         "Z": [
