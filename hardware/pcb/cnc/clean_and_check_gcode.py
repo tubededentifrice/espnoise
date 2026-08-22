@@ -14,7 +14,7 @@ NUMBER = re.compile(r"([XYZ])(-?[0-9]+(?:\.[0-9]+)?)")
 
 
 def main() -> None:
-    files = sorted(MACHINE.glob("espnoise-cnc-*.nc")) + sorted(MACHINE.glob("coupon-*.nc"))
+    files = sorted(MACHINE.glob("espnoise-panel-*.nc")) + sorted(MACHINE.glob("coupon-*.nc"))
     if not files:
         raise SystemExit("No G-code files were found")
     for path in files:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the ESPNoise Rev C board for a two-face CNC process.
+"""Generate the ESPNoise Rev C unit and two-unit CNC panel.
 
 The generated files do not need KiCad. KiCad can open the generated board, and
 pcb2gcode can convert the Gerber files to GRBL G-code.
@@ -18,8 +18,13 @@ from uuid import uuid5, NAMESPACE_URL
 
 HERE = Path(__file__).resolve().parent
 BOARD_NAME = "espnoise-cnc"
+PANEL_NAME = "espnoise-panel"
 BOARD_WIDTH = 70.0
-BOARD_HEIGHT = 50.0
+BOARD_HEIGHT = 24.5
+PANEL_WIDTH = 70.0
+PANEL_HEIGHT = 50.0
+PANEL_CUT_Y = 25.0
+USER_CENTERLINE_Y = BOARD_HEIGHT / 2
 MIN_TRACK_WIDTH = 0.50
 MIN_CLEARANCE = 0.40
 
@@ -69,7 +74,7 @@ class Via:
     x: float
     y: float
     net: str
-    diameter: float = 1.8
+    diameter: float = 1.7
     drill: float = 0.8
 
 
@@ -97,8 +102,16 @@ def add_via(x: float, y: float, net: str) -> Via:
     return item
 
 
-def th_pad(number: int | str, x: float, y: float, net: str, *, drill: float = 0.9) -> Pad:
-    return Pad(str(number), x, y, net, diameter=max(1.6, drill + 0.6), drill=drill)
+def th_pad(
+    number: int | str,
+    x: float,
+    y: float,
+    net: str,
+    *,
+    drill: float = 0.9,
+    diameter: float | None = None,
+) -> Pad:
+    return Pad(str(number), x, y, net, diameter=diameter or max(1.6, drill + 0.6), drill=drill)
 
 
 def smd_pad(
@@ -120,17 +133,17 @@ add_component(
         "SW2",
         "BUZZER ENABLE (7-7 ZS)",
         "User",
-        9.0,
-        10.0,
+        7.0,
+        USER_CENTERLINE_Y,
         7.0,
         7.0,
         (
-            th_pad(1, 7.0, 7.5, "+5V_BUZZER_SW", drill=1.0),
-            th_pad(2, 9.0, 7.5, "+5V_PERIPH", drill=1.0),
-            th_pad(3, 11.0, 7.5, "" , drill=1.0),
-            th_pad(4, 7.0, 12.5, "", drill=1.0),
-            th_pad(5, 9.0, 12.5, "", drill=1.0),
-            th_pad(6, 11.0, 12.5, "", drill=1.0),
+            th_pad(1, 5.0, 9.75, "", drill=1.0),
+            th_pad(2, 7.0, 9.75, "", drill=1.0),
+            th_pad(3, 9.0, 9.75, "", drill=1.0),
+            th_pad(4, 5.0, 14.75, "+5V_BUZZER_SW", drill=1.0),
+            th_pad(5, 7.0, 14.75, "+5V_PERIPH", drill=1.0),
+            th_pad(6, 9.0, 14.75, "", drill=1.0),
         ),
         "Extended state enables buzzer power.",
         "ESPNoise:7x7_DPDT_Pushbutton",
@@ -141,24 +154,24 @@ add_component(
         "SW1",
         "MUTE (7-7 WS)",
         "User",
-        22.0,
-        10.0,
+        18.0,
+        USER_CENTERLINE_Y,
         7.0,
         7.0,
         (
-            th_pad(1, 20.0, 7.5, "", drill=1.0),
-            th_pad(2, 22.0, 7.5, "MUTE_N", drill=1.0),
-            th_pad(3, 24.0, 7.5, "GND", drill=1.0),
-            th_pad(4, 20.0, 12.5, "", drill=1.0),
-            th_pad(5, 22.0, 12.5, "", drill=1.0),
-            th_pad(6, 24.0, 12.5, "", drill=1.0),
+            th_pad(1, 16.0, 9.75, "", drill=1.0),
+            th_pad(2, 18.0, 9.75, "", drill=1.0),
+            th_pad(3, 20.0, 9.75, "", drill=1.0),
+            th_pad(4, 16.0, 14.75, "", drill=1.0),
+            th_pad(5, 18.0, 14.75, "MUTE_N", drill=1.0),
+            th_pad(6, 20.0, 14.75, "GND", drill=1.0),
         ),
         "Momentary mute button.",
         "ESPNoise:7x7_DPDT_Pushbutton",
     )
 )
 
-mic_x = [6.0 + 2.54 * index for index in range(6)]
+mic_x = [29.65 + 2.54 * index for index in range(6)]
 mic_nets = ["MIC_SCK", "MIC_WS", "GND", "MIC_SD", "+3V3", "GND"]
 mic_labels = ["SCK", "WS", "L/R", "SD", "VDD", "GND"]
 add_component(
@@ -166,12 +179,12 @@ add_component(
         "MIC1",
         "INMP441 1x6 MODULE",
         "User",
-        sum(mic_x) / len(mic_x),
-        31.0,
+        36.0,
+        USER_CENTERLINE_Y,
         18.0,
         14.0,
-        tuple(th_pad(index + 1, x, 31.0, net) for index, (x, net) in enumerate(zip(mic_x, mic_nets))),
-        "Pin order from left: " + ", ".join(mic_labels) + ". Confirm the module labels before soldering.",
+        tuple(th_pad(index + 1, x, 18.5, net) for index, (x, net) in enumerate(zip(mic_x, mic_nets))),
+        "Pin order from low X to high X: " + ", ".join(mic_labels) + ". The module acoustic center is on the user centerline. Confirm the real module before making the case.",
         "ESPNoise:INMP441_1x6_P2.54mm",
     )
 )
@@ -180,104 +193,97 @@ add_component(
         "BZ1",
         "FUET-1370F-05",
         "User",
-        57.0,
-        13.0,
+        61.0,
+        USER_CENTERLINE_Y,
         12.8,
         12.8,
         (
-            smd_pad(1, 62.325, 13.0, "+5V_BUZZER_SW", 4.15, 3.0),
-            smd_pad(2, 51.675, 13.0, "BUZZER_COLLECTOR", 4.15, 3.0),
+            smd_pad(1, 66.325, USER_CENTERLINE_Y, "+5V_BUZZER_SW", 4.15, 3.0),
+            smd_pad(2, 55.675, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", 4.15, 3.0),
         ),
         "Top sound port. Pad 1 is positive.",
         "ESPNoise:FUET-1370F-05",
     )
 )
 
-# Internal face: all other components and all external connectors.
-j2_x = [3.5 + 2.5 * index for index in range(10)]
-j2_nets = [
-    "+5V_IN", "GND", "+3V3", "MIC_SCK", "MIC_WS", "MIC_SD",
-    "LED_DATA_3V3", "BUZZER_PWM", "MUTE_N", "GND",
-]
+# Internal face: support parts and large wire pads. There are no cable headers.
+wire_pad = {"drill": 1.2, "diameter": 2.4}
 add_component(
     Component(
-        "J2", "CONTROLLER JST XH 1x10", "Internal", 14.75, 45.0, 25.0, 5.0,
-        tuple(th_pad(index + 1, x, 45.0, net) for index, (x, net) in enumerate(zip(j2_x, j2_nets))),
-        "Cable entry is on the internal face.", "JST:B10B-XH-A",
-    )
-)
-add_component(
-    Component(
-        "J3", "LED STRIP JST XH 1x5", "Internal", 35.0, 45.0, 12.5, 5.0,
-        tuple(
-            th_pad(index + 1, 30.0 + 2.5 * index, 45.0, net)
-            for index, net in enumerate(["+5V_PERIPH", "GND", "LED_DATA_5V", "+5V_PERIPH", "GND"])
+        "P1", "5 V POWER WIRES", "Internal", 4.75, 3.0, 7.0, 4.0,
+        (
+            th_pad(1, 3.0, 3.0, "+5V_IN", **wire_pad),
+            th_pad(2, 6.5, 3.0, "GND", **wire_pad),
         ),
-        "Pins 1 and 4 supply the two strip ends.", "JST:B5B-XH-A",
-    )
-)
-add_component(
-    Component(
-        "J1", "USB-C 5V JST XH 1x2", "Internal", 46.25, 45.0, 5.0, 5.0,
-        (th_pad(1, 45.0, 45.0, "+5V_IN"), th_pad(2, 47.5, 45.0, "GND")),
-        "Power-only input. Keep it separate from the ESP32 service port.", "JST:B2B-XH-A",
+        "External power-only input. Keep it separate from the ESP32 service port.",
+        "ESPNoise:WirePads_2_P3.5mm",
     )
 )
 
-dip_left_x = 30.0
-dip_right_x = 37.62
-dip_y = [4.5 + 2.54 * index for index in range(7)]
-u1_pad_positions = [(index + 1, dip_left_x, y) for index, y in enumerate(dip_y)]
-u1_pad_positions += [(14 - index, dip_right_x, y) for index, y in enumerate(dip_y)]
-u1_nets = {
-    1: "GND", 2: "LED_DATA_3V3", 3: "LED_DATA_5V_RAW", 4: "+5V_PERIPH",
-    5: "GND", 6: "", 7: "GND", 8: "", 9: "GND", 10: "+5V_PERIPH",
-    11: "", 12: "GND", 13: "+5V_PERIPH", 14: "+5V_PERIPH",
-}
-add_component(
-    Component(
-        "U1", "SN74AHCT125N", "Internal", 33.81, 12.12, 10.0, 19.0,
-        tuple(th_pad(number, x, y, u1_nets[number]) for number, x, y in u1_pad_positions),
-        "Use AHCT. Do not replace it with HC.", "Package_DIP:DIP-14_W7.62mm",
+def wire_terminal(ref: str, value: str, x: float, y: float, net: str) -> None:
+    add_component(
+        Component(
+            ref, value, "Internal", x, y, 2.0, 2.0,
+            (th_pad(1, x, y, net, drill=1.2, diameter=2.0),),
+            "Solder one insulated wire to this pad.", "ESPNoise:WireTerminal_D2.0mm",
+        )
     )
-)
+
+
+# The microphone terminals follow the same left-to-right order as MIC1. This
+# gives the short I2S tracks clear, direct paths.
+wire_terminal("W1", "ESP32 +5V", 2.5, 22.0, "+5V_IN")
+wire_terminal("W2", "ESP32 GND", 6.0, 22.0, "GND")
+wire_terminal("W3", "ESP32 MUTE", 18.0, 22.0, "MUTE_N")
+wire_terminal("W4", "ESP32 MIC SCK", 29.65, 22.0, "MIC_SCK")
+wire_terminal("W5", "ESP32 MIC WS", 32.19, 22.0, "MIC_WS")
+wire_terminal("W6", "ESP32 MIC SD", 37.27, 22.0, "MIC_SD")
+wire_terminal("W7", "ESP32 3V3", 39.81, 22.0, "+3V3")
+wire_terminal("W8", "ESP32 LED DATA", 35.0, 3.0, "LED_DATA_3V3")
+wire_terminal("W9", "ESP32 BUZZER", 48.0, 3.0, "BUZZER_PWM")
+wire_terminal("W10", "LED +5V", 44.0, 22.0, "+5V_PERIPH")
+wire_terminal("W11", "LED DATA", 42.0, 3.0, "LED_DATA")
+wire_terminal("W12", "LED GND", 48.0, 22.0, "GND")
 
 def axial(ref: str, value: str, x1: float, y1: float, x2: float, y2: float, net1: str, net2: str) -> None:
     add_component(
-        Component(ref, value, "Internal", (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1) + 2, 2.5,
+        Component(ref, value, "Internal", (x1 + x2) / 2, (y1 + y2) / 2,
+                  max(2.5, abs(x2 - x1) + 2), max(2.5, abs(y2 - y1) + 2),
                   (th_pad(1, x1, y1, net1), th_pad(2, x2, y2, net2)), footprint="THT:Axial")
     )
 
 
-axial("R1", "330R", 43.0, 16.0, 50.0, 16.0, "LED_DATA_5V_RAW", "LED_DATA_5V")
-axial("R2", "1K", 43.0, 28.0, 50.0, 28.0, "BUZZER_PWM", "BUZZER_BASE")
-axial("R3", "100K", 50.0, 32.0, 57.0, 32.0, "BUZZER_BASE", "GND")
-axial("D1", "1N5819", 50.0, 23.0, 60.0, 23.0, "+5V_BUZZER_SW", "BUZZER_COLLECTOR")
+axial("R1", "330R", 35.0, 8.0, 42.0, 8.0, "LED_DATA_3V3", "LED_DATA")
+axial("R2", "1K", 49.0, 6.0, 56.0, 6.0, "BUZZER_PWM", "BUZZER_BASE")
+axial("R3", "100K", 49.0, 10.0, 49.0, 16.0, "BUZZER_BASE", "GND")
+axial("D1", "1N5819", 66.0, 21.0, 56.0, 21.0, "+5V_BUZZER_SW", "BUZZER_COLLECTOR")
 
 add_component(
-    Component("C1", "100nF", "Internal", 41.0, 5.5, 5.0, 3.0,
-              (th_pad(1, 40.0, 5.5, "+5V_PERIPH"), th_pad(2, 42.0, 5.5, "GND")),
-              "Place it close to U1 pins 14 and 7.", "THT:C_Disc_P2.00mm")
-)
-add_component(
-    Component("F1", "0.5A PTC MF-R050", "Internal", 58.0, 40.0, 6.0, 4.0,
-              (th_pad(1, 55.5, 40.0, "+5V_IN", drill=1.0), th_pad(2, 60.5, 40.0, "+5V_PERIPH", drill=1.0)),
+    Component("F1", "0.5A PTC MF-R050", "Internal", 12.5, 3.0, 6.0, 4.0,
+              (th_pad(1, 10.0, 3.0, "+5V_IN", drill=1.0), th_pad(2, 15.0, 3.0, "+5V_PERIPH", drill=1.0)),
               footprint="THT:Fuse_Radial_P5.00mm")
 )
 add_component(
-    Component("C2", "1000uF 10V", "Internal", 64.0, 34.0, 10.0, 10.0,
-              (th_pad(1, 61.5, 34.0, "+5V_PERIPH", drill=1.0), th_pad(2, 66.5, 34.0, "GND", drill=1.0)),
+    Component("C2", "1000uF 10V", "Internal", 25.0, 8.0, 10.0, 10.0,
+              (th_pad(1, 22.5, 8.0, "+5V_PERIPH", drill=1.0), th_pad(2, 27.5, 8.0, "GND", drill=1.0)),
               "Pad 1 is positive.", "THT:CP_Radial_D8_P5.00mm")
 )
 add_component(
-    Component("Q1", "2N3904", "Internal", 55.0, 28.0, 5.0, 4.0,
-              (th_pad(1, 52.46, 28.0, "GND"), th_pad(2, 55.0, 28.0, "BUZZER_BASE"),
-               th_pad(3, 57.54, 28.0, "BUZZER_COLLECTOR")),
+    Component("Q1", "2N3904", "Internal", 59.5, 17.0, 6.0, 4.0,
+              (th_pad(1, 56.96, 17.0, "GND"), th_pad(2, 59.5, 17.0, "BUZZER_BASE"),
+               th_pad(3, 62.04, 17.0, "BUZZER_COLLECTOR")),
               "Flat-face pin order is E-B-C. Confirm the transistor data sheet.", "THT:TO-92_Inline_EBC")
 )
 
 # Registration holes are also usable as mounting holes. They have no copper.
-registration_holes = [(35.0, 2.5), (35.0, 47.5)]
+registration_holes = [(35.0, 2.5)]
+
+MANUAL_NETS: set[str] = set()
+ESCAPED_PADS: set[tuple[str, str]] = {("BZ1", "1")}
+
+# Join the buzzer positive pad directly to D1. This avoids a narrow milling
+# gap at the corner of the buzzer negative pad.
+add_track("+5V_BUZZER_SW", "F.Cu", (66.325, USER_CENTERLINE_Y), (66.0, 21.0), width=0.6)
 
 
 def all_pads() -> Iterable[tuple[Component, Pad]]:
@@ -286,7 +292,7 @@ def all_pads() -> Iterable[tuple[Component, Pad]]:
             yield component, item
 
 
-ROUTER_GRID = 0.50
+ROUTER_GRID = 0.25
 LAYER_NAMES = ("F.Cu", "B.Cu")
 
 
@@ -301,6 +307,9 @@ def world_point(node: tuple[int, int, int]) -> tuple[float, float]:
 def preferred_layer(component: Component, item: Pad) -> int:
     if item.drill == 0:
         return 0
+    # Keep the buzzer base route off the user-face buzzer pads.
+    if item.net == "BUZZER_BASE":
+        return 1
     # Put the solder joint and the connected track on the face opposite the body.
     return 1 if component.face == "User" else 0
 
@@ -309,11 +318,20 @@ def route_board() -> None:
     """Route all nets with a deterministic two-layer Manhattan grid router."""
     endpoints: dict[str, list[tuple[int, int, int]]] = {}
     for component, item in all_pads():
-        if item.net:
+        if item.net and item.net not in MANUAL_NETS and (component.ref, item.number) not in ESCAPED_PADS:
             endpoints.setdefault(item.net, []).append(grid_point(item.x, item.y, preferred_layer(component, item)))
+    for item in vias:
+        if item.net not in MANUAL_NETS:
+            endpoints.setdefault(item.net, []).append(grid_point(item.x, item.y, 0))
 
     occupied: dict[int, list[tuple[str, tuple[float, float], tuple[float, float], float]]] = {0: [], 1: []}
-    occupied_vias: list[tuple[str, float, float, float]] = []
+    for item in tracks:
+        layer = LAYER_NAMES.index(item.layer)
+        for start, end in zip(item.points, item.points[1:]):
+            occupied[layer].append((item.net, start, end, item.width))
+    occupied_vias: list[tuple[str, float, float, float]] = [
+        (item.net, item.x, item.y, item.diameter / 2) for item in vias
+    ]
     foreign_pads: list[tuple[str, int, float, float, float]] = []
     for component, item in all_pads():
         if not item.net:
@@ -342,7 +360,8 @@ def route_board() -> None:
         if node in allow:
             return False
         x, y = world_point(node)
-        if x < 1.5 or x > BOARD_WIDTH - 1.5 or y < 1.5 or y > BOARD_HEIGHT - 1.5:
+        edge_margin = 1.0 if net in {"+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else 1.5
+        if x < edge_margin or x > BOARD_WIDTH - edge_margin or y < edge_margin or y > BOARD_HEIGHT - edge_margin:
             return True
         candidate_width = 0.6 if net in {"GND", "+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else MIN_TRACK_WIDTH
         for pad_net, layer, px, py, radius in foreign_pads:
@@ -420,7 +439,8 @@ def route_board() -> None:
                 heuristic = min(abs(neighbor[0] - gx) + abs(neighbor[1] - gy) + (10 if neighbor[2] != gl else 0) for gx, gy, gl in goal_xy)
                 heappush(queue, (new_cost + heuristic, next(serial), neighbor))
         if found is None:
-            raise SystemExit(f"Router failed on net {net}")
+            goal_text = ", ".join(f"{world_point(goal)} {LAYER_NAMES[goal[2]]}" for goal in goals)
+            raise SystemExit(f"Router failed on net {net} at {goal_text}; tree has {len(starts)} nodes")
         result = []
         while found is not None:
             result.append(found)
@@ -454,12 +474,12 @@ def route_board() -> None:
             output.append(compact)
         return output
 
-    # Escape the 2 mm controller header first. Route the large rails after the
-    # fine-pitch signals have clear paths.
+    # Route the small signals before the large power rails.
     route_order = [
-        "+3V3", "MIC_SCK", "MIC_WS", "MIC_SD", "LED_DATA_3V3", "MUTE_N", "BUZZER_PWM",
-        "+5V_BUZZER_SW", "LED_DATA_5V_RAW", "LED_DATA_5V", "BUZZER_BASE",
-        "BUZZER_COLLECTOR", "+5V_IN", "+5V_PERIPH", "GND",
+        "MIC_SCK", "MIC_WS", "MIC_SD", "+3V3", "MUTE_N", "BUZZER_PWM",
+        "LED_DATA_3V3", "LED_DATA", "GND", "+5V_IN", "+5V_PERIPH",
+        "BUZZER_BASE", "BUZZER_COLLECTOR",
+        "+5V_BUZZER_SW",
     ]
     priority = {net: index for index, net in enumerate(route_order)}
     ordered_nets = sorted(endpoints, key=lambda net: priority.get(net, 100))
@@ -468,10 +488,11 @@ def route_board() -> None:
         tree: set[tuple[int, int, int]] = {net_points[0]}
         remaining = set(net_points[1:])
         while remaining:
-            goal = min(
-                remaining,
-                key=lambda item: min(abs(item[0] - root[0]) + abs(item[1] - root[1]) + 10 * (item[2] != root[2]) for root in tree),
+            distance_from_tree = lambda item: min(
+                abs(item[0] - root[0]) + abs(item[1] - root[1]) + 10 * (item[2] != root[2])
+                for root in tree
             )
+            goal = min(remaining, key=distance_from_tree)
             path = find_path(tree, {goal}, net)
             for current, following in zip(path, path[1:]):
                 if current[2] != following[2]:
@@ -529,6 +550,19 @@ def validate() -> None:
             errors.append(f"{component.ref} pad {item.number} is too close to the board edge")
         if item.net and item.drill > 0 and item.diameter - item.drill < 0.6:
             errors.append(f"{component.ref} pad {item.number} has a small annular ring")
+    for index, first in enumerate(components):
+        if not (
+            first.body_width / 2 <= first.x <= BOARD_WIDTH - first.body_width / 2
+            and first.body_height / 2 <= first.y <= BOARD_HEIGHT - first.body_height / 2
+        ):
+            errors.append(f"{first.ref} body extends outside the unit outline")
+        for second in components[index + 1:]:
+            if first.face != second.face:
+                continue
+            x_overlap = (first.body_width + second.body_width) / 2 - abs(first.x - second.x)
+            y_overlap = (first.body_height + second.body_height) / 2 - abs(first.y - second.y)
+            if x_overlap > 0 and y_overlap > 0:
+                errors.append(f"{first.ref} body overlaps {second.ref} on the {first.face} face")
     for item in tracks:
         if item.width < MIN_TRACK_WIDTH:
             errors.append(f"{item.net} has a track narrower than {MIN_TRACK_WIDTH:.2f} mm")
@@ -655,7 +689,7 @@ def write_kicad_board() -> None:
     lines.extend([
         f'  (gr_rect (start 0 0) (end {BOARD_WIDTH:.3f} {BOARD_HEIGHT:.3f}) (stroke (width 0.1) (type default)) (fill none) (layer "Edge.Cuts"))',
         '  (gr_text "ESPNoise Rev C CNC - USER FACE" (at 51 3) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))',
-        '  (gr_text "INTERNAL FACE - WIRE VIAS: SOLDER BOTH FACES" (at 35 48.5) (layer "B.SilkS") (effects (font (size 0.8 0.8) (thickness 0.12)) (justify mirror)))',
+        '  (gr_text "INTERNAL - SOLDER WIRE VIAS BOTH FACES" (at 48 23.5) (layer "B.SilkS") (effects (font (size 0.65 0.65) (thickness 0.10)) (justify mirror)))',
         ")",
     ])
     (HERE / f"{BOARD_NAME}.kicad_pcb").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -665,7 +699,13 @@ def gerber_coord(value: float) -> str:
     return f"{int(round(value * 1_000_000)):010d}"
 
 
-def write_copper_gerber(layer: str, suffix: str) -> None:
+def panel_point(instance: int, x: float, y: float) -> tuple[float, float]:
+    if instance == 0:
+        return x, y
+    return PANEL_WIDTH - x, PANEL_HEIGHT - y
+
+
+def write_copper_gerber(layer: str, suffix: str, *, panel: bool = False) -> None:
     layer_tracks = [item for item in tracks if item.layer == layer]
     layer_pads: list[Pad] = []
     for _, item in all_pads():
@@ -685,41 +725,54 @@ def write_copper_gerber(layer: str, suffix: str) -> None:
         aperture_specs.append(("C", (item.diameter,)))
     unique_specs = list(dict.fromkeys(aperture_specs))
     aperture_ids = {spec: 10 + index for index, spec in enumerate(unique_specs)}
-    lines = [
-        f"G04 ESPNoise Rev C {layer}*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%",
-    ]
+    kind = "two-unit panel" if panel else "unit"
+    lines = [f"G04 ESPNoise Rev C {kind} {layer}*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%"]
     for spec in unique_specs:
         if spec[0] == "C":
             lines.append(f"%ADD{aperture_ids[spec]}C,{spec[1][0]:.6f}*%")
         else:
             lines.append(f"%ADD{aperture_ids[spec]}R,{spec[1][0]:.6f}X{spec[1][1]:.6f}*%")
-    for item in layer_tracks:
-        track_spec = ("C", (item.width,))
-        lines.append(f"D{aperture_ids[track_spec]}*")
-        start = item.points[0]
-        lines.append(f"X{gerber_coord(start[0])}Y{gerber_coord(start[1])}D02*")
-        for x, y in item.points[1:]:
-            lines.append(f"X{gerber_coord(x)}Y{gerber_coord(y)}D01*")
-    for item in layer_pads:
-        spec = ("R", (item.width or 0, item.height or 0)) if item.shape == "rect" else ("C", (item.diameter,))
-        lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(item.x)}Y{gerber_coord(item.y)}D03*"])
-    for item in vias:
-        spec = ("C", (item.diameter,))
-        lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(item.x)}Y{gerber_coord(item.y)}D03*"])
+    for instance in range(2 if panel else 1):
+        for item in layer_tracks:
+            track_spec = ("C", (item.width,))
+            lines.append(f"D{aperture_ids[track_spec]}*")
+            points = [panel_point(instance, x, y) if panel else (x, y) for x, y in item.points]
+            start = points[0]
+            lines.append(f"X{gerber_coord(start[0])}Y{gerber_coord(start[1])}D02*")
+            for x, y in points[1:]:
+                lines.append(f"X{gerber_coord(x)}Y{gerber_coord(y)}D01*")
+        for item in layer_pads:
+            spec = ("R", (item.width or 0, item.height or 0)) if item.shape == "rect" else ("C", (item.diameter,))
+            x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
+            lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(x)}Y{gerber_coord(y)}D03*"])
+        for item in vias:
+            spec = ("C", (item.diameter,))
+            x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
+            lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(x)}Y{gerber_coord(y)}D03*"])
     lines.append("M02*")
-    (HERE / "gerbers" / f"{BOARD_NAME}-{suffix}").write_text("\n".join(lines) + "\n", encoding="ascii")
+    output_name = PANEL_NAME if panel else BOARD_NAME
+    (HERE / "gerbers" / f"{output_name}-{suffix}").write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
-def write_outline_gerber() -> None:
+def write_outline_gerber(*, panel: bool = False) -> None:
+    width = PANEL_WIDTH if panel else BOARD_WIDTH
+    height = PANEL_HEIGHT if panel else BOARD_HEIGHT
+    output_name = PANEL_NAME if panel else BOARD_NAME
     lines = [
-        "G04 ESPNoise Rev C board outline*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%", "%ADD10C,0.100000*%", "D10*",
+        f"G04 ESPNoise Rev C {'panel' if panel else 'unit'} outline*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%", "%ADD10C,0.100000*%", "D10*",
         f"X{gerber_coord(0)}Y{gerber_coord(0)}D02*",
-        f"X{gerber_coord(BOARD_WIDTH)}Y{gerber_coord(0)}D01*",
-        f"X{gerber_coord(BOARD_WIDTH)}Y{gerber_coord(BOARD_HEIGHT)}D01*",
-        f"X{gerber_coord(0)}Y{gerber_coord(BOARD_HEIGHT)}D01*",
-        f"X{gerber_coord(0)}Y{gerber_coord(0)}D01*", "M02*",
+        f"X{gerber_coord(width)}Y{gerber_coord(0)}D01*",
+        f"X{gerber_coord(width)}Y{gerber_coord(height)}D01*",
+        f"X{gerber_coord(0)}Y{gerber_coord(height)}D01*",
+        f"X{gerber_coord(0)}Y{gerber_coord(0)}D01*",
     ]
-    (HERE / "gerbers" / f"{BOARD_NAME}-Edge_Cuts.gm1").write_text("\n".join(lines) + "\n", encoding="ascii")
+    if panel:
+        lines.extend([
+            f"X{gerber_coord(0)}Y{gerber_coord(PANEL_CUT_Y)}D02*",
+            f"X{gerber_coord(PANEL_WIDTH)}Y{gerber_coord(PANEL_CUT_Y)}D01*",
+        ])
+    lines.append("M02*")
+    (HERE / "gerbers" / f"{output_name}-Edge_Cuts.gm1").write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
 def write_coupon_files() -> None:
@@ -762,19 +815,27 @@ def write_coupon_files() -> None:
     (coupon_dir / "coupon-drills.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_drills() -> None:
+def write_drills(*, panel: bool = False) -> None:
     holes: list[tuple[float, float, float, str]] = []
-    for component, item in all_pads():
-        if item.drill > 0:
-            holes.append((item.x, item.y, item.drill, f"{component.ref}-{item.number}"))
-    holes.extend((x, y, 2.0, "registration") for x, y in registration_holes)
-    holes.extend((item.x, item.y, item.drill, "wire-via") for item in vias)
+    for instance in range(2 if panel else 1):
+        unit = "A" if instance == 0 else "B"
+        for component, item in all_pads():
+            if item.drill > 0:
+                x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
+                holes.append((x, y, item.drill, f"{unit}-{component.ref}-{item.number}" if panel else f"{component.ref}-{item.number}"))
+        for x, y in registration_holes:
+            x, y = panel_point(instance, x, y) if panel else (x, y)
+            holes.append((x, y, 2.0, f"{unit}-registration" if panel else "registration"))
+        for item in vias:
+            x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
+            holes.append((x, y, item.drill, f"{unit}-wire-via" if panel else "wire-via"))
     grouped: dict[float, list[tuple[float, float, str]]] = {}
     for x, y, diameter, label in holes:
         grouped.setdefault(diameter, []).append((x, y, label))
     gerber_dir = HERE / "gerbers"
+    output_name = PANEL_NAME if panel else BOARD_NAME
     for diameter, positions in sorted(grouped.items()):
-        file_name = gerber_dir / f"{BOARD_NAME}-drill-{diameter:.1f}mm.drl"
+        file_name = gerber_dir / f"{output_name}-drill-{diameter:.1f}mm.drl"
         lines = ["M48", ";DRILL file generated by ESPNoise", "METRIC,TZ", f"T1C{diameter:.3f}", "%", "G90", "G05", "T1"]
         for x, y, _ in positions:
             lines.append(f"X{int(round(x * 1000)):06d}Y{int(round(y * 1000)):06d}")
@@ -782,41 +843,50 @@ def write_drills() -> None:
         file_name.write_text("\n".join(lines) + "\n", encoding="ascii")
     csv_lines = ["diameter_mm,x_mm,y_mm,purpose"]
     csv_lines.extend(f"{diameter:.1f},{x:.3f},{y:.3f},{label}" for x, y, diameter, label in sorted(holes, key=lambda row: (row[2], row[1], row[0])))
-    (HERE / "gerbers" / f"{BOARD_NAME}-drills.csv").write_text("\n".join(csv_lines) + "\n", encoding="utf-8")
+    (HERE / "gerbers" / f"{output_name}-drills.csv").write_text("\n".join(csv_lines) + "\n", encoding="utf-8")
 
 
-def write_svg(face: str, layer: str, output: str) -> None:
+def write_svg(face: str, layer: str, output: str, *, panel: bool = False) -> None:
     mirror = face == "Internal"
-    transform = f'translate({BOARD_WIDTH} 0) scale(-1 1)' if mirror else ""
+    width = PANEL_WIDTH if panel else BOARD_WIDTH
+    height = PANEL_HEIGHT if panel else BOARD_HEIGHT
+    transform = f'translate({width} 0) scale(-1 1)' if mirror else ""
     svg = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{BOARD_WIDTH}mm" height="{BOARD_HEIGHT}mm" viewBox="0 0 {BOARD_WIDTH} {BOARD_HEIGHT}">',
-        '<rect width="70" height="50" fill="#f0d47a" stroke="#222" stroke-width="0.2"/>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}mm" height="{height}mm" viewBox="0 0 {width} {height}">',
+        f'<rect width="{width}" height="{height}" fill="#f0d47a" stroke="#222" stroke-width="0.2"/>',
         f'<g transform="{transform}">',
     ]
     color = "#8b3f12"
-    for item in tracks:
-        if item.layer != layer:
-            continue
-        points = " ".join(f"{x},{y}" for x, y in item.points)
-        svg.append(f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="{item.width}" stroke-linecap="round" stroke-linejoin="round"/>')
-    for component in components:
-        if component.face != face:
-            continue
-        svg.append(
-            f'<rect x="{component.x - component.body_width / 2}" y="{component.y - component.body_height / 2}" width="{component.body_width}" height="{component.body_height}" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>'
-        )
-        text_transform = f' transform="translate({2 * component.x} 0) scale(-1 1)"' if mirror else ""
-        svg.append(f'<text x="{component.x}" y="{component.y}" font-size="1.6" text-anchor="middle" dominant-baseline="middle"{text_transform}>{component.ref}</text>')
-    for _, item in all_pads():
-        if item.drill > 0:
+    for instance in range(2 if panel else 1):
+        instance_transform = f'matrix(-1 0 0 -1 {PANEL_WIDTH} {PANEL_HEIGHT})' if panel and instance == 1 else ""
+        svg.append(f'<g transform="{instance_transform}">')
+        svg.append(f'<rect width="{BOARD_WIDTH}" height="{BOARD_HEIGHT}" fill="none" stroke="#333" stroke-width="0.15"/>')
+        svg.append(f'<line x1="0" y1="{USER_CENTERLINE_Y}" x2="{BOARD_WIDTH}" y2="{USER_CENTERLINE_Y}" stroke="#777" stroke-width="0.12" stroke-dasharray="1,1"/>')
+        for item in tracks:
+            if item.layer != layer:
+                continue
+            points = " ".join(f"{x},{y}" for x, y in item.points)
+            svg.append(f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="{item.width}" stroke-linecap="round" stroke-linejoin="round"/>')
+        for component in components:
+            if component.face != face:
+                continue
+            svg.append(
+                f'<rect x="{component.x - component.body_width / 2}" y="{component.y - component.body_height / 2}" width="{component.body_width}" height="{component.body_height}" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>'
+            )
+            svg.append(f'<text x="{component.x}" y="{component.y}" font-size="1.4" text-anchor="middle" dominant-baseline="middle">{component.ref}</text>')
+        for _, item in all_pads():
+            if item.drill > 0:
+                svg.append(f'<circle cx="{item.x}" cy="{item.y}" r="{item.diameter / 2}" fill="{color}"/><circle cx="{item.x}" cy="{item.y}" r="{item.drill / 2}" fill="#fff"/>')
+            elif item.side == layer:
+                svg.append(f'<rect x="{item.x - (item.width or 0) / 2}" y="{item.y - (item.height or 0) / 2}" width="{item.width}" height="{item.height}" fill="{color}"/>')
+        for item in vias:
             svg.append(f'<circle cx="{item.x}" cy="{item.y}" r="{item.diameter / 2}" fill="{color}"/><circle cx="{item.x}" cy="{item.y}" r="{item.drill / 2}" fill="#fff"/>')
-        elif item.side == layer:
-            svg.append(f'<rect x="{item.x - (item.width or 0) / 2}" y="{item.y - (item.height or 0) / 2}" width="{item.width}" height="{item.height}" fill="{color}"/>')
-    for item in vias:
-        svg.append(f'<circle cx="{item.x}" cy="{item.y}" r="{item.diameter / 2}" fill="{color}"/><circle cx="{item.x}" cy="{item.y}" r="{item.drill / 2}" fill="#fff"/>')
-    for x, y in registration_holes:
-        svg.append(f'<circle cx="{x}" cy="{y}" r="1" fill="#fff" stroke="#222" stroke-width="0.2"/>')
-    svg.extend(["</g>", f'<text x="35" y="49" font-size="1.4" text-anchor="middle">ESPNoise Rev C CNC — {face} face</text>', "</svg>"])
+        for x, y in registration_holes:
+            svg.append(f'<circle cx="{x}" cy="{y}" r="1" fill="#fff" stroke="#222" stroke-width="0.2"/>')
+        svg.append("</g>")
+    if panel:
+        svg.append(f'<line x1="0" y1="{PANEL_CUT_Y}" x2="{PANEL_WIDTH}" y2="{PANEL_CUT_Y}" stroke="#d22" stroke-width="0.25" stroke-dasharray="1,0.7"/>')
+    svg.extend(["</g>", f'<text x="{width / 2}" y="{height - 0.7}" font-size="1.1" text-anchor="middle">ESPNoise Rev C CNC — {face} face{' — two-unit panel' if panel else ''}</text>', "</svg>"])
     (HERE / output).write_text("\n".join(svg) + "\n", encoding="utf-8")
 
 
@@ -828,6 +898,16 @@ def write_bom() -> None:
     (HERE / f"{BOARD_NAME}-bom.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
+def write_netlist() -> None:
+    rows = ["reference,pin,net,description"]
+    for component, item in all_pads():
+        if not item.net:
+            continue
+        description = component.value.replace('"', '""')
+        rows.append(f'{component.ref},{item.number},{item.net},"{description}"')
+    (HERE / f"{BOARD_NAME}-netlist.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     (HERE / "gerbers").mkdir(parents=True, exist_ok=True)
     validate()
@@ -835,11 +915,18 @@ def main() -> None:
     write_copper_gerber("F.Cu", "F_Cu.gtl")
     write_copper_gerber("B.Cu", "B_Cu.gbl")
     write_outline_gerber()
+    write_copper_gerber("F.Cu", "F_Cu.gtl", panel=True)
+    write_copper_gerber("B.Cu", "B_Cu.gbl", panel=True)
+    write_outline_gerber(panel=True)
     write_coupon_files()
     write_drills()
+    write_drills(panel=True)
     write_svg("User", "F.Cu", f"{BOARD_NAME}-user.svg")
     write_svg("Internal", "B.Cu", f"{BOARD_NAME}-internal.svg")
+    write_svg("User", "F.Cu", f"{PANEL_NAME}-user.svg", panel=True)
+    write_svg("Internal", "B.Cu", f"{PANEL_NAME}-internal.svg", panel=True)
     write_bom()
+    write_netlist()
     print(f"Generated and validated ESPNoise Rev C CNC files in {HERE}")
 
 

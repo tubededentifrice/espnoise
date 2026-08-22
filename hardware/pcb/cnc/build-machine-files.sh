@@ -12,9 +12,8 @@ command -v pcb2gcode >/dev/null 2>&1 || {
 
 python3 "$SCRIPT_DIR/generate_cnc_board.py"
 mkdir -p "$MACHINE_DIR"
-rm -f "$MACHINE_DIR/espnoise-cnc-user-face.nc"
-rm -f "$MACHINE_DIR/espnoise-cnc-internal-face.nc"
-rm -f "$MACHINE_DIR"/espnoise-cnc-drill-*.nc
+rm -f "$MACHINE_DIR"/espnoise-panel-*.nc
+rm -f "$MACHINE_DIR"/espnoise-cnc-*.nc
 rm -f "$MACHINE_DIR"/coupon-*.nc
 rm -f "$MACHINE_DIR"/contentions_*.svg
 rm -f "$MACHINE_DIR"/processed_*.svg
