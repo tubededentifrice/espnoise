@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-opendle-electronics = { git = "https://github.com/opendle/opendle-electronics.git", rev = "c6f0cffbacd849c63dcb7720d608c20e2c2a6269" }
+opendle-electronics = { git = "https://github.com/opendle/opendle-electronics.git", rev = "e5243582f44655d0e6f8a344f8691e461db3f905" }
 
 [tool.uv]
 package = false
