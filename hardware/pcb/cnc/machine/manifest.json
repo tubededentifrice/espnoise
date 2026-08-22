@@ -77,7 +77,7 @@
     },
     {
       "file": "coupon-internal-face.nc",
-      "sha256": "3d3ad14267f1533fdf3abbdaf6d20be89910ca1143f2bd8be24ee5eb8a8beb98",
+      "sha256": "edde97c06c4c0d9c8a04d993b5598b6da440127242482a573c68ed24d5f1f479",
       "extents_mm": {
         "X": [
           7.00002,
@@ -88,7 +88,7 @@
           12.99944
         ],
         "Z": [
-          -0.04,
+          -0.05,
           10.0
         ]
       }
@@ -113,7 +113,7 @@
     },
     {
       "file": "coupon-user-face.nc",
-      "sha256": "b15e501d690a8595170a6a2201fb89a14523602dc5cf5d265e8493e7b71d4697",
+      "sha256": "08e734b6b4c51c8f9b0c1d8ba286736022d55eb14b7f18e6765685259f56b3f7",
       "extents_mm": {
         "X": [
           2.0,
@@ -124,7 +124,7 @@
           11.99998
         ],
         "Z": [
-          -0.04,
+          -0.05,
           10.0
         ]
       }
@@ -221,7 +221,7 @@
     },
     {
       "file": "espnoise-panel-internal-face.nc",
-      "sha256": "7c7183cfe8361b36a5eb2ca88af5219638702ffb7137959012296a0c998c4725",
+      "sha256": "8540ba4a7f2cf07bb4e00f3d6ec22d37ea243416eb44e8538de9540fcdf05ff5",
       "extents_mm": {
         "X": [
           1.40004,
@@ -232,7 +232,7 @@
           48.29988
         ],
         "Z": [
-          -0.04,
+          -0.05,
           10.0
         ]
       }
@@ -257,7 +257,7 @@
     },
     {
       "file": "espnoise-panel-user-face.nc",
-      "sha256": "9fb7ff724a68a29518b91e6ed566f006cfdbdd53acfbf7d9e817213d23867bea",
+      "sha256": "97574f03b0f7e3ff1aff108b29e33c65f8a0275f5cea8d0176c1f421c6a0e905",
       "extents_mm": {
         "X": [
           1.40086,
@@ -268,7 +268,7 @@
           48.29988
         ],
         "Z": [
-          -0.04,
+          -0.05,
           10.0
         ]
       }
