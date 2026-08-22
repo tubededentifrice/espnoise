@@ -5,10 +5,16 @@ description = "Python development tools for ESPNoise"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "platformio==6.1.19",
+  "opendle-electronics[platformio]",
 ]
+
+[tool.uv.sources]
+opendle-electronics = { git = "https://github.com/opendle/opendle-electronics.git", rev = "b029c32fb95caad4e705f15043715046c33e1d12" }
 
 [tool.uv]
 package = false
 exclude-newer = "2 weeks"
 required-version = ">=0.12.0"
+
+[tool.opendle.dependencies]
+trusted-github = ["opendle/opendle-electronics"]

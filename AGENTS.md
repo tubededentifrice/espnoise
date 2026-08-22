@@ -36,8 +36,15 @@
 - Treat the installed strip as SK6812 RGB plus warm-white with 32-bit data.
 - Run a firmware build after each firmware change when PlatformIO is
   available.
-- Run PlatformIO only through
-  `uv run --locked python tools/pio.py`. The wrapper enforces the dependency
-  policy before PlatformIO can install a package.
+- Use `uv` for every supported Python environment, dependency, and command.
+- Run PlatformIO only through `uv run --locked opendle-pio`. The shared tool
+  enforces the dependency policy before PlatformIO can install a package.
+- Keep project paths, machine limits, and CAM values in `opendle-tools.toml`.
+  Put reusable host-side behavior in the pinned `opendle-electronics` library.
+- Generate Cubiko files with
+  `uv run --locked opendle-cnc build --config opendle-tools.toml`. Review the
+  output manifest, use the coupon, and do a safe-Z dry run before the panel.
+- Export factory files with
+  `uv run --locked opendle-kicad export --config opendle-tools.toml`.
 - Keep hardware assumptions in the documents. Do not put an unknown part size
   into a final case model.

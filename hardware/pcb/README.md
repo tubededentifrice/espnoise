@@ -48,9 +48,10 @@ without a new electrical and footprint check.
 
 ## Regeneration
 
-Run `./hardware/pcb/build-factory-files.sh` from the repository root. The
-script needs KiCad 10 and its Python `pcbnew` module. It regenerates the board,
-Gerbers, drill files, BOM, CPL, and assembly views.
+Run `uv run --locked opendle-kicad export --config opendle-tools.toml` from the
+repository root. The pinned shared tool needs KiCad 10 and its Python `pcbnew`
+module. It regenerates the board, Gerbers, drill files, BOM, CPL, assembly
+views, and hash manifest.
 
 The generator is the controlled source for the board layout. Do not edit the
 generated board without the same change in `generate_board.py`.

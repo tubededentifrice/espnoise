@@ -19,10 +19,10 @@ and Git commit dates from their services. It also rejects a missing hash, a
 version range, a Git tag, or a short Git commit.
 
 ```sh
-python3 tools/check_dependency_age.py
+uv run --locked opendle-deps check
 ```
 
-Use `tools/pio.py` for each PlatformIO command. The wrapper runs the same
+Use `opendle-pio` for each PlatformIO command. The shared tool runs the same
 policy check before PlatformIO can install a package.
 
 The same check runs in GitHub Actions. Protect `main` and require the
@@ -41,7 +41,7 @@ uv sync --locked
 From the repository root, run:
 
 ```sh
-uv run --locked python tools/pio.py run
+uv run --locked opendle-pio run
 ```
 
 This command builds the first USB-powered board. Its ten-pixel power test
@@ -50,8 +50,8 @@ optional environment and keeps the 25% limit. Build it only when you start the
 battery stage:
 
 ```sh
-uv run --locked python tools/pio.py run --environment esp32dev
-uv run --locked python tools/pio.py run --environment lolin32_lite
+uv run --locked opendle-pio run --environment esp32dev
+uv run --locked opendle-pio run --environment lolin32_lite
 ```
 
 At each USB production startup, all ten pixels show green, orange, and red in
@@ -63,7 +63,7 @@ Use the temporary LED-test environment to show red, green, blue, and
 warm-white for one second each after startup:
 
 ```sh
-uv run --locked python tools/pio.py run --environment esp32dev_led_test --target upload
+uv run --locked opendle-pio run --environment esp32dev_led_test --target upload
 ```
 
 For a one-pixel bench test, use the fast profile. It listens for 3 seconds in
@@ -72,7 +72,7 @@ saved maxima, and uses full LED brightness. It also plays a short buzzer chime
 after the LED test:
 
 ```sh
-uv run --locked python tools/pio.py run --environment esp32dev_fast_test --target upload
+uv run --locked opendle-pio run --environment esp32dev_fast_test --target upload
 ```
 
 Use the calibration profile with the assembled USB-powered product. Send `g`,
@@ -82,8 +82,8 @@ ten one-second maxima. The buzzer stays off. The calibration profile does not
 save raw microphone audio.
 
 ```sh
-uv run --locked python tools/pio.py run --environment esp32dev_calibration --target upload
-uv run --locked python tools/pio.py device monitor --baud 115200
+uv run --locked opendle-pio run --environment esp32dev_calibration --target upload
+uv run --locked opendle-pio device monitor --baud 115200
 ```
 
 The tested passive piezo buzzer uses a 2N3904 low-side driver. GPIO23 connects
@@ -123,12 +123,12 @@ The full-size board was found at `/dev/cu.usbserial-0001` during the first
 inspection. The path can change after a reconnect.
 
 ```sh
-uv run --locked python tools/pio.py run --environment esp32dev --target upload --upload-port /dev/cu.usbserial-0001
-uv run --locked python tools/pio.py device monitor --port /dev/cu.usbserial-0001 --baud 115200
+uv run --locked opendle-pio run --environment esp32dev --target upload --upload-port /dev/cu.usbserial-0001
+uv run --locked opendle-pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
 ```
 
 For the WEMOS, connect the external USB-C panel cable to a computer. Then find
-its port with `uv run --locked python tools/pio.py device list` and use the
+its port with `uv run --locked opendle-pio device list` and use the
 `lolin32_lite` environment.
 
 Do not upload firmware until the user asks for an upload. A build does not

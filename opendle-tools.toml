@@ -1,0 +1,83 @@
+[project]
+name = "espnoise-rev-c"
+machine_dir = "hardware/pcb/cnc/machine"
+clean = ["*.nc", "SHA256SUMS", "manifest.json"]
+prepare = [["uv", "run", "--locked", "python", "hardware/pcb/cnc/generate_cnc_board.py"]]
+discard = [
+  "hardware/pcb/cnc/machine/outp*_original_*.svg",
+  "hardware/pcb/cnc/machine/processed_*.svg",
+  "hardware/pcb/cnc/machine/traced_*.svg",
+]
+reject = ["hardware/pcb/cnc/machine/contentions_*.svg"]
+
+[platformio]
+project_dir = "firmware"
+
+[factory]
+board = "hardware/pcb/espnoise-carrier.kicad_pcb"
+output_dir = "hardware/pcb/jlcpcb"
+output_prefix = "espnoise-carrier"
+prepare_python = "hardware/pcb/generate_board.py"
+render = true
+render_width = 1800
+render_height = 900
+
+[pcb2gcode]
+working_dir = "hardware/pcb/cnc"
+configs = [
+  "hardware/pcb/cnc/millproject",
+  "hardware/pcb/cnc/millproject-coupon",
+]
+outputs = [
+  "hardware/pcb/cnc/machine/espnoise-panel-user-face.nc",
+  "hardware/pcb/cnc/machine/espnoise-panel-internal-face.nc",
+  "hardware/pcb/cnc/machine/coupon-user-face.nc",
+  "hardware/pcb/cnc/machine/coupon-internal-face.nc",
+]
+
+[drill]
+safe_z = 2.0
+drill_z = -1.8
+drill_feed = 60
+spindle_rpm = 10000
+
+[[drill.jobs]]
+input = "hardware/pcb/cnc/gerbers/espnoise-panel-drills.csv"
+output_prefix = "espnoise-panel-drill"
+title = "ESPNoise Rev C two-unit panel"
+origin_note = "Origin is the user-face lower-left blank corner"
+
+[[drill.jobs]]
+input = "hardware/pcb/cnc/coupon/coupon-drills.csv"
+output_prefix = "coupon-drill"
+title = "ESPNoise coupon"
+origin_note = "Origin is the coupon lower-left corner"
+
+[cut]
+safe_z = 2.0
+cut_depth = -1.8
+step_down = 0.4
+plunge_feed = 60
+cut_feed = 100
+spindle_rpm = 10000
+
+[[cut.jobs]]
+output = "espnoise-panel-separate.nc"
+title = "ESPNoise panel center separation; use a 1.0 mm PCB router end mill"
+start_x = 0.0
+end_x = 70.0
+y = 25.0
+
+[[cut.jobs]]
+output = "coupon-separate.nc"
+title = "Coupon separation test; use a 1.0 mm PCB router end mill"
+start_x = 0.0
+end_x = 30.0
+y = 13.5
+
+[safety]
+x = [-0.01, 70.01]
+y = [-0.01, 50.01]
+z = [-1.81, 10.01]
+maximum_spindle_rpm = 10000
+strip_tool_changes = true

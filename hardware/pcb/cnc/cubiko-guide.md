@@ -99,8 +99,8 @@ result.
 
 The separation depth is for nominal 1.6 mm FR-4 plus 0.2 mm into the
 spoilboard. Measure your blank with a caliper. If its thickness is different,
-change `CUT_DEPTH` in `generate_drill_gcode.py`. Use the measured thickness
-plus only 0.2 mm. Then run the build script again.
+change `cut.cut_depth` in `opendle-tools.toml`. Use the measured thickness plus
+only 0.2 mm. Then run the shared CAM command again.
 
 ## Make and test the coupon
 

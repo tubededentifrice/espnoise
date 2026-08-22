@@ -1,4 +1,5 @@
 (ESPNoise coupon 1.0 mm drill job)
+(Origin is the coupon lower-left corner)
 G21
 G90
 G94

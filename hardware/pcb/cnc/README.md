@@ -78,7 +78,7 @@ brew install pcb2gcode
 Then run this command from the repository root:
 
 ```sh
-./hardware/pcb/cnc/build-machine-files.sh
+uv run --locked opendle-cnc build --config opendle-tools.toml
 ```
 
 The script does these tasks:
@@ -106,5 +106,5 @@ preflight checks in `cubiko-guide.md` pass.
 | `espnoise-cnc-bom.csv` | Parts and face assignment for one unit |
 | `millproject` | Two-unit panel isolation values |
 | `millproject-coupon` | Coupon isolation values |
-| `generate_drill_gcode.py` | Drill and separation job generator |
-| `clean_and_check_gcode.py` | GRBL cleanup, bounds check, and checksums |
+| `opendle-tools.toml` | Project paths, process values, and machine limits |
+| `opendle-electronics` | Pinned shared CAM, G-code checks, and manifests |
