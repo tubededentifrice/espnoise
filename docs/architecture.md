@@ -6,7 +6,7 @@
 flowchart LR
   MIC["INMP441 microphone"] -->|"16 kHz I2S"| ESP["ESP32"]
   ESP -->|"GPIO through 74AHCT125"| LED["10 SK6812 RGBW pixels"]
-  ESP -->|"GPIO23 through 5.1 kohm"| DRIVER["2N3904 driver"]
+  ESP -->|"GPIO23 through 1 kohm"| DRIVER["2N3904 driver"]
   SW["Hard buzzer switch"] -->|"Switched 5 V"| BUZ["Passive piezo buzzer"]
   BUZ --> DRIVER
   B30["30-minute mute button"] --> ESP

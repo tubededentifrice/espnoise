@@ -27,6 +27,18 @@ PANEL_CUT_Y = 25.0
 USER_CENTERLINE_Y = BOARD_HEIGHT / 2
 MIN_TRACK_WIDTH = 0.50
 MIN_CLEARANCE = 0.40
+POWER_TRACK_WIDTH = 1.00
+
+# Provisional physical values from the supplied part photographs and standard
+# 2.54 mm header geometry. Replace them with caliper measurements before the
+# final CAM release.
+MIC_MODULE_DIAMETER = 18.0
+MIC_PIN_PITCH_X = 2.54
+MIC_ROW_PITCH_Y = 7.62
+MIC_ACOUSTIC_OFFSET_X = 0.0
+MIC_ACOUSTIC_OFFSET_Y = 0.0
+BUZZER_BODY_DIAMETER = 12.0
+BUZZER_LEAD_PITCH = 7.6
 
 
 @dataclass(frozen=True)
@@ -59,6 +71,7 @@ class Component:
     pads: tuple[Pad, ...]
     note: str = ""
     footprint: str = "ESPNoise:CNC_Custom"
+    body_shape: str = "rect"
 
 
 @dataclass(frozen=True)
@@ -171,38 +184,49 @@ add_component(
     )
 )
 
-mic_x = [29.65 + 2.54 * index for index in range(6)]
-mic_nets = ["MIC_SCK", "MIC_WS", "GND", "MIC_SD", "+3V3", "GND"]
-mic_labels = ["SCK", "WS", "L/R", "SD", "VDD", "GND"]
+mic_center_x = 36.0 - MIC_ACOUSTIC_OFFSET_X
+mic_center_y = USER_CENTERLINE_Y - MIC_ACOUSTIC_OFFSET_Y
+mic_x = [mic_center_x - MIC_PIN_PITCH_X, mic_center_x, mic_center_x + MIC_PIN_PITCH_X]
+mic_top_y = mic_center_y - MIC_ROW_PITCH_Y / 2
+mic_bottom_y = mic_center_y + MIC_ROW_PITCH_Y / 2
 add_component(
     Component(
         "MIC1",
-        "INMP441 1x6 MODULE",
+        "MH-ET LIVE INMP441 2x3 MODULE",
         "User",
-        36.0,
-        USER_CENTERLINE_Y,
-        18.0,
-        14.0,
-        tuple(th_pad(index + 1, x, 18.5, net) for index, (x, net) in enumerate(zip(mic_x, mic_nets))),
-        "Pin order from low X to high X: " + ", ".join(mic_labels) + ". The module acoustic center is on the user centerline. Confirm the real module before making the case.",
-        "ESPNoise:INMP441_1x6_P2.54mm",
+        mic_center_x,
+        mic_center_y,
+        MIC_MODULE_DIAMETER,
+        MIC_MODULE_DIAMETER,
+        (
+            th_pad(1, mic_x[0], mic_top_y, "GND", drill=1.0),
+            th_pad(2, mic_x[1], mic_top_y, "+3V3", drill=1.0),
+            th_pad(3, mic_x[2], mic_top_y, "MIC_SD", drill=1.0),
+            th_pad(4, mic_x[0], mic_bottom_y, "GND", drill=1.0),
+            th_pad(5, mic_x[1], mic_bottom_y, "MIC_WS", drill=1.0),
+            th_pad(6, mic_x[2], mic_bottom_y, "MIC_SCK", drill=1.0),
+        ),
+        "Label-side view, notch toward the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. Dimensions and acoustic offset are provisional until measured.",
+        "ESPNoise:MH_ET_LIVE_INMP441_2x3_P2.54_Row7.62",
+        "circle",
     )
 )
 add_component(
     Component(
         "BZ1",
-        "FUET-1370F-05",
+        "TWO-PIN 5 V BUZZER",
         "User",
         61.0,
         USER_CENTERLINE_Y,
-        12.8,
-        12.8,
+        BUZZER_BODY_DIAMETER,
+        BUZZER_BODY_DIAMETER,
         (
-            smd_pad(1, 66.325, USER_CENTERLINE_Y, "+5V_BUZZER_SW", 4.15, 3.0),
-            smd_pad(2, 55.675, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", 4.15, 3.0),
+            th_pad(1, 61.0 + BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "+5V_BUZZER_SW", drill=1.0),
+            th_pad(2, 61.0 - BUZZER_LEAD_PITCH / 2, USER_CENTERLINE_Y, "BUZZER_COLLECTOR", drill=1.0),
         ),
-        "Top sound port. Pad 1 is positive.",
-        "ESPNoise:FUET-1370F-05",
+        "Top sound port. Pad 1 is + and pad 2 is -. Body and lead pitch are provisional until measured. Keep D1 until the buzzer type is confirmed.",
+        "ESPNoise:Buzzer_THT_2Pin_P7.60mm_D12mm",
+        "circle",
     )
 )
 
@@ -210,7 +234,7 @@ add_component(
 wire_pad = {"drill": 1.2, "diameter": 2.4}
 add_component(
     Component(
-        "P1", "5 V POWER WIRES", "Internal", 4.75, 3.0, 7.0, 4.0,
+        "PWR1", "5 V POWER WIRES", "Internal", 4.75, 3.0, 7.0, 4.0,
         (
             th_pad(1, 3.0, 3.0, "+5V_IN", **wire_pad),
             th_pad(2, 6.5, 3.0, "GND", **wire_pad),
@@ -220,30 +244,39 @@ add_component(
     )
 )
 
-def wire_terminal(ref: str, value: str, x: float, y: float, net: str) -> None:
-    add_component(
-        Component(
-            ref, value, "Internal", x, y, 2.0, 2.0,
-            (th_pad(1, x, y, net, drill=1.2, diameter=2.0),),
-            "Solder one insulated wire to this pad.", "ESPNoise:WireTerminal_D2.0mm",
-        )
+terminal = lambda number, x, y, net: th_pad(number, x, y, net, drill=1.2, diameter=2.0)
+add_component(
+    Component(
+        "J_ESP32", "ESP32 INDIVIDUAL WIRES", "Internal", 0.0, 0.0, 0.0, 0.0,
+        (
+            terminal(1, 2.5, 22.0, "+5V_IN"),
+            terminal(2, 6.0, 22.0, "GND"),
+            terminal(3, 39.81, 22.0, "+3V3"),
+            terminal(4, 29.65, 22.0, "MIC_SCK"),
+            terminal(5, 32.19, 22.0, "MIC_WS"),
+            terminal(6, 37.27, 22.0, "MIC_SD"),
+            terminal(7, 35.0, 3.0, "LED_DATA"),
+            terminal(8, 48.0, 3.0, "BUZZER_PWM"),
+            terminal(9, 18.0, 22.0, "MUTE_N"),
+        ),
+        "Pins: 1 VIN/5V, 2 GND, 3 3V3, 4 GPIO26 MIC_SCK, 5 GPIO25 MIC_WS, 6 GPIO32 MIC_SD, 7 GPIO18 LED_DATA, 8 GPIO23 BUZZER_PWM, 9 GPIO27 MUTE_N.",
+        "ESPNoise:IndividualWireGroup_ESP32",
+        "none",
     )
-
-
-# The microphone terminals follow the same left-to-right order as MIC1. This
-# gives the short I2S tracks clear, direct paths.
-wire_terminal("W1", "ESP32 +5V", 2.5, 22.0, "+5V_IN")
-wire_terminal("W2", "ESP32 GND", 6.0, 22.0, "GND")
-wire_terminal("W3", "ESP32 MUTE", 18.0, 22.0, "MUTE_N")
-wire_terminal("W4", "ESP32 MIC SCK", 29.65, 22.0, "MIC_SCK")
-wire_terminal("W5", "ESP32 MIC WS", 32.19, 22.0, "MIC_WS")
-wire_terminal("W6", "ESP32 MIC SD", 37.27, 22.0, "MIC_SD")
-wire_terminal("W7", "ESP32 3V3", 39.81, 22.0, "+3V3")
-wire_terminal("W8", "ESP32 LED DATA", 35.0, 3.0, "LED_DATA_3V3")
-wire_terminal("W9", "ESP32 BUZZER", 48.0, 3.0, "BUZZER_PWM")
-wire_terminal("W10", "LED +5V", 44.0, 22.0, "+5V_PERIPH")
-wire_terminal("W11", "LED DATA", 42.0, 3.0, "LED_DATA")
-wire_terminal("W12", "LED GND", 48.0, 22.0, "GND")
+)
+add_component(
+    Component(
+        "J_LED", "LED STRIP INDIVIDUAL WIRES", "Internal", 0.0, 0.0, 0.0, 0.0,
+        (
+            terminal(1, 44.0, 22.0, "+5V_PERIPH"),
+            terminal(2, 42.0, 3.0, "LED_DATA"),
+            terminal(3, 48.0, 22.0, "GND"),
+        ),
+        "Pins: 1 +5V, 2 DIN from GPIO18, 3 GND.",
+        "ESPNoise:IndividualWireGroup_LED",
+        "none",
+    )
+)
 
 def axial(ref: str, value: str, x1: float, y1: float, x2: float, y2: float, net1: str, net2: str) -> None:
     add_component(
@@ -253,7 +286,6 @@ def axial(ref: str, value: str, x1: float, y1: float, x2: float, y2: float, net1
     )
 
 
-axial("R1", "330R", 35.0, 8.0, 42.0, 8.0, "LED_DATA_3V3", "LED_DATA")
 axial("R2", "1K", 49.0, 6.0, 56.0, 6.0, "BUZZER_PWM", "BUZZER_BASE")
 axial("R3", "100K", 49.0, 10.0, 49.0, 16.0, "BUZZER_BASE", "GND")
 axial("D1", "1N5819", 66.0, 21.0, 56.0, 21.0, "+5V_BUZZER_SW", "BUZZER_COLLECTOR")
@@ -262,11 +294,6 @@ add_component(
     Component("F1", "0.5A PTC MF-R050", "Internal", 12.5, 3.0, 6.0, 4.0,
               (th_pad(1, 10.0, 3.0, "+5V_IN", drill=1.0), th_pad(2, 15.0, 3.0, "+5V_PERIPH", drill=1.0)),
               footprint="THT:Fuse_Radial_P5.00mm")
-)
-add_component(
-    Component("C2", "1000uF 10V", "Internal", 25.0, 8.0, 10.0, 10.0,
-              (th_pad(1, 22.5, 8.0, "+5V_PERIPH", drill=1.0), th_pad(2, 27.5, 8.0, "GND", drill=1.0)),
-              "Pad 1 is positive.", "THT:CP_Radial_D8_P5.00mm")
 )
 add_component(
     Component("Q1", "2N3904", "Internal", 59.5, 17.0, 6.0, 4.0,
@@ -279,11 +306,7 @@ add_component(
 registration_holes = [(35.0, 2.5)]
 
 MANUAL_NETS: set[str] = set()
-ESCAPED_PADS: set[tuple[str, str]] = {("BZ1", "1")}
-
-# Join the buzzer positive pad directly to D1. This avoids a narrow milling
-# gap at the corner of the buzzer negative pad.
-add_track("+5V_BUZZER_SW", "F.Cu", (66.325, USER_CENTERLINE_Y), (66.0, 21.0), width=0.6)
+ESCAPED_PADS: set[tuple[str, str]] = set()
 
 
 def all_pads() -> Iterable[tuple[Component, Pad]]:
@@ -363,7 +386,7 @@ def route_board() -> None:
         edge_margin = 1.0 if net in {"+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else 1.5
         if x < edge_margin or x > BOARD_WIDTH - edge_margin or y < edge_margin or y > BOARD_HEIGHT - edge_margin:
             return True
-        candidate_width = 0.6 if net in {"GND", "+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else MIN_TRACK_WIDTH
+        candidate_width = POWER_TRACK_WIDTH if net in {"GND", "+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else MIN_TRACK_WIDTH
         for pad_net, layer, px, py, radius in foreign_pads:
             if layer == node[2] and pad_net != net and hypot(x - px, y - py) < radius + MIN_CLEARANCE + candidate_width / 2:
                 return True
@@ -477,7 +500,7 @@ def route_board() -> None:
     # Route the small signals before the large power rails.
     route_order = [
         "MIC_SCK", "MIC_WS", "MIC_SD", "+3V3", "MUTE_N", "BUZZER_PWM",
-        "LED_DATA_3V3", "LED_DATA", "GND", "+5V_IN", "+5V_PERIPH",
+        "LED_DATA", "GND", "+5V_IN", "+5V_PERIPH",
         "BUZZER_BASE", "BUZZER_COLLECTOR",
         "+5V_BUZZER_SW",
     ]
@@ -504,7 +527,7 @@ def route_board() -> None:
                 if len(group) < 2:
                     continue
                 points = tuple(world_point(node) for node in group)
-                width = 0.6 if net in {"GND", "+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else MIN_TRACK_WIDTH
+                width = POWER_TRACK_WIDTH if net in {"GND", "+5V_IN", "+5V_PERIPH", "+5V_BUZZER_SW"} else MIN_TRACK_WIDTH
                 add_track(net, LAYER_NAMES[group[0][2]], *points, width=width)
                 for start, end in zip(points, points[1:]):
                     occupied[group[0][2]].append((net, start, end, width))
@@ -551,13 +574,15 @@ def validate() -> None:
         if item.net and item.drill > 0 and item.diameter - item.drill < 0.6:
             errors.append(f"{component.ref} pad {item.number} has a small annular ring")
     for index, first in enumerate(components):
+        if first.body_shape == "none":
+            continue
         if not (
             first.body_width / 2 <= first.x <= BOARD_WIDTH - first.body_width / 2
             and first.body_height / 2 <= first.y <= BOARD_HEIGHT - first.body_height / 2
         ):
             errors.append(f"{first.ref} body extends outside the unit outline")
         for second in components[index + 1:]:
-            if first.face != second.face:
+            if first.face != second.face or second.body_shape == "none":
                 continue
             x_overlap = (first.body_width + second.body_width) / 2 - abs(first.x - second.x)
             y_overlap = (first.body_height + second.body_height) / 2 - abs(first.y - second.y)
@@ -645,13 +670,26 @@ def write_kicad_board() -> None:
     for component in components:
         layer = "F.Cu" if component.face == "User" else "B.Cu"
         silk = "F.SilkS" if component.face == "User" else "B.SilkS"
+        label_x = component.x if component.body_shape != "none" else sum(item.x for item in component.pads) / len(component.pads)
+        label_y = component.y if component.body_shape != "none" else sum(item.y for item in component.pads) / len(component.pads)
         lines.extend([
             f'  (footprint "{component.footprint}"', f'    (layer "{layer}")',
             f'    (uuid "{kicad_uuid(component.ref)}")', '    (at 0 0)',
-            f'    (property "Reference" "{component.ref}" (at {component.x:.3f} {component.y - component.body_height / 2 - 1.3:.3f} 0) (layer "{silk}") (effects (font (size 1 1) (thickness 0.15))))',
-            f'    (property "Value" "{component.value}" (at {component.x:.3f} {component.y + component.body_height / 2 + 1.3:.3f} 0) (layer "{silk}") (effects (font (size 0.8 0.8) (thickness 0.12))))',
-            f'    (fp_rect (start {component.x - component.body_width / 2:.3f} {component.y - component.body_height / 2:.3f}) (end {component.x + component.body_width / 2:.3f} {component.y + component.body_height / 2:.3f}) (stroke (width 0.25) (type default)) (fill none) (layer "{silk}"))',
+            f'    (property "Reference" "{component.ref}" (at {label_x:.3f} {label_y - component.body_height / 2 - 1.3:.3f} 0) (layer "{silk}") (effects (font (size 1 1) (thickness 0.15))))',
+            f'    (property "Value" "{component.value}" (at {label_x:.3f} {label_y + component.body_height / 2 + 1.3:.3f} 0) (layer "{silk}") (effects (font (size 0.8 0.8) (thickness 0.12))))',
         ])
+        if component.body_shape == "circle":
+            lines.append(
+                f'    (fp_circle (center {component.x:.3f} {component.y:.3f}) '
+                f'(end {component.x + component.body_width / 2:.3f} {component.y:.3f}) '
+                f'(stroke (width 0.25) (type default)) (fill none) (layer "{silk}"))'
+            )
+        elif component.body_shape == "rect":
+            lines.append(
+                f'    (fp_rect (start {component.x - component.body_width / 2:.3f} {component.y - component.body_height / 2:.3f}) '
+                f'(end {component.x + component.body_width / 2:.3f} {component.y + component.body_height / 2:.3f}) '
+                f'(stroke (width 0.25) (type default)) (fill none) (layer "{silk}"))'
+            )
         for item in component.pads:
             if item.drill == 0:
                 lines.append(
@@ -870,10 +908,25 @@ def write_svg(face: str, layer: str, output: str, *, panel: bool = False) -> Non
         for component in components:
             if component.face != face:
                 continue
-            svg.append(
-                f'<rect x="{component.x - component.body_width / 2}" y="{component.y - component.body_height / 2}" width="{component.body_width}" height="{component.body_height}" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>'
-            )
-            svg.append(f'<text x="{component.x}" y="{component.y}" font-size="1.4" text-anchor="middle" dominant-baseline="middle">{component.ref}</text>')
+            if component.body_shape == "circle":
+                svg.append(
+                    f'<circle cx="{component.x}" cy="{component.y}" r="{component.body_width / 2}" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>'
+                )
+                svg.append(
+                    f'<path d="M {component.x - 1} {component.y - component.body_height / 2} L {component.x + 1} {component.y - component.body_height / 2}" stroke="#111" stroke-width="0.5"/>'
+                )
+            elif component.body_shape == "rect":
+                svg.append(
+                    f'<rect x="{component.x - component.body_width / 2}" y="{component.y - component.body_height / 2}" width="{component.body_width}" height="{component.body_height}" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>'
+                )
+            if component.body_shape != "none":
+                svg.append(f'<text x="{component.x}" y="{component.y}" font-size="1.4" text-anchor="middle" dominant-baseline="middle">{component.ref}</text>')
+            else:
+                for item in component.pads:
+                    label_y = item.y + 1.7 if item.y < BOARD_HEIGHT / 2 else item.y - 1.3
+                    svg.append(
+                        f'<text x="{item.x}" y="{label_y}" font-size="0.65" text-anchor="middle">{component.ref}-{item.number}</text>'
+                    )
         for _, item in all_pads():
             if item.drill > 0:
                 svg.append(f'<circle cx="{item.x}" cy="{item.y}" r="{item.diameter / 2}" fill="{color}"/><circle cx="{item.x}" cy="{item.y}" r="{item.drill / 2}" fill="#fff"/>')
@@ -908,6 +961,52 @@ def write_netlist() -> None:
     (HERE / f"{BOARD_NAME}-netlist.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
+def write_component_fit_check() -> None:
+    """Write a print-scale check that uses the same provisional dimensions."""
+    mic_radius = MIC_MODULE_DIAMETER / 2
+    buzzer_radius = BUZZER_BODY_DIAMETER / 2
+    mic_left = 55 - MIC_PIN_PITCH_X
+    mic_right = 55 + MIC_PIN_PITCH_X
+    mic_top = 65 - MIC_ROW_PITCH_Y / 2
+    mic_bottom = 65 + MIC_ROW_PITCH_Y / 2
+    buzzer_left = 145 - BUZZER_LEAD_PITCH / 2
+    buzzer_right = 145 + BUZZER_LEAD_PITCH / 2
+    copper_hole = lambda x, y: (
+        f'<circle cx="{x:.2f}" cy="{y:.2f}" r="0.7" fill="#8b3f12"/>'
+        f'<circle cx="{x:.2f}" cy="{y:.2f}" r="0.45" fill="#fff"/>'
+    )
+    lines = [
+        '<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="100mm" viewBox="0 0 210 100">',
+        '<style>text { font-family: Arial, sans-serif; fill: #172033; } .title { font-size: 6px; font-weight: 700; } .label { font-size: 4px; font-weight: 700; } .small { font-size: 3px; } .part { fill: #e8e8e8; fill-opacity: 0.8; stroke: #111; stroke-width: 0.5; } .center { stroke: #0e7490; stroke-width: 0.2; stroke-dasharray: 1 1; } .scale { stroke: #172033; stroke-width: 0.5; }</style>',
+        '<rect width="210" height="100" fill="white"/>',
+        '<text x="8" y="10" class="title">ESPNoise provisional 1:1 component fit check</text>',
+        '<text x="8" y="16" class="small">Print at 100% scale. Do not use Fit to page. The 50 mm check line must measure exactly 50 mm.</text>',
+        '<line x1="8" y1="25" x2="58" y2="25" class="scale"/><line x1="8" y1="22" x2="8" y2="28" class="scale"/><line x1="58" y1="22" x2="58" y2="28" class="scale"/>',
+        '<text x="33" y="22" text-anchor="middle" class="label">50.00 mm</text>',
+        '<text x="55" y="40" text-anchor="middle" class="label">MIC1 — label side, notch at top</text>',
+        f'<circle cx="55" cy="65" r="{mic_radius:.2f}" class="part"/>',
+        f'<path d="M52.5 {65 - mic_radius + 0.35:.2f} Q55 {65 - mic_radius + 2.8:.2f} 57.5 {65 - mic_radius + 0.35:.2f}" fill="none" stroke="#111" stroke-width="0.35"/>',
+        '<line x1="45" y1="65" x2="65" y2="65" class="center"/><line x1="55" y1="55" x2="55" y2="75" class="center"/>',
+        copper_hole(mic_left, mic_top) + copper_hole(55, mic_top) + copper_hole(mic_right, mic_top),
+        copper_hole(mic_left, mic_bottom) + copper_hole(55, mic_bottom) + copper_hole(mic_right, mic_bottom),
+        f'<text x="{mic_left:.2f}" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">1</text><text x="55" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">2</text><text x="{mic_right:.2f}" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">3</text>',
+        f'<text x="{mic_left:.2f}" y="{mic_bottom + 3.5:.2f}" text-anchor="middle" class="small">4</text><text x="55" y="{mic_bottom + 3.5:.2f}" text-anchor="middle" class="small">5</text><text x="{mic_right:.2f}" y="{mic_bottom + 3.5:.2f}" text-anchor="middle" class="small">6</text>',
+        f'<text x="55" y="80" text-anchor="middle" class="small">PROVISIONAL: body {MIC_MODULE_DIAMETER:.2f} mm</text>',
+        f'<text x="55" y="84" text-anchor="middle" class="small">row {MIC_ROW_PITCH_Y:.2f} mm; pins {MIC_PIN_PITCH_X:.2f} mm</text>',
+        '<text x="145" y="40" text-anchor="middle" class="label">BZ1 — sound-port side</text>',
+        f'<circle cx="145" cy="65" r="{buzzer_radius:.2f}" class="part"/>',
+        '<line x1="137" y1="65" x2="153" y2="65" class="center"/><line x1="145" y1="57" x2="145" y2="73" class="center"/>',
+        copper_hole(buzzer_left, 65) + copper_hole(buzzer_right, 65),
+        f'<text x="{buzzer_left:.2f}" y="62" text-anchor="middle" class="small">2 −</text><text x="{buzzer_right:.2f}" y="62" text-anchor="middle" class="small">1 +</text>',
+        f'<text x="145" y="80" text-anchor="middle" class="small">PROVISIONAL: body {BUZZER_BODY_DIAMETER:.2f} mm</text>',
+        f'<text x="145" y="84" text-anchor="middle" class="small">lead pitch {BUZZER_LEAD_PITCH:.2f} mm</text>',
+        '<rect x="8" y="88" width="194" height="8" fill="#fff7ed" stroke="#c2410c" stroke-width="0.3"/>',
+        '<text x="105" y="93" text-anchor="middle" class="label">STOP if a body or lead does not align. Measure the real part and regenerate the PCB.</text>',
+        '</svg>',
+    ]
+    (HERE / "espnoise-component-fit-check.svg").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     (HERE / "gerbers").mkdir(parents=True, exist_ok=True)
     validate()
@@ -927,6 +1026,7 @@ def main() -> None:
     write_svg("Internal", "B.Cu", f"{PANEL_NAME}-internal.svg", panel=True)
     write_bom()
     write_netlist()
+    write_component_fit_check()
     print(f"Generated and validated ESPNoise Rev C CNC files in {HERE}")
 
 

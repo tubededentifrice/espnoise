@@ -53,3 +53,5 @@
   credentials, personal paths, device dumps, or private measurements.
 - Keep hardware assumptions in the documents. Do not put an unknown part size
   into a final case model.
+- For ESPNoise schematic, PCB, and CNC work, use
+  `.codex/skills/maintain-espnoise-hardware/SKILL.md`.

@@ -18,8 +18,14 @@ terminals are on the internal face.
 ![Two-unit internal face](espnoise-panel-internal.svg)
 
 The electrical schematic is in `espnoise-cnc-schematic.svg`. The exact pin
-connections are in `espnoise-cnc-netlist.csv`. The editable unit PCB is
-`espnoise-cnc.kicad_pcb`. The generator is the controlled layout source.
+connections are in `pinout.md` and `espnoise-cnc-netlist.csv`. The editable
+unit PCB is `espnoise-cnc.kicad_pcb`. The generator is the controlled layout
+source.
+
+This layout is provisional. Do not mill the full panel until you measure the
+microphone and buzzer and update the values in `generate_cnc_board.py`. Print
+`espnoise-component-fit-check.svg` at 100% scale and put the real parts on the
+drawing before you generate the final machine files.
 
 ## Important design limits
 
@@ -29,7 +35,7 @@ connections are in `espnoise-cnc-netlist.csv`. The editable unit PCB is
 - Copper faces: two
 - Minimum track width: 0.50 mm
 - Minimum checked copper clearance: 0.40 mm
-- Power track width: 0.60 mm
+- Power track width: 1.00 mm
 - Registration holes: two 2.0 mm panel holes on X = 35 mm
 - Wire vias: 0.8 mm holes with 1.7 mm copper pads
 - No plated holes and no solder mask
@@ -37,35 +43,34 @@ connections are in `espnoise-cnc-netlist.csv`. The editable unit PCB is
 - No insulated link wires
 - No LED logic-level IC
 
-The board uses direct insulated wires instead of cable headers. `P1` is the
-external 5 V power input. `W1` through `W9` go to the ESP32. `W10` through
-`W12` go to the LED strip. The exact signal for each terminal is in the BOM,
-netlist, schematic, and internal-face SVG.
+The board uses direct insulated wires instead of cable headers. The exact
+signal for each pad is in `pinout.md`, the netlist, the schematic, and the
+internal-face SVG.
 
-| Terminal | Connection |
+| Pad group | Connection |
 | --- | --- |
-| P1-1 / P1-2 | External +5 V / GND |
-| W1 / W2 | ESP32 5 V / GND |
-| W3 | ESP32 mute GPIO |
-| W4 / W5 / W6 | ESP32 microphone SCK / WS / SD |
-| W7 | ESP32 3.3 V for the microphone |
-| W8 | ESP32 LED data GPIO |
-| W9 | ESP32 buzzer GPIO |
-| W10 / W11 / W12 | LED +5 V / data / GND |
+| PWR1-1 / PWR1-2 | External +5 V / GND |
+| J_ESP32-1 through J_ESP32-9 | ESP32 5 V, GND, 3.3 V, and six GPIO wires |
+| J_LED-1 / J_LED-2 / J_LED-3 | LED +5 V / DIN / GND |
 
-The LED data path is the ESP32 3.3 V signal through R1, a 330 ohm series
-resistor. This matches the tested prototype and the short wire path for 10 to
-12 pixels. If the installed strip is not reliable, add an external 5 V logic
-buffer near the strip. Do not add a long unbuffered data wire.
+The LED data path is a direct trace from ESP32 GPIO18 to J_LED-2. This matches
+the tested prototype. It is not a guaranteed 5 V logic interface. Keep the
+wire short. If the installed strip is not reliable, add an external 5 V logic
+buffer near the strip.
 
 The buzzer driver parts stay on the board. The specified magnetic 5 V buzzer
 must not connect directly to an ESP32 GPIO. SW2 stays as a hard switch in the
 buzzer power wire and can remove all buzzer power.
 
-MIC1 is a six-pin INMP441 module. The PCB pin order from low X to high X is
-`SCK`, `WS`, `L/R`, `SD`, `VDD`, `GND`. Some seller modules use a different
-pin order or a different board size. Confirm the printed labels. Measure the
-real module and its acoustic port before you make the case holes.
+MIC1 is the round MH-ET LIVE INMP441 module with two rows of three pins. With
+the label face visible and the notch at the top, the top row is `GND`, `VDD`,
+`SD`. The bottom row is `L/R`, `WS`, `SCK`. `L/R` connects to GND. Confirm the
+printed labels. Measure the body, both pin pitches, and the acoustic-hole
+offset before you mill the board or make the case holes.
+
+BZ1 is a round two-pin through-hole buzzer. Pad 1 is positive. Pad 2 is
+negative and connects to the transistor collector. Measure its body and lead
+pitch before you mill the board.
 
 ## Generate the files
 
@@ -102,6 +107,8 @@ preflight checks in `cubiko-guide.md` pass.
 | `espnoise-panel-user.svg` | Two-unit user-face check view |
 | `espnoise-panel-internal.svg` | Two-unit internal-face check view |
 | `espnoise-cnc-schematic.svg` | Electrical schematic |
+| `pinout.md` | Complete pad and connector pin map |
+| `espnoise-component-fit-check.svg` | 1:1 provisional part fit check |
 | `espnoise-cnc-netlist.csv` | Exact pin-to-net table |
 | `espnoise-cnc-bom.csv` | Parts and face assignment for one unit |
 | `millproject` | Two-unit panel isolation values |

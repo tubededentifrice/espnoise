@@ -82,7 +82,7 @@ uv run --locked opendle-pio device monitor --baud 115200
 ```
 
 The tested passive piezo buzzer uses a 2N3904 low-side driver. GPIO23 connects
-to its base through 5.1 kohm. The firmware drives it with 2.4 kHz PWM. The
+to its base through 1 kohm. The firmware drives it with 2.4 kHz PWM. The
 hard switch stays in the buzzer 5 V wire.
 
 The runtime buzzer-volume value sets the electrical tone amplitude. The

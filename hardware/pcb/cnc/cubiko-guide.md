@@ -1,7 +1,8 @@
 # Genmitsu Cubiko first PCB guide
 
 Use this guide for the ESPNoise Rev C two-unit panel. Do not start with the
-70 mm by 50 mm blank. Start with the coupon.
+70 mm by 50 mm blank. First measure the real microphone and buzzer. Then use
+the 1:1 part check and the coupon.
 
 ## Tools and material
 
@@ -58,6 +59,12 @@ rotation.
 
 The button centers, microphone acoustic center, and buzzer center are on one
 straight line. This line is local Y = 12.25 mm on each finished PCB.
+
+Before you mill copper, print `espnoise-component-fit-check.svg` at 100% scale.
+Measure the printed 50 mm check line. It must be 50 mm. Put the real MIC1 and
+BZ1 parts on the drawing. All leads must align with the hole centers. Update
+the measured values in `generate_cnc_board.py`, rebuild the files, and repeat
+this check. A screen view is not a physical fit check.
 
 ## Know the four coordinates
 
@@ -178,13 +185,13 @@ under both halves. Make sure that the tool cannot touch a clamp.
 
 Do not connect power during these checks.
 
-1. Check each adjacent P1, W1 through W12, switch, and MIC1 pad pair for a
-   short circuit.
+1. Check each adjacent PWR1, J_ESP32, J_LED, switch, MIC1, and BZ1 pad pair
+   for a short circuit.
 2. Check `+5V_IN` to GND and `+5V_PERIPH` to GND. Both results must be open.
 3. Check each track from one listed endpoint to the other endpoint.
 4. Check that each registration hole has no copper contact.
-5. Compare diode, transistor, capacitor, buzzer, and wire-terminal marks with
-   the schematic and netlist.
+5. Compare diode, transistor, buzzer, and wire-pad marks with the schematic
+   and netlist.
 
 Do not repair a narrow gap with a powered rotary tool. Disconnect the board.
 Use a fine knife or a small hand tool under magnification.
@@ -203,29 +210,28 @@ you install a component:
 This revision needs no insulated link wires.
 
 Install low parts first. Install the resistors, diode, transistor, and fuse.
-Then install the large capacitor. Install the insulated wires in P1 and W1
-through W12. Add strain relief to the wires, but do not cover a pad or a bare
-copper path. Install the user-face switches, microphone module, and buzzer
-last.
+Install the insulated wires in PWR1, J_ESP32, and J_LED. Add strain relief to
+the wires, but do not cover a pad or a bare copper path. Install the user-face
+switches, microphone module, and buzzer last.
 
 Confirm the `2N3904` E-B-C pin order from its data sheet. Confirm the INMP441
 module pin labels. Do not install a part only from its seller title.
 
 ## First power test
 
-Keep W1 through W12 disconnected for the first test. Put SW2 in the buzzer-off
-position.
+Keep J_ESP32 and J_LED disconnected for the first test. Put SW2 in the
+buzzer-off position.
 
-1. Put a current-limited 5 V supply on P1.
+1. Put a current-limited 5 V supply on PWR1.
 2. Start with a 100 mA current limit.
-3. Confirm 5 V at W1 and after F1 at W10.
-4. Disconnect power. Connect the ESP32 wires W1 through W8. Keep W9
-   disconnected.
+3. Confirm 5 V at J_ESP32-1 and after F1 at J_LED-1.
+4. Disconnect power. Connect J_ESP32-1 through J_ESP32-7 and J_ESP32-9. Keep
+   J_ESP32-8 disconnected.
 5. Test the microphone before you connect the LED strip.
-6. Test one SK6812 RGBW pixel through W10, W11, and W12 at no more than the
-   present brightness limit.
+6. Test one SK6812 RGBW pixel through J_LED at no more than the present
+   brightness limit.
 7. Connect all 10 to 12 pixels only after the one-pixel test passes.
-8. Connect W9. Test the buzzer driver and its hard switch last.
+8. Connect J_ESP32-8. Test the buzzer driver and its hard switch last.
 
 Keep the external USB-C power input separate from the ESP32 firmware-service
 port. Do not power both inputs at the same time. The buzzer switch must stay in

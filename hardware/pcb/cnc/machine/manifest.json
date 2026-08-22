@@ -131,11 +131,11 @@
     },
     {
       "file": "espnoise-panel-drill-0.8mm.nc",
-      "sha256": "d221049b85e07856868563d431c63e0cdaac3978935eb8cd0394c313d8bd548f",
+      "sha256": "e78c0a6e750c057beea0ea96f8ae66af070b2be72b913c6b52ab8a14abbfa91a",
       "extents_mm": {
         "X": [
           0.0,
-          56.0
+          65.25
         ],
         "Y": [
           0.0,
@@ -149,7 +149,7 @@
     },
     {
       "file": "espnoise-panel-drill-0.9mm.nc",
-      "sha256": "523ed9c8535353164a8fed3a1adaec11d5faaeb1a02d72cc2db7d334a1f7fa32",
+      "sha256": "3ef74d24f79703f5bd8a2dc66a5ce018869523cfb2db2c12fd42dca1eb096199",
       "extents_mm": {
         "X": [
           0.0,
@@ -167,7 +167,7 @@
     },
     {
       "file": "espnoise-panel-drill-1.0mm.nc",
-      "sha256": "c648d3031a27610077c7d9ca4a365d2543036240c1f4bb6ab45fc03acd0799a0",
+      "sha256": "282c0c4cb4a94358166f6136a13bd4be15e7d10ac0894ec320c463eb2dc3d320",
       "extents_mm": {
         "X": [
           0.0,
@@ -185,7 +185,7 @@
     },
     {
       "file": "espnoise-panel-drill-1.2mm.nc",
-      "sha256": "5bd35ad12fe37a3a13bc521a2e2acee93972f5ee8eacbeaa371e2576e456c2ee",
+      "sha256": "6cbf463bf86ea2999878f45dbc75063f1f37a7aadf2ae0a8d63bd8e6e2381b5c",
       "extents_mm": {
         "X": [
           0.0,
@@ -221,7 +221,7 @@
     },
     {
       "file": "espnoise-panel-internal-face.nc",
-      "sha256": "fbad5d14cb2490345e3307fd175d8b5e819a9d23257090a5c813c8950c21cec1",
+      "sha256": "b384cd8a2e14235c76ac66fbddfb8f9bb2db60139feafe809a76d12a876e19d1",
       "extents_mm": {
         "X": [
           1.40004,
@@ -257,15 +257,15 @@
     },
     {
       "file": "espnoise-panel-user-face.nc",
-      "sha256": "97bf27ad278653cda6889089108a630ec3e68c5af590bf8faea9ea4a0e6d4e95",
+      "sha256": "3e595d469190cb1070733cf112454c2d84c5f2728d9a32e30c0c23eb0bffdfa3",
       "extents_mm": {
         "X": [
-          1.40053,
-          68.59976
+          1.40086,
+          68.59943
         ],
         "Y": [
-          0.59997,
-          49.39949
+          1.70056,
+          48.29988
         ],
         "Z": [
           -0.04,
