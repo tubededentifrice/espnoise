@@ -7,11 +7,11 @@
 - The `esp32dev` board definition for the full-size USB-C board
 - The `lolin32_lite` board definition for the WEMOS battery board
 
-The repository accepts a dependency only after it is two weeks old. The
-`uv.lock` file pins PlatformIO Core and all Python packages with SHA-256
-hashes. The PlatformIO configuration pins the platform, framework, build
-tools, and libraries to exact versions. Git tags and version ranges are not
-permitted.
+The repository accepts a third-party dependency only after it is two weeks
+old. Reviewed commits from `opendle/opendle-esp32` and
+`opendle/opendle-electronics` do not use this cooldown. All dependencies still
+need exact versions, hashes, or full Git commits. Git tags and version ranges
+are not permitted.
 
 Run the fail-closed policy check before an install or dependency update. The
 check verifies the `uv.lock` hashes and dates against PyPI. It reads PlatformIO
@@ -19,6 +19,7 @@ and Git commit dates from their services. It also rejects a missing hash, a
 version range, a Git tag, or a short Git commit.
 
 ```sh
+uv sync --locked
 uv run --locked opendle-deps check
 ```
 
@@ -29,12 +30,6 @@ The same check runs in GitHub Actions. Protect `main` and require the
 `Dependency age / check` result so that a change cannot bypass the check. An
 urgent security fix that is less than two weeks old needs an explicit policy
 change and review. Do not silently remove the cooldown.
-
-From the repository root, install the locked Python tools:
-
-```sh
-uv sync --locked
-```
 
 ## Build
 

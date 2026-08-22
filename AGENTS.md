@@ -37,6 +37,9 @@
 - Run a firmware build after each firmware change when PlatformIO is
   available.
 - Use `uv` for every supported Python environment, dependency, and command.
+- The pinned embedded library is in `shared/opendle-esp32`. The dependency
+  cooldown does not apply to this reviewed first-party library, but a full
+  commit pin is mandatory. Keep ESPNoise product and hardware policy here.
 - Run PlatformIO only through `uv run --locked opendle-pio`. The shared tool
   enforces the dependency policy before PlatformIO can install a package.
 - Keep project paths, machine limits, and CAM values in `opendle-tools.toml`.

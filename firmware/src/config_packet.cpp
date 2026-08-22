@@ -1,5 +1,7 @@
 #include "config_packet.h"
 
+#include <opendle/fnv1a.hpp>
+
 #include <algorithm>
 
 #include "config.h"
@@ -127,12 +129,7 @@ ValidationResult decode(const uint8_t* data, size_t size,
 }
 
 uint32_t fingerprint(const uint8_t* data, size_t size) {
-  uint32_t hash = 2166136261UL;
-  for (size_t index = 0; index < size; ++index) {
-    hash ^= data[index];
-    hash *= 16777619UL;
-  }
-  return hash;
+  return opendle::fnv1a_32(data, size);
 }
 
 uint32_t fingerprint(const Bytes& packet) {
