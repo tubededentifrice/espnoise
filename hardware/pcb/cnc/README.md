@@ -22,11 +22,10 @@ connections are in `pinout.md` and `espnoise-cnc-netlist.csv`. The editable
 unit PCB is `espnoise-cnc.kicad_pcb`. The generator is the controlled layout
 source.
 
-This layout uses the measured buzzer dimensions and the confirmed microphone
-pin pattern. The microphone body diameter is approximate, and its acoustic
-hole offset is not measured. Do not mill the full panel until you confirm that
-offset. Print `espnoise-component-fit-check.svg` at 100% scale and put the real
-parts on the drawing before you generate the final machine files.
+This layout uses the measured buzzer dimensions, the confirmed microphone pin
+pattern, and a centered microphone acoustic hole. The microphone body diameter
+is approximately 13 mm. Print `espnoise-component-fit-check.svg` at 100% scale
+and put the real parts on the drawing before you mill the full panel.
 
 ## Important design limits
 
@@ -64,10 +63,10 @@ must not connect directly to an ESP32 GPIO. SW2 stays as a hard switch in the
 buzzer power wire and can remove all buzzer power.
 
 MIC1 is the round MH-ET LIVE INMP441 module with two rows of three pins. With
-the label face visible and the notch at the top, the top row is `GND`, `VDD`,
-`SD`. The bottom row is `L/R`, `WS`, `SCK`. `L/R` connects to GND. Confirm the
-printed labels. Measure the body, both pin pitches, and the acoustic-hole
-offset before you mill the board or make the case holes.
+the printed-label and acoustic-hole face toward the case top, and with the
+notch at the local top edge, the top row is `GND`, `VDD`, `SD`. The bottom row
+is `L/R`, `WS`, `SCK`. `L/R` connects to GND. This is the same view as the
+supplied product image.
 
 BZ1 is a 12 mm passive two-pin through-hole buzzer. Its lead pitch is 6.5 mm,
 and each lead is 0.5 mm. Pad 1 is positive. Pad 2 is negative and connects to

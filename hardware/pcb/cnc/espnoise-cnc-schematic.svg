@@ -16,7 +16,7 @@
   </style>
   <rect width="1600" height="1180" fill="#fafafa"/>
   <text x="40" y="52" class="title">ESPNoise Rev C CNC schematic and pin map</text>
-  <text x="40" y="82" class="small">All views use the marked part face. MIC1 is about 13 mm. BZ1 is 12 mm with a 6.5 mm lead pitch.</text>
+  <text x="40" y="82" class="small">MIC1 view is from the printed-label and centered acoustic-hole face, which points toward the case top.</text>
 
   <text x="40" y="125" class="section">Power and external wire pads</text>
   <rect x="40" y="150" width="150" height="90" rx="8" class="connector"/>
@@ -49,7 +49,7 @@
   <text x="1190" y="263" class="pin">9 GPIO27 → SW1 mute</text>
   <text x="1190" y="292" class="small">Individual solder wires, not one plug housing.</text>
 
-  <text x="40" y="355" class="section">MIC1: MH-ET LIVE INMP441, label-side view, notch at top</text>
+  <text x="40" y="355" class="section">MIC1: MH-ET LIVE INMP441, case-top face view, notch at local top edge</text>
   <rect x="440" y="370" width="420" height="255" rx="16" class="box"/>
   <text x="650" y="401" text-anchor="middle">MIC1 ROUND 2 × 3 MODULE</text>
   <text x="650" y="426" text-anchor="middle" class="small">The module contains its local support parts.</text>
@@ -59,6 +59,7 @@
   <circle cx="540" cy="560" r="17" class="connector"/><text x="540" y="566" text-anchor="middle" class="pin">4</text>
   <circle cx="650" cy="560" r="17" class="connector"/><text x="650" y="566" text-anchor="middle" class="pin">5</text>
   <circle cx="760" cy="560" r="17" class="connector"/><text x="760" y="566" text-anchor="middle" class="pin">6</text>
+  <circle cx="650" cy="518" r="10" fill="#fff" stroke="#0e7490" stroke-width="3"/><text x="675" y="524" class="small">centered acoustic hole</text>
   <text x="540" y="452" text-anchor="middle" class="pin">GND</text><text x="650" y="452" text-anchor="middle" class="pin">VDD</text><text x="760" y="452" text-anchor="middle" class="pin">SD</text>
   <text x="540" y="596" text-anchor="middle" class="pin">L/R</text><text x="650" y="596" text-anchor="middle" class="pin">WS</text><text x="760" y="596" text-anchor="middle" class="pin">SCK</text>
   <line x1="540" y1="577" x2="540" y2="615" class="wire"/><line x1="520" y1="615" x2="560" y2="615" class="wire"/>
@@ -72,7 +73,7 @@
   <text x="1015" y="462" class="small">Top row: 1 GND, 2 VDD, 3 SD</text>
   <text x="1015" y="489" class="small">Bottom row: 4 L/R, 5 WS, 6 SCK</text>
   <text x="1015" y="516" class="small">MIC1-4 L/R connects to GND.</text>
-  <text x="1015" y="543" class="small">Align the measured acoustic hole, not the round body center.</text>
+  <text x="1015" y="543" class="small">The centered acoustic hole is on the control and buzzer centerline.</text>
 
   <text x="40" y="690" class="section">LED and mute connections</text>
   <rect x="40" y="720" width="440" height="145" rx="8" class="connector"/>

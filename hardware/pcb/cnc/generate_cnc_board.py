@@ -30,7 +30,7 @@ MIN_CLEARANCE = 0.40
 POWER_TRACK_WIDTH = 1.00
 
 # Physical values from the user's prototype board. The microphone diameter is
-# approximate. Its acoustic-hole offset still needs a caliper measurement.
+# approximate. The acoustic hole is confirmed at the module center.
 MIC_MODULE_DIAMETER = 13.0
 MIC_PIN_PITCH_X = 2.54
 MIC_ROW_PITCH_Y = 7.62
@@ -207,7 +207,7 @@ add_component(
             th_pad(5, mic_x[1], mic_bottom_y, "MIC_WS", drill=1.0),
             th_pad(6, mic_x[2], mic_bottom_y, "MIC_SCK", drill=1.0),
         ),
-        "Label-side view, notch toward the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. Pin pitches are confirmed from the prototype board. The 13 mm body is approximate, and the acoustic offset is not measured.",
+        "The printed-label and acoustic-hole face points toward the case top. In that face view, with the notch at the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. The pin pitches and centered acoustic hole are confirmed. The 13 mm body is approximate.",
         "ESPNoise:MH_ET_LIVE_INMP441_2x3_P2.54_Row7.62",
         "circle",
     )
@@ -916,12 +916,19 @@ def write_svg(face: str, layer: str, output: str, *, panel: bool = False) -> Non
                 svg.append(
                     f'<path d="M {component.x - 1} {component.y - component.body_height / 2} L {component.x + 1} {component.y - component.body_height / 2}" stroke="#111" stroke-width="0.5"/>'
                 )
+                if component.ref == "MIC1":
+                    acoustic_x = component.x + MIC_ACOUSTIC_OFFSET_X
+                    acoustic_y = component.y + MIC_ACOUSTIC_OFFSET_Y
+                    svg.append(
+                        f'<circle cx="{acoustic_x}" cy="{acoustic_y}" r="0.7" fill="#fff" stroke="#0e7490" stroke-width="0.35"/>'
+                    )
             elif component.body_shape == "rect":
                 svg.append(
                     f'<rect x="{component.x - component.body_width / 2}" y="{component.y - component.body_height / 2}" width="{component.body_width}" height="{component.body_height}" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>'
                 )
             if component.body_shape != "none":
-                svg.append(f'<text x="{component.x}" y="{component.y}" font-size="1.4" text-anchor="middle" dominant-baseline="middle">{component.ref}</text>')
+                label_y = component.y + 2.0 if component.ref == "MIC1" else component.y
+                svg.append(f'<text x="{component.x}" y="{label_y}" font-size="1.4" text-anchor="middle" dominant-baseline="middle">{component.ref}</text>')
             else:
                 for item in component.pads:
                     label_y = item.y + 1.7 if item.y < BOARD_HEIGHT / 2 else item.y - 1.3
@@ -988,6 +995,7 @@ def write_component_fit_check() -> None:
         f'<circle cx="55" cy="65" r="{mic_radius:.2f}" class="part"/>',
         f'<path d="M52.5 {65 - mic_radius + 0.35:.2f} Q55 {65 - mic_radius + 2.8:.2f} 57.5 {65 - mic_radius + 0.35:.2f}" fill="none" stroke="#111" stroke-width="0.35"/>',
         '<line x1="45" y1="65" x2="65" y2="65" class="center"/><line x1="55" y1="55" x2="55" y2="75" class="center"/>',
+        '<circle cx="55" cy="65" r="0.8" fill="#fff" stroke="#0e7490" stroke-width="0.35"/><text x="63" y="66" class="small">centered acoustic hole</text>',
         copper_hole(mic_left, mic_top) + copper_hole(55, mic_top) + copper_hole(mic_right, mic_top),
         copper_hole(mic_left, mic_bottom) + copper_hole(55, mic_bottom) + copper_hole(mic_right, mic_bottom),
         f'<text x="{mic_left:.2f}" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">1</text><text x="55" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">2</text><text x="{mic_right:.2f}" y="{mic_top - 1.9:.2f}" text-anchor="middle" class="small">3</text>',

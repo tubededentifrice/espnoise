@@ -1,8 +1,7 @@
 # Genmitsu Cubiko first PCB guide
 
 Use this guide for the ESPNoise Rev C two-unit panel. Do not start with the
-70 mm by 50 mm blank. First confirm the microphone acoustic-hole position.
-Then use the 1:1 part check and the coupon.
+70 mm by 50 mm blank. First use the 1:1 part check. Then use the coupon.
 
 ## Tools and material
 

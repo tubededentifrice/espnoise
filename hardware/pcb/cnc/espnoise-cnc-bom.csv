@@ -1,7 +1,7 @@
 ref,quantity,value,face,footprint,note
 SW2,1,"BUZZER ENABLE (7-7 ZS)",User,ESPNoise:7x7_DPDT_Pushbutton,"Extended state enables buzzer power."
 SW1,1,"MUTE (7-7 WS)",User,ESPNoise:7x7_DPDT_Pushbutton,"Momentary mute button."
-MIC1,1,"MH-ET LIVE INMP441 2x3 MODULE",User,ESPNoise:MH_ET_LIVE_INMP441_2x3_P2.54_Row7.62,"Label-side view, notch toward the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. Pin pitches are confirmed from the prototype board. The 13 mm body is approximate, and the acoustic offset is not measured."
+MIC1,1,"MH-ET LIVE INMP441 2x3 MODULE",User,ESPNoise:MH_ET_LIVE_INMP441_2x3_P2.54_Row7.62,"The printed-label and acoustic-hole face points toward the case top. In that face view, with the notch at the local top edge: top row 1 GND, 2 VDD, 3 SD; bottom row 4 L/R, 5 WS, 6 SCK. L/R is grounded. The pin pitches and centered acoustic hole are confirmed. The 13 mm body is approximate."
 BZ1,1,"TWO-PIN 5 V BUZZER",User,ESPNoise:Buzzer_THT_2Pin_P6.50mm_D12mm,"Passive buzzer with top sound port. Pad 1 is + and pad 2 is -. The measured body is 12 mm, the lead pitch is 6.5 mm, and each lead is 0.5 mm. D1 protects the driver from the coil turn-off pulse."
 PWR1,1,"5 V POWER WIRES",Internal,ESPNoise:WirePads_2_P3.5mm,"External power-only input. Keep it separate from the ESP32 service port."
 J_ESP32,1,"ESP32 INDIVIDUAL WIRES",Internal,ESPNoise:IndividualWireGroup_ESP32,"Pins: 1 VIN/5V, 2 GND, 3 3V3, 4 GPIO26 MIC_SCK, 5 GPIO25 MIC_WS, 6 GPIO32 MIC_SD, 7 GPIO18 LED_DATA, 8 GPIO23 BUZZER_PWM, 9 GPIO27 MUTE_N."

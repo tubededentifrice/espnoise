@@ -9,6 +9,7 @@
 <circle cx="55" cy="65" r="6.50" class="part"/>
 <path d="M52.5 58.85 Q55 61.30 57.5 58.85" fill="none" stroke="#111" stroke-width="0.35"/>
 <line x1="45" y1="65" x2="65" y2="65" class="center"/><line x1="55" y1="55" x2="55" y2="75" class="center"/>
+<circle cx="55" cy="65" r="0.8" fill="#fff" stroke="#0e7490" stroke-width="0.35"/><text x="63" y="66" class="small">centered acoustic hole</text>
 <circle cx="52.46" cy="61.19" r="0.7" fill="#8b3f12"/><circle cx="52.46" cy="61.19" r="0.45" fill="#fff"/><circle cx="55.00" cy="61.19" r="0.7" fill="#8b3f12"/><circle cx="55.00" cy="61.19" r="0.45" fill="#fff"/><circle cx="57.54" cy="61.19" r="0.7" fill="#8b3f12"/><circle cx="57.54" cy="61.19" r="0.45" fill="#fff"/>
 <circle cx="52.46" cy="68.81" r="0.7" fill="#8b3f12"/><circle cx="52.46" cy="68.81" r="0.45" fill="#fff"/><circle cx="55.00" cy="68.81" r="0.7" fill="#8b3f12"/><circle cx="55.00" cy="68.81" r="0.45" fill="#fff"/><circle cx="57.54" cy="68.81" r="0.7" fill="#8b3f12"/><circle cx="57.54" cy="68.81" r="0.45" fill="#fff"/>
 <text x="52.46" y="59.29" text-anchor="middle" class="small">1</text><text x="55" y="59.29" text-anchor="middle" class="small">2</text><text x="57.54" y="59.29" text-anchor="middle" class="small">3</text>

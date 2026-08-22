@@ -4,9 +4,9 @@ This document uses the view from the marked face of each part. The marked face
 points toward the top opening of the case. The internal PCB face contains the
 wire pads and the buzzer driver parts.
 
-The microphone pin pattern and the buzzer dimensions come from the prototype
-parts. The microphone body diameter is approximate. Do not engrave the final
-panel until you confirm the microphone acoustic-hole position.
+The microphone pin pattern, centered acoustic hole, and buzzer dimensions come
+from the prototype parts. The microphone body diameter is approximately
+13 mm. Use the 1:1 fit check before you engrave the full panel.
 
 ## PWR1: external 5 V power wires
 
@@ -49,8 +49,9 @@ stable, install an external 5 V logic buffer close to the strip.
 
 ## MIC1: MH-ET LIVE INMP441 module
 
-Use the printed-label face view. Put the edge notch at the local top edge of
-the PCB.
+Install the module with its printed-label and acoustic-hole face toward the
+case top. The pin diagram below is the view from that face. Put the edge notch
+at the local top edge of the PCB, as shown in the supplied product image.
 
 ```text
                   LOCAL TOP EDGE / NOTCH
@@ -103,18 +104,17 @@ contact numbering can differ.
 The PCB has no LED resistor, no bulk capacitor, no LED level shifter, and no
 extra microphone passives.
 
-## Physical values and remaining measurement
+## Physical values
 
-| Value | Provisional PCB value | Measured value |
+| Value | PCB value | Source |
 | --- | ---: | ---: |
 | MIC1 round body diameter | 13.00 mm | Approximate |
 | MIC1 pin pitch inside each row | 2.54 mm | Confirmed on prototype board |
 | MIC1 distance between rows | 7.62 mm | Confirmed: two empty 2.54 mm rows between occupied rows |
-| MIC1 acoustic-hole X offset from body center | 0.00 mm | Not measured |
-| MIC1 acoustic-hole Y offset from body center | 0.00 mm | Not measured |
+| MIC1 acoustic-hole X offset from body center | 0.00 mm | Confirmed centered |
+| MIC1 acoustic-hole Y offset from body center | 0.00 mm | Confirmed centered |
 | BZ1 body diameter | 12.00 mm | Measured |
 | BZ1 lead pitch | 6.50 mm | Measured |
 | BZ1 lead diameter | 0.50 mm | Measured; PCB drill is 0.80 mm |
 
-The microphone acoustic hole, not the module body center, must be on the
-switch and buzzer centerline.
+The centered microphone acoustic hole is on the switch and buzzer centerline.
