@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the ESPNoise Rev C unit and two-unit CNC panel.
+"""Generate the ESPNoise Rev C CNC unit.
 
 The generated files do not need KiCad. KiCad can open the generated board, and
 pcb2gcode can convert the Gerber files to GRBL G-code.
@@ -7,7 +7,7 @@ pcb2gcode can convert the Gerber files to GRBL G-code.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from heapq import heappop, heappush
 from itertools import count
 from math import hypot
@@ -18,16 +18,16 @@ from uuid import uuid5, NAMESPACE_URL
 
 HERE = Path(__file__).resolve().parent
 BOARD_NAME = "espnoise-cnc"
-PANEL_NAME = "espnoise-panel"
 BOARD_WIDTH = 70.0
 BOARD_HEIGHT = 24.5
-PANEL_WIDTH = 70.0
-PANEL_HEIGHT = 50.0
-PANEL_CUT_Y = 25.0
 USER_CENTERLINE_Y = BOARD_HEIGHT / 2
 MIN_TRACK_WIDTH = 1.00
 MIN_CLEARANCE = 0.40
 POWER_TRACK_WIDTH = 1.30
+# The physical blanks can be shorter than their nominal 70 mm length. Move
+# all copper and holes toward the left edge. This gives more tolerance at the
+# right edge, while the outline stays at the nominal unit size.
+LAYOUT_SHIFT_X = -0.50
 
 # Physical values from the user's prototype board. The microphone diameter is
 # approximate. The acoustic hole is confirmed at the module center.
@@ -539,6 +539,27 @@ def route_board() -> None:
 route_board()
 
 
+def shift_layout_x(offset: float) -> None:
+    """Move all physical layout items without changing their connections."""
+    components[:] = [
+        replace(
+            component,
+            x=component.x + offset,
+            pads=tuple(replace(item, x=item.x + offset) for item in component.pads),
+        )
+        for component in components
+    ]
+    tracks[:] = [
+        replace(item, points=tuple((x + offset, y) for x, y in item.points))
+        for item in tracks
+    ]
+    vias[:] = [replace(item, x=item.x + offset) for item in vias]
+    registration_holes[:] = [(x + offset, y) for x, y in registration_holes]
+
+
+shift_layout_x(LAYOUT_SHIFT_X)
+
+
 def segment_distance(
     a1: tuple[float, float], a2: tuple[float, float], b1: tuple[float, float], b2: tuple[float, float]
 ) -> float:
@@ -738,13 +759,7 @@ def gerber_coord(value: float) -> str:
     return f"{int(round(value * 1_000_000)):010d}"
 
 
-def panel_point(instance: int, x: float, y: float) -> tuple[float, float]:
-    if instance == 0:
-        return x, y
-    return PANEL_WIDTH - x, PANEL_HEIGHT - y
-
-
-def write_copper_gerber(layer: str, suffix: str, *, panel: bool = False) -> None:
+def write_copper_gerber(layer: str, suffix: str) -> None:
     layer_tracks = [item for item in tracks if item.layer == layer]
     layer_pads: list[Pad] = []
     for _, item in all_pads():
@@ -764,54 +779,42 @@ def write_copper_gerber(layer: str, suffix: str, *, panel: bool = False) -> None
         aperture_specs.append(("C", (item.diameter,)))
     unique_specs = list(dict.fromkeys(aperture_specs))
     aperture_ids = {spec: 10 + index for index, spec in enumerate(unique_specs)}
-    kind = "two-unit panel" if panel else "unit"
-    lines = [f"G04 ESPNoise Rev C {kind} {layer}*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%"]
+    lines = [f"G04 ESPNoise Rev C unit {layer}*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%"]
     for spec in unique_specs:
         if spec[0] == "C":
             lines.append(f"%ADD{aperture_ids[spec]}C,{spec[1][0]:.6f}*%")
         else:
             lines.append(f"%ADD{aperture_ids[spec]}R,{spec[1][0]:.6f}X{spec[1][1]:.6f}*%")
-    for instance in range(2 if panel else 1):
-        for item in layer_tracks:
-            track_spec = ("C", (item.width,))
-            lines.append(f"D{aperture_ids[track_spec]}*")
-            points = [panel_point(instance, x, y) if panel else (x, y) for x, y in item.points]
-            start = points[0]
-            lines.append(f"X{gerber_coord(start[0])}Y{gerber_coord(start[1])}D02*")
-            for x, y in points[1:]:
-                lines.append(f"X{gerber_coord(x)}Y{gerber_coord(y)}D01*")
-        for item in layer_pads:
-            spec = ("R", (item.width or 0, item.height or 0)) if item.shape == "rect" else ("C", (item.diameter,))
-            x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
-            lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(x)}Y{gerber_coord(y)}D03*"])
-        for item in vias:
-            spec = ("C", (item.diameter,))
-            x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
-            lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(x)}Y{gerber_coord(y)}D03*"])
+    for item in layer_tracks:
+        track_spec = ("C", (item.width,))
+        lines.append(f"D{aperture_ids[track_spec]}*")
+        start = item.points[0]
+        lines.append(f"X{gerber_coord(start[0])}Y{gerber_coord(start[1])}D02*")
+        for x, y in item.points[1:]:
+            lines.append(f"X{gerber_coord(x)}Y{gerber_coord(y)}D01*")
+    for item in layer_pads:
+        spec = ("R", (item.width or 0, item.height or 0)) if item.shape == "rect" else ("C", (item.diameter,))
+        lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(item.x)}Y{gerber_coord(item.y)}D03*"])
+    for item in vias:
+        spec = ("C", (item.diameter,))
+        lines.extend([f"D{aperture_ids[spec]}*", f"X{gerber_coord(item.x)}Y{gerber_coord(item.y)}D03*"])
     lines.append("M02*")
-    output_name = PANEL_NAME if panel else BOARD_NAME
-    (HERE / "gerbers" / f"{output_name}-{suffix}").write_text("\n".join(lines) + "\n", encoding="ascii")
+    (HERE / "gerbers" / f"{BOARD_NAME}-{suffix}").write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
-def write_outline_gerber(*, panel: bool = False) -> None:
-    width = PANEL_WIDTH if panel else BOARD_WIDTH
-    height = PANEL_HEIGHT if panel else BOARD_HEIGHT
-    output_name = PANEL_NAME if panel else BOARD_NAME
+def write_outline_gerber() -> None:
+    width = BOARD_WIDTH
+    height = BOARD_HEIGHT
     lines = [
-        f"G04 ESPNoise Rev C {'panel' if panel else 'unit'} outline*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%", "%ADD10C,0.100000*%", "D10*",
+        "G04 ESPNoise Rev C unit outline*", "%FSLAX46Y46*%", "%MOMM*%", "%LPD*%", "%ADD10C,0.100000*%", "D10*",
         f"X{gerber_coord(0)}Y{gerber_coord(0)}D02*",
         f"X{gerber_coord(width)}Y{gerber_coord(0)}D01*",
         f"X{gerber_coord(width)}Y{gerber_coord(height)}D01*",
         f"X{gerber_coord(0)}Y{gerber_coord(height)}D01*",
         f"X{gerber_coord(0)}Y{gerber_coord(0)}D01*",
     ]
-    if panel:
-        lines.extend([
-            f"X{gerber_coord(0)}Y{gerber_coord(PANEL_CUT_Y)}D02*",
-            f"X{gerber_coord(PANEL_WIDTH)}Y{gerber_coord(PANEL_CUT_Y)}D01*",
-        ])
     lines.append("M02*")
-    (HERE / "gerbers" / f"{output_name}-Edge_Cuts.gm1").write_text("\n".join(lines) + "\n", encoding="ascii")
+    (HERE / "gerbers" / f"{BOARD_NAME}-Edge_Cuts.gm1").write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
 def write_coupon_files() -> None:
@@ -854,25 +857,20 @@ def write_coupon_files() -> None:
     (coupon_dir / "coupon-drills.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_drills(*, panel: bool = False) -> None:
+def write_drills() -> None:
     holes: list[tuple[float, float, float, str]] = []
-    for instance in range(2 if panel else 1):
-        unit = "A" if instance == 0 else "B"
-        for component, item in all_pads():
-            if item.drill > 0:
-                x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
-                holes.append((x, y, item.drill, f"{unit}-{component.ref}-{item.number}" if panel else f"{component.ref}-{item.number}"))
-        for x, y in registration_holes:
-            x, y = panel_point(instance, x, y) if panel else (x, y)
-            holes.append((x, y, 2.0, f"{unit}-registration" if panel else "registration"))
-        for item in vias:
-            x, y = panel_point(instance, item.x, item.y) if panel else (item.x, item.y)
-            holes.append((x, y, item.drill, f"{unit}-wire-via" if panel else "wire-via"))
+    for component, item in all_pads():
+        if item.drill > 0:
+            holes.append((item.x, item.y, item.drill, f"{component.ref}-{item.number}"))
+    for x, y in registration_holes:
+        holes.append((x, y, 2.0, "registration"))
+    for item in vias:
+        holes.append((item.x, item.y, item.drill, "wire-via"))
     grouped: dict[float, list[tuple[float, float, str]]] = {}
     for x, y, diameter, label in holes:
         grouped.setdefault(diameter, []).append((x, y, label))
     gerber_dir = HERE / "gerbers"
-    output_name = PANEL_NAME if panel else BOARD_NAME
+    output_name = BOARD_NAME
     for diameter, positions in sorted(grouped.items()):
         file_name = gerber_dir / f"{output_name}-drill-{diameter:.1f}mm.drl"
         lines = ["M48", ";DRILL file generated by ESPNoise", "METRIC,TZ", f"T1C{diameter:.3f}", "%", "G90", "G05", "T1"]
@@ -885,10 +883,10 @@ def write_drills(*, panel: bool = False) -> None:
     (HERE / "gerbers" / f"{output_name}-drills.csv").write_text("\n".join(csv_lines) + "\n", encoding="utf-8")
 
 
-def write_svg(face: str, layer: str, output: str, *, panel: bool = False) -> None:
+def write_svg(face: str, layer: str, output: str) -> None:
     mirror = face == "Internal"
-    width = PANEL_WIDTH if panel else BOARD_WIDTH
-    height = PANEL_HEIGHT if panel else BOARD_HEIGHT
+    width = BOARD_WIDTH
+    height = BOARD_HEIGHT
     transform = f'translate({width} 0) scale(-1 1)' if mirror else ""
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}mm" height="{height}mm" viewBox="0 0 {width} {height}">',
@@ -896,9 +894,8 @@ def write_svg(face: str, layer: str, output: str, *, panel: bool = False) -> Non
         f'<g transform="{transform}">',
     ]
     color = "#8b3f12"
-    for instance in range(2 if panel else 1):
-        instance_transform = f'matrix(-1 0 0 -1 {PANEL_WIDTH} {PANEL_HEIGHT})' if panel and instance == 1 else ""
-        svg.append(f'<g transform="{instance_transform}">')
+    for _ in range(1):
+        svg.append('<g>')
         svg.append(f'<rect width="{BOARD_WIDTH}" height="{BOARD_HEIGHT}" fill="none" stroke="#333" stroke-width="0.15"/>')
         svg.append(f'<line x1="0" y1="{USER_CENTERLINE_Y}" x2="{BOARD_WIDTH}" y2="{USER_CENTERLINE_Y}" stroke="#777" stroke-width="0.12" stroke-dasharray="1,1"/>')
         for item in tracks:
@@ -945,9 +942,7 @@ def write_svg(face: str, layer: str, output: str, *, panel: bool = False) -> Non
         for x, y in registration_holes:
             svg.append(f'<circle cx="{x}" cy="{y}" r="1" fill="#fff" stroke="#222" stroke-width="0.2"/>')
         svg.append("</g>")
-    if panel:
-        svg.append(f'<line x1="0" y1="{PANEL_CUT_Y}" x2="{PANEL_WIDTH}" y2="{PANEL_CUT_Y}" stroke="#d22" stroke-width="0.25" stroke-dasharray="1,0.7"/>')
-    svg.extend(["</g>", f'<text x="{width / 2}" y="{height - 0.7}" font-size="1.1" text-anchor="middle">ESPNoise Rev C CNC — {face} face{' — two-unit panel' if panel else ''}</text>', "</svg>"])
+    svg.extend(["</g>", f'<text x="{width / 2}" y="{height - 0.7}" font-size="1.1" text-anchor="middle">ESPNoise Rev C CNC — {face} face</text>', "</svg>"])
     (HERE / output).write_text("\n".join(svg) + "\n", encoding="utf-8")
 
 
@@ -1023,16 +1018,10 @@ def main() -> None:
     write_copper_gerber("F.Cu", "F_Cu.gtl")
     write_copper_gerber("B.Cu", "B_Cu.gbl")
     write_outline_gerber()
-    write_copper_gerber("F.Cu", "F_Cu.gtl", panel=True)
-    write_copper_gerber("B.Cu", "B_Cu.gbl", panel=True)
-    write_outline_gerber(panel=True)
     write_coupon_files()
     write_drills()
-    write_drills(panel=True)
     write_svg("User", "F.Cu", f"{BOARD_NAME}-user.svg")
     write_svg("Internal", "B.Cu", f"{BOARD_NAME}-internal.svg")
-    write_svg("User", "F.Cu", f"{PANEL_NAME}-user.svg", panel=True)
-    write_svg("Internal", "B.Cu", f"{PANEL_NAME}-internal.svg", panel=True)
     write_bom()
     write_netlist()
     write_component_fit_check()

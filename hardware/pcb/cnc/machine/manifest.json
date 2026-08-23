@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "project": "espnoise-rev-c",
-  "config_sha256": "8ffae4671e10c80c6a206d4ca1b620177dab3170af71370690dd3e7d124b9954",
+  "config_sha256": "ae3d354d9cc7ba624c0ea0b815e6a02165db671ae13815041596fb66a8b192c7",
   "outputs": [
     {
       "file": "coupon-drill-0.8mm.nc",
@@ -130,16 +130,16 @@
       }
     },
     {
-      "file": "espnoise-panel-drill-0.8mm.nc",
-      "sha256": "2a18c10b4801c1a7a0477ee3ee431f42b606939ce0c5284fa4454c78c91ded19",
+      "file": "espnoise-unit-drill-0.8mm.nc",
+      "sha256": "5109909bf913c1423dd3f9b34d6dd7bb5bde33762b70d914d229e911d7f8daa4",
       "extents_mm": {
         "X": [
           0.0,
-          65.75
+          63.75
         ],
         "Y": [
           0.0,
-          47.0
+          22.0
         ],
         "Z": [
           -1.8,
@@ -148,16 +148,16 @@
       }
     },
     {
-      "file": "espnoise-panel-drill-0.9mm.nc",
-      "sha256": "3ef74d24f79703f5bd8a2dc66a5ce018869523cfb2db2c12fd42dca1eb096199",
+      "file": "espnoise-unit-drill-0.9mm.nc",
+      "sha256": "1c8e9cdf2375b4a209b0a783f58239efe1970d71336b2fe72ccd13c2f2f406ee",
       "extents_mm": {
         "X": [
           0.0,
-          66.0
+          65.5
         ],
         "Y": [
           0.0,
-          44.0
+          21.0
         ],
         "Z": [
           -1.8,
@@ -166,16 +166,16 @@
       }
     },
     {
-      "file": "espnoise-panel-drill-1.0mm.nc",
-      "sha256": "9fc0111be8c28e53076d35b12e4c12a0c3489545beae4edb12eba3cac250278a",
+      "file": "espnoise-unit-drill-1.0mm.nc",
+      "sha256": "8e04b92589434bc42f76dd1d752df39d8cc8bd340b4ddaee7e953be441eb800a",
       "extents_mm": {
         "X": [
           0.0,
-          65.0
+          38.04
         ],
         "Y": [
           0.0,
-          47.0
+          16.06
         ],
         "Z": [
           -1.8,
@@ -184,35 +184,17 @@
       }
     },
     {
-      "file": "espnoise-panel-drill-1.2mm.nc",
-      "sha256": "6cbf463bf86ea2999878f45dbc75063f1f37a7aadf2ae0a8d63bd8e6e2381b5c",
+      "file": "espnoise-unit-drill-1.2mm.nc",
+      "sha256": "750cc6c407aeaee2e7b6546bdc74740f429a986b7725306e97ca2d418dd83a64",
       "extents_mm": {
         "X": [
-          0.0,
-          67.5
-        ],
-        "Y": [
-          0.0,
-          47.0
-        ],
-        "Z": [
-          -1.8,
-          2.0
-        ]
-      }
-    },
-    {
-      "file": "espnoise-panel-drill-2.0mm.nc",
-      "sha256": "d25ed253f9ad41452429baf15596195d859ce4e70abe17c68261c3f9e164861d",
-      "extents_mm": {
-        "X": [
-          0.0,
-          35.0
-        ],
-        "Y": [
           0.0,
           47.5
         ],
+        "Y": [
+          0.0,
+          22.0
+        ],
         "Z": [
           -1.8,
           2.0
@@ -220,16 +202,34 @@
       }
     },
     {
-      "file": "espnoise-panel-internal-face.nc",
-      "sha256": "76c22056007654abfad97762beddfcc7ef17f6a43e64afe3efdb297925a6c60b",
+      "file": "espnoise-unit-drill-2.0mm.nc",
+      "sha256": "455e318b76d13a2b473d27deb6ea658294b755a8b7cf3d3d881cd61b57f04fcf",
       "extents_mm": {
         "X": [
-          1.20006,
-          68.7996
+          0.0,
+          34.5
         ],
         "Y": [
-          1.50007,
-          48.49985
+          0.0,
+          2.5
+        ],
+        "Z": [
+          -1.8,
+          2.0
+        ]
+      }
+    },
+    {
+      "file": "espnoise-unit-internal-face.nc",
+      "sha256": "5e2f45492fb38b55172bfd216af08474b413ca7fafbd9b29fa57eb29f88c6eeb",
+      "extents_mm": {
+        "X": [
+          2.40006,
+          68.29959
+        ],
+        "Y": [
+          1.50043,
+          23.29993
         ],
         "Z": [
           -0.05,
@@ -238,34 +238,16 @@
       }
     },
     {
-      "file": "espnoise-panel-separate.nc",
-      "sha256": "865ec99d9e2f762e63d25ed99ce573350a3bd42a4c0387224d3165ca9dbb5432",
+      "file": "espnoise-unit-user-face.nc",
+      "sha256": "4af48d659fd833b68ad4a6291b75e153d3acdded34229b0bb353c879d7e4f69e",
       "extents_mm": {
         "X": [
-          0.0,
-          70.0
-        ],
-        "Y": [
-          0.0,
-          25.0
-        ],
-        "Z": [
-          -1.8,
-          2.0
-        ]
-      }
-    },
-    {
-      "file": "espnoise-panel-user-face.nc",
-      "sha256": "406efc6c0bc54521977c0e5154b629cbbced300a2fe256870e1ba90e0f7f3dd4",
-      "extents_mm": {
-        "X": [
-          1.20058,
-          68.7993
+          0.70058,
+          66.59936
         ],
         "Y": [
           1.50058,
-          48.4999
+          23.29993
         ],
         "Z": [
           -0.05,

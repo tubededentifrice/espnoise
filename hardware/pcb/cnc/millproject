@@ -1,15 +1,16 @@
-# pcb2gcode settings for the Genmitsu Cubiko and the two-unit Rev C panel.
+# pcb2gcode settings for one ESPNoise Rev C unit.
 # These are safe first-test values. Validate them with the coupon.
-front=gerbers/espnoise-panel-F_Cu.gtl
-back=gerbers/espnoise-panel-B_Cu.gbl
-front-output=espnoise-panel-user-face.nc
-back-output=espnoise-panel-internal-face.nc
+front=gerbers/espnoise-cnc-F_Cu.gtl
+back=gerbers/espnoise-cnc-B_Cu.gbl
+front-output=espnoise-unit-user-face.nc
+back-output=espnoise-unit-internal-face.nc
 output-dir=machine
 
 metric=true
 metricoutput=true
 zero-start=false
-mirror-axis=35.0
+# Use a 69 mm reference window. A wider blank can extend 1 mm beyond it.
+mirror-axis=34.5
 nog64=true
 optimise=0.005
 sanity-checks=true

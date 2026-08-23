@@ -1,7 +1,8 @@
 # Genmitsu Cubiko first PCB guide
 
-Use this guide for the ESPNoise Rev C two-unit panel. Do not start with the
-70 mm by 50 mm blank. First use the 1:1 part check. Then use the coupon.
+Use this guide to put two ESPNoise Rev C units on one blank. The machine files
+contain one unit. Do not start with the complete blank. First use the 1:1 part
+check. Then use the coupon.
 
 ## Tools and material
 
@@ -45,16 +46,17 @@ Sources:
 - [SainSmart KiCad-to-CNC PCB guide](https://www.sainsmart.com/blogs/news/cubiko-pcb-milling-tutorial)
 - [Cubiko product and height-map description](https://genmitsu.com/pages/cubiko)
 
-## Know the panel layout
+## Know the repeated-unit layout
 
-The raw panel is 70 mm by 50 mm. Each finished PCB is 70 mm by 24.5 mm. The
-1.0 mm router bit moves on Y = 25 mm. It removes the space from Y = 24.5 mm
-through Y = 25.5 mm.
+The raw blank is nominally 70 mm by 50 mm. The assumed minimum size is 69 mm
+by 49 mm. Each unit job uses 70 mm by 24.5 mm nominal coordinates. All copper
+and holes have a 0.50 mm shift toward the left. This gives more clearance at
+the right edge of a short blank.
 
-The second PCB has a 180-degree rotation in the panel data. Thus, the center
-cut is the same local edge on both finished PCBs. Do not rotate the panel in
-the machine to make this layout. The generated files already contain the
-rotation.
+Run the first unit from one outside edge. Rotate the complete blank by 180
+degrees in its plane. Set X/Y zero at the new lower-left corner. Run the same
+file again. The machine file does not contain a second unit or its rotation.
+The blank-height error stays between the two units.
 
 The button centers, microphone acoustic center, and buzzer center are on one
 straight line. This line is local Y = 12.25 mm on each finished PCB.
@@ -68,14 +70,19 @@ this check. A screen view is not a physical fit check.
 ## Know the four coordinates
 
 - Machine zero is the Cubiko home position. Do not change it.
-- Work X/Y zero is the lower-left corner of the fixed 70 mm by 50 mm blank.
+- Work X/Y zero is the lower-left corner of the current blank orientation.
 - Work Z zero is the measured copper surface for the installed tool.
-- The internal-face job is already mirrored around X = 35 mm.
+- The internal-face job is already mirrored around X = 34.5 mm. This is the
+  center of the 69 mm minimum-width reference window.
 
-The two registration holes are on X = 35 mm. Flip the panel from left to
-right. Do not flip it from top to bottom. The two pins keep the panel position.
-Keep the same work X/Y zero after the flip. Make a new Z measurement and a new
-height map for each face and after each tool change.
+Each unit run makes one 2.0 mm mounting hole at X = 34.5 mm. Do not use the two
+repeated holes as a flip axis when the blank is wider than 69 mm. Use the
+corner stops for the copper-face flip. Flip the blank from left to right. Do
+not flip it from top to bottom. If the measured blank length is more than
+69 mm, put the extra length before X zero on the internal-face presentation.
+For example, put 0.8 mm before X zero for a 69.8 mm blank. This keeps the
+69 mm reference window aligned on both faces. Make a new Z measurement and a
+new height map for each face and after each tool change.
 
 Do not add 70 mm to X after the flip. The generated internal-face G-code
 already contains the mirror operation.
@@ -94,9 +101,6 @@ The build files use these first-test values:
 | Isolation width | 0.40 mm |
 | Safe Z | 2.0 mm |
 | Drill depth | 1.8 mm |
-| Separation feed | 100 mm/min |
-| Separation step-down | 0.4 mm |
-| Separation final depth | 1.8 mm |
 
 The SainSmart PCB guide gives an isolation depth range from 0.01 mm through
 0.05 mm. Tests on the installed copper blank gave a cleaner result with two
@@ -104,10 +108,8 @@ equal passes to 0.05 mm. Confirm that height compensation is applied. Copper
 thickness, tool tip width, spindle runout, and board flatness change the
 result.
 
-The separation depth is for nominal 1.6 mm FR-4 plus 0.2 mm into the
-spoilboard. Measure your blank with a caliper. If its thickness is different,
-change `cut.cut_depth` in `opendle-tools.toml`. Use the measured thickness plus
-only 0.2 mm. Then run the shared CAM command again.
+There is no fixed blank-separation file. Its Y coordinate depends on the
+measured blank height. Do not use an old `espnoise-panel-separate.nc` file.
 
 ## Make and test the coupon
 
@@ -145,36 +147,45 @@ tip. Increase the depth by only 0.01 mm. Do not use an isolation depth below
 smaller-angle V-bit. Change `zwork` or `mill-diameters` in both millproject
 files. Then run the build script again.
 
-## Mill the two-unit panel
+## Mill two units on one blank
 
-Use a new 70 mm by 50 mm blank after all coupon checks pass.
+Use a new blank after all coupon checks pass.
 
-1. Measure the blank. Stop if a dimension is less than 70 mm by 50 mm.
+1. Measure and record the blank length, height, and thickness. Stop if its
+   length is less than 69 mm or its height is less than 49 mm.
 2. Mark one face `USER` and mark its lower-left corner.
 3. Fix the complete blank with the user face up.
 4. Set X/Y zero at the marked lower-left corner.
 5. Install the 2.0 mm drill and set Z zero.
-6. Run `espnoise-panel-drill-2.0mm.nc` first. These holes set the flip axis.
+6. Run `espnoise-unit-drill-2.0mm.nc`.
 7. Install the validated V-bit and set Z zero.
-8. Make a height map for 70 mm by 50 mm.
-9. Run `espnoise-panel-user-face.nc`.
-10. Check the isolation before you remove the blank.
-11. Put two smooth 2.0 mm pins into the registration holes and spoilboard.
-12. Flip the panel from left to right. Keep the same X/Y zero.
-13. Fix the panel. Set Z zero and make a new height map.
-14. Run `espnoise-panel-internal-face.nc`.
-15. Check the flip alignment at several wire-via pads.
-16. Flip the panel back to the user face with the pins.
-17. Run the 0.8 mm, 0.9 mm, 1.0 mm, and 1.2 mm panel drill jobs. Set Z zero
-    after each tool change. The 1.2 mm holes are for the wire terminals.
-18. Do all electrical checks while the two PCBs are still one panel.
-19. Install the 1.0 mm PCB router bit and set Z zero.
-20. Fix both future PCB halves to the spoilboard. Keep all clamps and tape
-    clear of Y = 25 mm. Each half must stay fixed after the cut finishes.
-21. Do a dry run at safe Z. Confirm the path from X = 0 through X = 70.
-22. Run `espnoise-panel-separate.nc` last.
-23. Vacuum the closed machine and the panel. Lightly remove edge burrs.
-24. Wash the PCBs with isopropyl alcohol and let them dry.
+8. Make a height map for the first 69 mm by 24.5 mm reference area.
+9. Run `espnoise-unit-user-face.nc`.
+10. Check the isolation. Rotate the blank by 180 degrees in its plane.
+11. Set X/Y zero at the new lower-left corner. Set Z zero and make a new
+    height map for the second unit area.
+12. Run `espnoise-unit-drill-2.0mm.nc` and `espnoise-unit-user-face.nc` again.
+13. Record the measured blank length. Flip the blank from left to right. Do
+    not rotate it in its plane during this face flip. Put it against the corner
+    stops.
+14. Set X zero inward from the presented left edge by `length - 69.0 mm`.
+    Keep Y zero at the presented lower edge. For a 69.0 mm blank, X zero is on
+    the edge.
+15. Set Z zero, make a new height map, and run
+    `espnoise-unit-internal-face.nc`.
+16. Rotate the blank by 180 degrees in its plane. Set X/Y zero with the same
+    69 mm reference rule. Make a new height map. Run
+    `espnoise-unit-internal-face.nc` again.
+17. Flip the blank back to the `USER` face. Use the same two user-face
+    orientations to run the 0.8 mm, 0.9 mm, 1.0 mm, and 1.2 mm unit drill
+    files. Set Z zero after each tool change.
+18. Do all electrical checks before you separate the two units.
+19. Measure the center space between the two unit areas. Only make a router
+    cut if its complete 1.0 mm kerf stays outside both unit areas.
+20. Clamp both future parts. Set Z zero and do a safe-Z dry run of a cut that
+    uses the measured blank height. Do not use the removed fixed center file.
+21. Vacuum the closed machine. Lightly remove edge burrs.
+22. Wash the PCBs with isopropyl alcohol and let them dry.
 
 Do not hold a PCB by hand during the separation cut. Do not use only one clamp
 for the complete panel. The two free parts can move when the cut finishes. Use

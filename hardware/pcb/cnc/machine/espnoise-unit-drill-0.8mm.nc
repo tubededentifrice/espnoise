@@ -1,0 +1,75 @@
+(ESPNoise Rev C single unit; run once from each outside blank edge 0.8 mm drill job)
+(Origin is the lower-left corner of the currently presented blank orientation)
+G21
+G90
+G94
+G0 Z2.000
+M3 S10000
+G4 P2
+(wire-via)
+G0 X9.500 Y3.000
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X14.500 Y3.000
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X3.750 Y4.000
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X29.000 Y9.500
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X34.500 Y10.500
+G1 Z-1.800 F60
+G0 Z2.000
+(BZ1-2)
+G0 X57.250 Y12.250
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X57.250 Y12.250
+G1 Z-1.800 F60
+G0 Z2.000
+(BZ1-1)
+G0 X63.750 Y12.250
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X63.750 Y12.250
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X38.000 Y12.500
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X19.250 Y18.250
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X33.500 Y18.250
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X17.500 Y22.000
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X29.250 Y22.000
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X36.750 Y22.000
+G1 Z-1.800 F60
+G0 Z2.000
+(wire-via)
+G0 X43.500 Y22.000
+G1 Z-1.800 F60
+G0 Z2.000
+M5
+G0 X0 Y0
+M2

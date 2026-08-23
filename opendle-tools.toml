@@ -29,8 +29,8 @@ configs = [
   "hardware/pcb/cnc/millproject-coupon",
 ]
 outputs = [
-  "hardware/pcb/cnc/machine/espnoise-panel-user-face.nc",
-  "hardware/pcb/cnc/machine/espnoise-panel-internal-face.nc",
+  "hardware/pcb/cnc/machine/espnoise-unit-user-face.nc",
+  "hardware/pcb/cnc/machine/espnoise-unit-internal-face.nc",
   "hardware/pcb/cnc/machine/coupon-user-face.nc",
   "hardware/pcb/cnc/machine/coupon-internal-face.nc",
 ]
@@ -42,10 +42,10 @@ drill_feed = 60
 spindle_rpm = 10000
 
 [[drill.jobs]]
-input = "hardware/pcb/cnc/gerbers/espnoise-panel-drills.csv"
-output_prefix = "espnoise-panel-drill"
-title = "ESPNoise Rev C two-unit panel"
-origin_note = "Origin is the user-face lower-left blank corner"
+input = "hardware/pcb/cnc/gerbers/espnoise-cnc-drills.csv"
+output_prefix = "espnoise-unit-drill"
+title = "ESPNoise Rev C single unit; run once from each outside blank edge"
+origin_note = "Origin is the lower-left corner of the currently presented blank orientation"
 
 [[drill.jobs]]
 input = "hardware/pcb/cnc/coupon/coupon-drills.csv"
@@ -60,13 +60,6 @@ step_down = 0.4
 plunge_feed = 60
 cut_feed = 100
 spindle_rpm = 10000
-
-[[cut.jobs]]
-output = "espnoise-panel-separate.nc"
-title = "ESPNoise panel center separation; use a 1.0 mm PCB router end mill"
-start_x = 0.0
-end_x = 70.0
-y = 25.0
 
 [[cut.jobs]]
 output = "coupon-separate.nc"

@@ -1,9 +1,10 @@
 # ESPNoise carrier PCB
 
-For the 70 mm by 50 mm two-unit home-milled panel, use
-[`cnc/README.md`](cnc/README.md). Each finished Rev C PCB is 70 mm by 24.5 mm.
-The prototype uses larger through-hole parts, individual wire terminals,
-registration holes, Gerber files, and Cubiko G-code.
+For the nominal 70 mm by 50 mm home-milled blank, use
+[`cnc/README.md`](cnc/README.md). The Cubiko files contain one unit. Run them
+twice with a 180-degree blank rotation between the two runs. The prototype uses
+larger through-hole parts, individual wire terminals, registration holes,
+Gerber files, and Cubiko G-code.
 The Rev B factory board below stays separate.
 
 This directory contains the carrier PCB for the USB-powered ESPNoise build.
