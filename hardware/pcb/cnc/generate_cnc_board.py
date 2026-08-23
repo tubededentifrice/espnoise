@@ -25,9 +25,9 @@ PANEL_WIDTH = 70.0
 PANEL_HEIGHT = 50.0
 PANEL_CUT_Y = 25.0
 USER_CENTERLINE_Y = BOARD_HEIGHT / 2
-MIN_TRACK_WIDTH = 0.70
+MIN_TRACK_WIDTH = 1.00
 MIN_CLEARANCE = 0.40
-POWER_TRACK_WIDTH = 1.20
+POWER_TRACK_WIDTH = 1.30
 
 # Physical values from the user's prototype board. The microphone diameter is
 # approximate. The acoustic hole is confirmed at the module center.

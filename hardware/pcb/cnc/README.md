@@ -33,9 +33,10 @@ and put the real parts on the drawing before you mill the full panel.
 - Finished unit: 70 mm by 24.5 mm
 - Center tool path: Y = 25 mm
 - Copper faces: two
-- Minimum track width: 0.70 mm
+- Minimum track width: 1.00 mm
 - Minimum checked copper clearance: 0.40 mm
-- Power track width: 1.20 mm
+- Power track width: 1.30 mm
+- Milled isolation width: 0.40 mm
 - Microphone pads: 2.00 mm copper with 1.00 mm holes
 - Buzzer pads: 2.00 mm copper with 0.80 mm holes
 - Registration holes: two 2.0 mm panel holes on X = 35 mm

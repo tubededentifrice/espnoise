@@ -10,7 +10,7 @@ diameter_mm,x_mm,y_mm,purpose
 0.8,64.250,12.250,A-wire-via
 0.8,38.500,12.500,A-wire-via
 0.8,19.750,18.250,A-wire-via
-0.8,33.500,18.500,A-wire-via
+0.8,34.000,18.250,A-wire-via
 0.8,18.000,22.000,A-wire-via
 0.8,29.750,22.000,A-wire-via
 0.8,37.250,22.000,A-wire-via
@@ -19,7 +19,7 @@ diameter_mm,x_mm,y_mm,purpose
 0.8,32.750,28.000,B-wire-via
 0.8,40.250,28.000,B-wire-via
 0.8,52.000,28.000,B-wire-via
-0.8,36.500,31.500,B-wire-via
+0.8,36.000,31.750,B-wire-via
 0.8,50.250,31.750,B-wire-via
 0.8,31.500,37.500,B-wire-via
 0.8,5.750,37.750,B-BZ1-1

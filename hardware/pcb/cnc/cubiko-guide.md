@@ -89,9 +89,9 @@ The build files use these first-test values:
 | Spindle speed | 10,000 RPM |
 | Isolation horizontal feed | 120 mm/min |
 | Vertical feed | 60 mm/min |
-| Isolation depth | 0.04 mm |
+| Isolation depth | 0.05 mm in two equal passes |
 | Effective V-bit cut width | 0.20 mm |
-| Isolation width | 0.20 mm |
+| Isolation width | 0.40 mm |
 | Safe Z | 2.0 mm |
 | Drill depth | 1.8 mm |
 | Separation feed | 100 mm/min |
@@ -99,8 +99,8 @@ The build files use these first-test values:
 | Separation final depth | 1.8 mm |
 
 The SainSmart PCB guide gives an isolation depth range from 0.01 mm through
-0.05 mm. This project uses 0.04 mm. Confirm that height compensation is
-applied before you change this value. Copper
+0.05 mm. Tests on the installed copper blank gave a cleaner result with two
+equal passes to 0.05 mm. Confirm that height compensation is applied. Copper
 thickness, tool tip width, spindle runout, and board flatness change the
 result.
 

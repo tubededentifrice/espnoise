@@ -4,21 +4,21 @@
 <g transform="">
 <rect width="70.0" height="24.5" fill="none" stroke="#333" stroke-width="0.15"/>
 <line x1="0" y1="12.25" x2="70.0" y2="12.25" stroke="#777" stroke-width="0.12" stroke-dasharray="1,1"/>
-<polyline points="38.5,16.0 37.5,17.0 37.5,17.25 34.5,20.25 31.5,20.25 31.25,20.5 31.0,20.5 29.75,21.75 29.75,22.0" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="36.0,16.0 33.5,18.5" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="38.5,8.5 38.5,10.0 40.25,11.75 40.25,15.5 40.5,15.75 40.5,16.25 40.25,16.5 40.25,17.0 37.25,20.0 37.25,22.0" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="36.0,8.5 36.25,8.75 36.25,9.0 36.5,9.25 36.5,9.5 37.0,10.0 37.0,10.25 38.5,11.75 38.5,12.5" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="18.0,14.75 18.0,22.0" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="20.0,14.75 21.25,16.0 33.5,16.0" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="33.5,16.0 33.5,8.5" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="33.5,10.5 35.0,10.5" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="21.25,16.0 21.0,16.25 21.0,16.5 20.75,16.75 20.75,17.0 20.25,17.5 20.25,17.75 19.75,18.25" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="4.25,4.0 5.25,5.0 5.5,5.0 5.75,5.25 7.25,5.25 7.5,5.0 7.75,5.0 9.75,3.0 10.0,3.0" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="7.0,14.75 7.0,14.5 7.25,14.25 7.25,14.0 7.5,13.75 7.5,13.5 9.5,11.5 9.75,11.5 10.0,11.25 10.25,11.25 15.0,6.5 15.0,3.0" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="15.0,6.25 39.0,6.25 39.25,6.5 39.5,6.5 42.5,9.5 42.5,12.75 44.0,14.25 44.0,22.0" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="56.0,6.0 52.0,10.0 49.0,10.0" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="55.75,6.25 59.5,10.0 59.5,17.0" fill="none" stroke="#8b3f12" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round"/>
-<polyline points="5.0,14.75 5.0,15.0 5.25,15.25 5.25,15.5 5.5,15.75 5.5,16.0 5.75,16.25 6.0,16.25 6.25,16.5 6.5,16.5 6.75,16.75 9.25,16.75 9.5,16.5 9.75,16.5 10.0,16.25 10.25,16.25 14.25,12.25 26.75,12.25 29.5,9.5" fill="none" stroke="#8b3f12" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="38.5,16.0 38.0,16.5 38.0,16.75 34.75,20.0 31.5,20.0 29.75,21.75 29.75,22.0" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="36.0,16.0 35.25,16.75 35.25,17.0 34.0,18.25" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="38.5,8.5 38.5,10.0 40.25,11.75 40.25,15.0 40.5,15.25 40.5,16.75 40.25,17.0 40.25,17.25 37.25,20.25 37.25,22.0" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="36.0,8.5 36.25,8.75 36.25,9.0 36.5,9.25 36.5,9.5 37.0,10.0 37.0,10.5 38.5,12.0 38.5,12.5" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="18.0,14.75 18.0,22.0" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="20.0,14.75 21.25,16.0 33.5,16.0" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="33.5,16.0 33.5,8.5" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="33.5,10.5 35.0,10.5" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="21.25,16.0 21.0,16.25 21.0,16.5 20.75,16.75 20.75,17.0 20.25,17.5 20.25,17.75 19.75,18.25" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="4.25,4.0 5.5,5.25 7.5,5.25 9.75,3.0 10.0,3.0" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="7.0,14.75 7.0,14.25 7.25,14.0 7.25,13.75 9.25,11.75 9.5,11.75 9.75,11.5 10.0,11.5 15.0,6.5 15.0,3.0" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="15.0,6.25 39.0,6.25 39.25,6.5 39.5,6.5 42.5,9.5 42.5,12.75 44.0,14.25 44.0,22.0" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="56.0,6.0 52.0,10.0 49.0,10.0" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="55.75,6.25 59.5,10.0 59.5,11.5 59.75,11.75 59.75,12.75 59.5,13.0 59.5,17.0" fill="none" stroke="#8b3f12" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="5.0,14.75 5.0,15.25 5.25,15.5 5.25,15.75 6.0,16.5 6.25,16.5 6.5,16.75 9.5,16.75 9.75,16.5 10.0,16.5 14.25,12.25 26.75,12.25 29.5,9.5" fill="none" stroke="#8b3f12" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
 <rect x="1.25" y="1.0" width="7.0" height="4.0" fill="#e8e8e8" fill-opacity="0.8" stroke="#111" stroke-width="0.25"/>
 <text x="4.75" y="3.0" font-size="1.4" text-anchor="middle" dominant-baseline="middle">PWR1</text>
 <text x="2.5" y="20.7" font-size="0.65" text-anchor="middle">J_ESP32-1</text>
@@ -89,7 +89,7 @@
 <circle cx="59.5" cy="17.0" r="0.8" fill="#8b3f12"/><circle cx="59.5" cy="17.0" r="0.45" fill="#fff"/>
 <circle cx="62.04" cy="17.0" r="0.8" fill="#8b3f12"/><circle cx="62.04" cy="17.0" r="0.45" fill="#fff"/>
 <circle cx="29.75" cy="22.0" r="0.85" fill="#8b3f12"/><circle cx="29.75" cy="22.0" r="0.4" fill="#fff"/>
-<circle cx="33.5" cy="18.5" r="0.85" fill="#8b3f12"/><circle cx="33.5" cy="18.5" r="0.4" fill="#fff"/>
+<circle cx="34.0" cy="18.25" r="0.85" fill="#8b3f12"/><circle cx="34.0" cy="18.25" r="0.4" fill="#fff"/>
 <circle cx="37.25" cy="22.0" r="0.85" fill="#8b3f12"/><circle cx="37.25" cy="22.0" r="0.4" fill="#fff"/>
 <circle cx="38.5" cy="12.5" r="0.85" fill="#8b3f12"/><circle cx="38.5" cy="12.5" r="0.4" fill="#fff"/>
 <circle cx="18.0" cy="22.0" r="0.85" fill="#8b3f12"/><circle cx="18.0" cy="22.0" r="0.4" fill="#fff"/>

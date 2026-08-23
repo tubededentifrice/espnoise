@@ -16,9 +16,9 @@ sanity-checks=true
 
 # The 0.20 mm value is the measured cut width, not the V-bit shank size.
 mill-diameters=0.20
-isolation-width=0.20
+isolation-width=0.40
 milling-overlap=50%
-zwork=-0.04
+zwork=-0.05
 zsafe=2.0
 zchange=10.0
 mill-feed=120
